@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Puffco Local Web Controller, Telemetry & Custom Heat Curve Studio
-High-performance aiohttp async web server with WebSocket streaming,
-REST controls, dynamic host-side BLE heat curve governor, and persistence.
+Puffco Studio — Local Web Controller & Heat Curve Studio
+Companion / tagalong reference application demonstrating the full capabilities
+of the puffco-py library (v0.1.3+) over Bluetooth LE.
 """
 
 import asyncio
@@ -1207,6 +1207,7 @@ def create_app() -> web.Application:
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     host = os.environ.get("HOST", "127.0.0.1")
-    logger.info(f"Starting Puffco Web Controller on http://{host}:{port}")
+    logger.info(f"Starting Puffco Studio on http://{host}:{port}")
+    logger.info(f"Powered by puffco-py v{getattr(puffco_py, '__version__', 'unknown')}")
     app = create_app()
     web.run_app(app, host=host, port=port)
