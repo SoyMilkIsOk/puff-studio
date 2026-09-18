@@ -1,0 +1,122 @@
+[
+  {
+    "id": "preset-step-3",
+    "name": "Step 430 \u2192 485 \u2192 520",
+    "description": "3-stage progression: initial low-temp terpene boil, steady extraction, high-temp cloud finish.",
+    "duration_s": 50,
+    "keyframes": [
+      {
+        "time_s": 0,
+        "temp_f": 430
+      },
+      {
+        "time_s": 15,
+        "temp_f": 430
+      },
+      {
+        "time_s": 18,
+        "temp_f": 485
+      },
+      {
+        "time_s": 35,
+        "temp_f": 485
+      },
+      {
+        "time_s": 38,
+        "temp_f": 520
+      },
+      {
+        "time_s": 50,
+        "temp_f": 520
+      }
+    ]
+  },
+  {
+    "id": "preset-thermal-decay",
+    "name": "Decay 535 \u2192 465",
+    "description": "Traditional quartz banger emulation: hot start for thick vapor, descending as concentrate thins.",
+    "duration_s": 50,
+    "keyframes": [
+      {
+        "time_s": 0,
+        "temp_f": 535
+      },
+      {
+        "time_s": 12,
+        "temp_f": 535
+      },
+      {
+        "time_s": 30,
+        "temp_f": 495
+      },
+      {
+        "time_s": 50,
+        "temp_f": 465
+      }
+    ]
+  },
+  {
+    "id": "preset-linear-ramp",
+    "name": "Linear 420 \u2192 510",
+    "description": "Continuous smooth thermal ramp (+1.5\u00b0F/s) across a 60s session.",
+    "duration_s": 60,
+    "keyframes": [
+      {
+        "time_s": 0,
+        "temp_f": 420
+      },
+      {
+        "time_s": 60,
+        "temp_f": 510
+      }
+    ]
+  },
+  {
+    "id": "preset-low-dwell",
+    "name": "Dwell 450",
+    "description": "Extended low-temp plateau for solventless / live rosin with minimal thermal stress.",
+    "duration_s": 60,
+    "keyframes": [
+      {
+        "time_s": 0,
+        "temp_f": 445
+      },
+      {
+        "time_s": 20,
+        "temp_f": 445
+      },
+      {
+        "time_s": 25,
+        "temp_f": 460
+      },
+      {
+        "time_s": 60,
+        "temp_f": 460
+      }
+    ]
+  },
+  {
+    "id": "preset-boost-finish",
+    "name": "Peak Boost 480 \u2192 535",
+    "description": "Steady 480\u00b0F extraction with an aggressive 535\u00b0F boost for the final 15 seconds.",
+    "duration_s": 55,
+    "keyframes": [
+      {
+        "time_s": 0,
+        "temp_f": 480
+      },
+      {
+        "time_s": 38,
+        "temp_f": 480
+      },
+      {
+        "time_s": 42,
+        "temp_f": 535
+      },
+      {
+        "time_s": 55,
+        "temp_f": 535
+      }
+    ]
+  }
+]
