@@ -1982,34 +1982,126 @@ input, textarea, table {
     gap: 8px;
   }
 
-  /* Curve Studio Mobile */
-  .curve-canvas-card {
-    padding: 14px 10px;
+  /* ─── Curve Studio Mobile Fixes ─── */
+
+  /* Tighten presets bar padding */
+  .curve-presets-bar {
+    padding: 14px 12px;
+    gap: 12px;
   }
 
+  /* Stack preset header so title & action buttons don't overlap */
+  .presets-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .preset-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .preset-actions .btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  /* Let curve pills wrap cleanly */
+  .curve-pills-list {
+    gap: 8px;
+  }
+
+  .curve-pill {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  /* Canvas card */
+  .curve-canvas-card {
+    padding: 14px 10px;
+    gap: 16px;
+  }
+
+  /* Curve meta header — stack badges below title */
+  .curve-meta-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .curve-heading {
+    font-size: 1.1rem;
+  }
+
+  .curve-desc {
+    font-size: 0.8rem;
+    max-width: 100%;
+  }
+
+  /* Fix graph overflow: container height must match wrapper height */
   .graph-wrapper {
+    height: auto;
+    flex-direction: column;
+  }
+
+  .graph-container {
     height: 260px;
   }
 
-  .graph-hint {
-    font-size: 0.7rem;
+  .graph-y-axis {
+    width: 32px;
+    font-size: 0.65rem;
   }
 
+  /* Adjust x-axis left padding to match y-axis width on mobile */
+  .graph-x-axis {
+    padding-left: 42px;
+    font-size: 0.65rem;
+  }
+
+  /* Graph hint — keep it readable and inside bounds */
+  .graph-hint {
+    font-size: 0.65rem;
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    gap: 5px;
+  }
+
+  /* Command bar — full-width stack */
   .curve-command-bar {
     flex-direction: column;
     align-items: stretch;
     gap: 14px;
+    padding: 14px;
   }
 
   .curve-live-metrics {
     justify-content: space-around;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .c-val {
+    font-size: 1.05rem;
   }
 
   .curve-cta-group {
     display: grid;
     grid-template-columns: 2fr 1fr;
+    gap: 10px;
   }
 
+  .btn-run-curve {
+    padding: 0 16px;
+    height: 48px;
+    font-size: 0.85rem;
+  }
+
+  /* Keyframe table — compact for mobile */
   .kf-table th, .kf-table td {
     padding: 8px 6px;
     font-size: 0.78rem;
@@ -2023,6 +2115,242 @@ input, textarea, table {
   /* Bottom spacing so mobile navigation doesn't cut off content */
   .app-layout {
     padding-bottom: 40px;
+  }
+}
+
+/* ──── Extra-Small Mobile (< 480px) ──── */
+@media (max-width: 480px) {
+  .app-layout {
+    padding: 10px 10px 40px;
+    gap: 14px;
+  }
+
+  /* Header — stack everything vertically */
+  .app-header {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .brand-title {
+    font-size: 1rem;
+  }
+
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-tab {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  .tab-badge {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+  }
+
+  .status-pill {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  .battery-pill {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  /* Dashboard gauge */
+  .gauge-container {
+    max-width: 240px;
+    max-height: 240px;
+  }
+
+  .live-temp-display {
+    font-size: 2.6rem;
+  }
+
+  .live-temp-display .unit {
+    font-size: 1.1rem;
+  }
+
+  .dial-scale-endpoints {
+    top: 200px;
+    width: 200px;
+  }
+
+  .session-actions-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .btn-sesh-start {
+    min-height: 48px;
+    font-size: 0.88rem;
+  }
+
+  .btn-sesh-boost, .btn-sesh-stop {
+    min-height: 44px;
+    font-size: 0.78rem;
+  }
+
+  .profiles-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ─── Curve Studio — Extra Small ─── */
+
+  .curve-presets-bar {
+    padding: 12px 10px;
+  }
+
+  .preset-actions .btn {
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  .curve-pill {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+  }
+
+  .curve-canvas-card {
+    padding: 12px 8px;
+    gap: 12px;
+  }
+
+  .curve-heading {
+    font-size: 1rem;
+  }
+
+  .curve-desc {
+    font-size: 0.75rem;
+  }
+
+  /* Even smaller graph on tiny screens */
+  .graph-container {
+    height: 200px;
+  }
+
+  .graph-y-axis {
+    width: 28px;
+    font-size: 0.6rem;
+  }
+
+  .graph-x-axis {
+    padding-left: 36px;
+    font-size: 0.6rem;
+  }
+
+  /* Hide graph hint entirely on very small screens to save space */
+  .graph-hint {
+    display: none;
+  }
+
+  /* Command bar metrics */
+  .curve-live-metrics {
+    gap: 10px;
+  }
+
+  .c-label {
+    font-size: 0.6rem;
+  }
+
+  .c-val {
+    font-size: 0.92rem;
+  }
+
+  .curve-cta-group {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn-run-curve {
+    padding: 0 10px;
+    height: 44px;
+    font-size: 0.78rem;
+  }
+
+  #run-curve-btn-label {
+    font-size: 0.72rem;
+  }
+
+  /* Keyframe table — extra compact */
+  .kf-table th, .kf-table td {
+    padding: 6px 4px;
+    font-size: 0.72rem;
+  }
+
+  .kf-input {
+    width: 55px;
+    padding: 5px 4px;
+    font-size: 0.75rem;
+  }
+
+  .kf-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Compat banner — stack on tiny screens */
+  .compat-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 12px;
+    gap: 8px;
+    font-size: 0.75rem;
+  }
+
+  .compat-banner-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Modal — full width on small screens */
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-window {
+    max-width: 100%;
+  }
+
+  .modal-body {
+    max-height: 60vh;
+    padding: 16px;
+  }
+
+  /* Footer — stack */
+  .app-footer {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+}
+
+/* ──── Landscape-aware tweaks for short viewports ──── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .gauge-container {
+    max-width: 200px;
+    max-height: 200px;
+  }
+
+  .graph-container {
+    height: 180px;
+  }
+
+  .curve-command-bar {
+    padding: 10px 14px;
+  }
+
+  .modal-body {
+    max-height: 50vh;
   }
 }
 
