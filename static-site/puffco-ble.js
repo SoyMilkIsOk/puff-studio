@@ -517,18 +517,63 @@ class PuffcoBleClient {
       PUFFCO_SILABS_OTA_SVC_UUID,
     ];
 
-    console.log('[PuffcoBLE] Requesting Bluetooth Device (acceptAllDevices: true)...');
+    const isScanAll = !!options.showAll;
+    console.log(`[PuffcoBLE] Requesting Bluetooth Device (showAll=${isScanAll})...`);
 
-    try {
-      this.device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices,
-      });
-    } catch (err) {
-      if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
-        throw new Error('No device selected. Pairing was cancelled.');
+    if (isScanAll) {
+      // 1. Scan All BLE Devices (acceptAllDevices: true)
+      try {
+        this.device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices,
+        });
+      } catch (err) {
+        if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
+          throw new Error('No device selected. Pairing was cancelled.');
+        }
+        throw err;
       }
-      throw err;
+    } else {
+      // 2. Filtered Scan: Only shows Puffco devices and known prefixes (avoids long list of random MAC addresses)
+      const puffcoFilters = [
+        { namePrefix: 'Sterling' },
+        { namePrefix: 'sterling' },
+        { namePrefix: 'Proxy' },
+        { namePrefix: 'PROXY' },
+        { namePrefix: 'proxy' },
+        { namePrefix: 'PEAK' },
+        { namePrefix: 'Peak' },
+        { namePrefix: 'peak' },
+        { namePrefix: 'Puffco' },
+        { namePrefix: 'PUFFCO' },
+        { namePrefix: 'puffco' },
+        { services: [PUFFCO_LORAX_SVC_UUID] },
+        { services: [PUFFCO_PUP_SVC_UUID] },
+      ];
+
+      try {
+        this.device = await navigator.bluetooth.requestDevice({
+          filters: puffcoFilters,
+          optionalServices,
+        });
+      } catch (err) {
+        if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
+          throw new Error('No device selected. Pairing was cancelled.');
+        }
+        // If filtered scan fails (e.g. browser doesn't like filters or device is renamed), fallback to acceptAllDevices
+        console.warn('[PuffcoBLE] Filtered scan rejected or device renamed, falling back to acceptAllDevices...', err);
+        try {
+          this.device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices,
+          });
+        } catch (fbErr) {
+          if (fbErr.name === 'NotFoundError' || fbErr.message?.includes('User cancelled') || fbErr.message?.includes('cancelled')) {
+            throw new Error('No device selected. Pairing was cancelled.');
+          }
+          throw fbErr;
+        }
+      }
     }
 
     if (!this.device) {

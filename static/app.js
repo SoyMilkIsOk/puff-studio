@@ -1156,23 +1156,20 @@ function renderScannedDevices(devices) {
     const info = document.createElement('div');
     info.className = 'device-item-info';
 
-    // Ensure clean device name without showing raw MAC address
-    const isMacLike =
-      !d.name ||
-      d.name === d.address ||
-      /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(d.name) ||
-      /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}/.test(d.name);
-    const displayName = isMacLike ? 'Puffco Device' : d.name;
-
     const name = document.createElement('div');
     name.className = 'device-item-name';
-    name.textContent = displayName;
+    name.textContent = d.name || 'Puffco Device';
+
+    const addr = document.createElement('div');
+    addr.className = 'device-item-addr';
+    addr.textContent = d.address;
 
     const rssi = document.createElement('div');
     rssi.className = 'device-item-rssi';
-    rssi.textContent = `Signal: ${d.rssi} dBm`;
+    rssi.textContent = `RSSI: ${d.rssi} dBm`;
 
     info.appendChild(name);
+    info.appendChild(addr);
     info.appendChild(rssi);
 
     const connectBtn = document.createElement('button');
@@ -1227,12 +1224,10 @@ function attachEventListeners() {
 
   // Main Connect / Disconnect button
   el.mainConnectBtn.addEventListener('click', () => {
-    const isConnected = (currentTelemetry && currentTelemetry.connected) ||
-      el.mainConnectBtn.textContent.trim().toLowerCase() === 'disconnect';
-    if (isConnected) {
+    if (currentTelemetry && currentTelemetry.connected) {
       disconnectDevice();
     } else {
-      openScanModal();
+      connectDevice();
     }
   });
 

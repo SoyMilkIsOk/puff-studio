@@ -93,9 +93,12 @@
 
         <!-- Connection actions -->
         <div class="header-actions">
-          <button id="main-connect-btn" class="btn btn-primary" title="Scan & Connect to Puffco device via Web Bluetooth">
+          <button id="main-connect-btn" class="btn btn-primary" title="Connect to Puffco device via Web Bluetooth">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
             Connect
+          </button>
+          <button id="connect-all-btn" class="btn btn-secondary" title="Scan without name filters (useful if your device was renamed)">
+            Scan All
           </button>
           <label class="toggle-demo" title="Toggle offline simulation demo">
             <input type="checkbox" id="demo-mode-toggle">
@@ -670,10 +673,10 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=2.5"></script>
-  <script src="./puffco-ble.js?v=2.5"></script>
-  <script src="./simulator.js?v=2.5"></script>
-  <script src="./curve-governor.js?v=2.5"></script>
-  <script src="./app.js?v=2.5"></script>
+  <script src="./curves-data.js?v=2.4"></script>
+  <script src="./puffco-ble.js?v=2.4"></script>
+  <script src="./simulator.js?v=2.4"></script>
+  <script src="./curve-governor.js?v=2.4"></script>
+  <script src="./app.js?v=2.4"></script>
 </body>
 </html>

@@ -47,6 +47,7 @@ const el = {
   batteryDisplay: document.getElementById('battery-level-display'),
   batteryBolt: document.getElementById('battery-bolt'),
   mainConnectBtn: document.getElementById('main-connect-btn'),
+  connectAllBtn: document.getElementById('connect-all-btn'),
   demoModeToggle: document.getElementById('demo-mode-toggle'),
   btIndicator: document.getElementById('bt-indicator'),
 
@@ -1072,12 +1073,18 @@ async function handleConnectToggle(options = {}) {
     showToast('Disconnected', 'info');
     handleTelemetryUpdate(activeClient.telemetry);
   } else {
+    const isScanAll = !!options.showAll;
     try {
-      showToast('Scanning for nearby Bluetooth devices...', 'info', 3000);
+      showToast(
+        isScanAll ? 'Scanning for ALL Bluetooth devices...' : 'Scanning for Puffco devices...',
+        'info',
+        3000
+      );
       el.mainConnectBtn.disabled = true;
+      if (el.connectAllBtn) el.connectAllBtn.disabled = true;
       el.mainConnectBtn.textContent = 'Connecting...';
 
-      await activeClient.connect({ showAll: true, ...options });
+      await activeClient.connect(options);
       showToast(`Connected to ${activeClient.telemetry.device_name || 'Puffco'}! 🌿`, 'success', 3500);
     } catch (err) {
       console.warn('[App] Connect error:', err);
@@ -1086,13 +1093,16 @@ async function handleConnectToggle(options = {}) {
         err.message?.includes('No device selected') ||
         err.name === 'NotFoundError';
 
-      if (isUserCancel) {
+      if (isUserCancel && !isScanAll) {
+        showToast('Device not showing? Tap "Scan All" to show all nearby BLE devices!', 'info', 5500);
+      } else if (isUserCancel) {
         showToast('Pairing cancelled.', 'info', 2500);
       } else {
         showToast(err.message || 'Connection failed or device not recognized.', 'error', 5000);
       }
     } finally {
       el.mainConnectBtn.disabled = false;
+      if (el.connectAllBtn) el.connectAllBtn.disabled = false;
       handleTelemetryUpdate(activeClient.telemetry);
     }
   }
@@ -1146,8 +1156,11 @@ function attachEventListeners() {
   setupSvgInteraction();
   setupCurveActions();
 
-  // Connect Button
-  el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+  // Connect Buttons
+  el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: false }));
+  if (el.connectAllBtn) {
+    el.connectAllBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+  }
 
   // Demo Toggle
   el.demoModeToggle.addEventListener('change', (e) => handleDemoToggle(e.target.checked));
