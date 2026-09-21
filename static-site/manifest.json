@@ -1,0 +1,18 @@
+{
+  "name": "Puffco Studio",
+  "short_name": "PuffStudio",
+  "description": "Web Bluetooth Controller & Dynamic Heat Curve Studio for Puffco Peak Pro and Proxy devices.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

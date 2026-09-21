@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1c2233"/>
+      <stop offset="100%" stop-color="#08090d"/>
+    </radialGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="35%" stop-color="#ff9900"/>
+      <stop offset="70%" stop-color="#ff4500"/>
+      <stop offset="100%" stop-color="#f72585"/>
+    </linearGradient>
+    <filter id="flameGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)"/>
+  <circle cx="256" cy="256" r="236" fill="none" stroke="#ff7a00" stroke-opacity="0.3" stroke-width="4"/>
+
+  <g transform="translate(106, 86) scale(12.5)" filter="url(#flameGlow)">
+    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
+          fill="url(#flameGrad)" stroke="#ff7a00" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

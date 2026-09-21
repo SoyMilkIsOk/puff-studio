@@ -463,9 +463,12 @@ class PuffcoDeviceManager:
         if slot is None:
             slot = self.client.telemetry.active_profile
 
+        # Hard safety clamp: Never permit target temperature to exceed 590°F
+        temp_f = min(590.0, max(350.0, float(temp_f)))
         c = f_to_c(temp_f)
         path = PATH_PROFILE_TEMP_PREFIX.format(slot=slot)
-        payload = struct.pack("<f", c)
+        is_proxy = "proxy" in (self.client.telemetry.device_name or "").lower() or getattr(self.client.telemetry, "chamber_type", None) == ChamberType.STANDARD
+        payload = struct.pack("<i", int(round(c * 10.0))) if is_proxy else struct.pack("<f", c)
 
         success = False
         for attempt in range(2):
@@ -608,7 +611,8 @@ class PuffcoDeviceManager:
 
             # 2. Set initial temperature and full curve duration directly in hardware flash
             await self.write_temperature_robust(initial_temp, slot)
-            time_payload = struct.pack("<f", float(duration))
+            is_proxy = "proxy" in (self.client.telemetry.device_name or "").lower() or getattr(self.client.telemetry, "chamber_type", None) == ChamberType.STANDARD
+            time_payload = struct.pack("<I", int(round(duration * 100))) if is_proxy else struct.pack("<f", float(duration))
             await self.client.write_path(PATH_PROFILE_TIME_PREFIX.format(slot=slot), time_payload)
             logger.info(f"Configured slot {slot} for curve: {initial_temp}°F, duration {duration}s")
         else:
@@ -674,6 +678,17 @@ class PuffcoDeviceManager:
                 live_temp = float(self._last_telemetry_dict.get("live_temp_f", 0.0))
                 op_state = self._last_telemetry_dict.get("operating_state", "")
 
+                # Emergency thermal cutoff (> 600°F)
+                if live_temp >= 600.0:
+                    logger.error(f"[EMERGENCY SAFETY CUTOFF] Live temp {live_temp:.1f}°F exceeded 600°F! Aborting!")
+                    await self.stop_session()
+                    await self._restore_backup_profile()
+                    await self.broadcast({
+                        "type": "curve_telemetry",
+                        "data": {"is_active": False, "status": "emergency_cutoff", "live_temp_f": live_temp},
+                    })
+                    return
+
                 # If user aborted or device turned off
                 if op_state in ("IDLE", "DISCONNECTED", "COOLDOWN", "OFF") and (time.monotonic() - preheat_start > 3.0):
                     logger.info("Session aborted during preheat.")
@@ -702,10 +717,11 @@ class PuffcoDeviceManager:
 
                 # Check if device reached initial target temperature:
                 # 1. State transitions to READY or HEAT_ACTIVE
-                # 2. Or actual bowl temp is within 6°F of initial target
-                is_ready = (op_state in ("READY", "HEAT_ACTIVE")) or (live_temp >= (initial_temp - 6.0))
+                # 2. Or actual bowl temp is within 8°F of initial target
+                elapsed_preheat = time.monotonic() - preheat_start
+                is_ready = (op_state in ("READY", "HEAT_ACTIVE") and elapsed_preheat > 2.0) or (live_temp >= (initial_temp - 8.0) and elapsed_preheat > 1.5)
                 if is_ready:
-                    logger.info(f"Chamber reached initial temperature ({live_temp:.1f}°F >= {initial_temp - 6.0}°F, state={op_state})! STARTING CURVE TIMELINE.")
+                    logger.info(f"Chamber reached initial temperature ({live_temp:.1f}°F >= {initial_temp - 8.0}°F, state={op_state})! STARTING CURVE TIMELINE.")
                     break
 
                 # Safety timeout (65 seconds max preheat)
@@ -753,8 +769,20 @@ class PuffcoDeviceManager:
                     await self._restore_backup_profile()
                     break
 
+                live_temp = float(self._last_telemetry_dict.get("live_temp_f", 0.0))
+                # Emergency thermal cutoff (> 600°F)
+                if live_temp >= 600.0:
+                    logger.error(f"[EMERGENCY SAFETY CUTOFF] Live temp {live_temp:.1f}°F exceeded 600°F! Aborting!")
+                    await self.stop_session()
+                    await self._restore_backup_profile()
+                    await self.broadcast({
+                        "type": "curve_telemetry",
+                        "data": {"is_active": False, "status": "emergency_cutoff", "live_temp_f": live_temp},
+                    })
+                    return
+
                 # Compute interpolated target temperature for current timestamp
-                current_target = round(interpolate_curve_target(keyframes, elapsed), 1)
+                current_target = min(590.0, max(350.0, round(interpolate_curve_target(keyframes, elapsed), 1)))
 
                 # Send robust setpoint update if target changed by >= 1.0°F
                 if abs(current_target - last_sent_temp) >= 1.0:

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Puffco Studio — Mobile Web Bluetooth Controller &amp; Heat Curve Studio</title>
+  <meta name="description" content="Standalone web controller, real-time Web Bluetooth Low Energy HUD, and dynamic heat curve studio for Puffco Peak Pro and Proxy devices.">
+
+  <!-- Mobile PWA & Apple Web App Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Puff Studio">
+  <meta name="theme-color" content="#08090d">
+  <!-- Path Browser (iOS) Web Bluetooth permission trigger -->
+  <meta name="path-bluetooth" content="true">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
+  <link rel="apple-touch-icon" href="./icons/icon.svg">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=2.4">
+</head>
+<body class="theme-dark">
+  <!-- Ambient background glow layers -->
+  <div class="glow-backdrop" aria-hidden="true">
+    <div class="radial-orb orb-amber"></div>
+    <div class="radial-orb orb-purple"></div>
+    <div class="radial-orb orb-cyan"></div>
+  </div>
+
+  <!-- Browser Compatibility Helper Banner (Dismissible) -->
+  <div id="compat-banner" class="compat-banner hidden">
+    <div class="compat-banner-content">
+      <span class="compat-banner-icon">📱</span>
+      <div class="compat-banner-text">
+        <span id="compat-banner-msg"><strong>iOS Notice:</strong> Mobile Safari does not support Bluetooth. Open in <strong>Path Browser</strong> or <strong>Bluefy</strong> to connect, or use <strong>Demo Mode</strong> below!</span>
+      </div>
+    </div>
+    <div class="compat-banner-actions">
+      <button id="compat-guide-btn" class="compat-btn-guide">Guide</button>
+      <button id="compat-dismiss-btn" class="compat-btn-dismiss" aria-label="Dismiss banner">✕</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- Header / Navbar -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">PUFFCO <span>STUDIO</span></h1>
+          <span class="brand-sub">Web Bluetooth &amp; Curve Engine</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" aria-label="Studio Mode Tabs">
+        <button id="tab-controller-btn" class="nav-tab active" data-tab="tab-controller">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Chamber &amp; Profiles
+        </button>
+        <button id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Heat Curve Studio
+          <span class="tab-badge">PRO</span>
+        </button>
+      </nav>
+
+      <!-- Device Connection Banner -->
+      <div class="header-status-group">
+        <div id="device-pill" class="status-pill status-disconnected">
+          <span class="status-dot"></span>
+          <span id="device-name-display">No Device</span>
+          <span id="chamber-pill" class="badge badge-subtle">3DXL</span>
+        </div>
+
+        <div id="battery-widget" class="battery-pill" title="Battery Percentage">
+          <svg class="battery-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="16" height="10" rx="2" ry="2"/>
+            <line x1="22" y1="11" x2="22" y2="13"/>
+            <path id="battery-fill-icon" d="M4 9h0v6h0z" fill="currentColor"/>
+          </svg>
+          <span id="battery-level-display">--%</span>
+          <span id="battery-bolt" class="bolt hidden">⚡</span>
+        </div>
+
+        <!-- Connection actions -->
+        <div class="header-actions">
+          <button id="main-connect-btn" class="btn btn-primary" title="Connect to Puffco device via Web Bluetooth">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+            Connect
+          </button>
+          <button id="connect-all-btn" class="btn btn-secondary" title="Scan without name filters (useful if your device was renamed)">
+            Scan All
+          </button>
+          <label class="toggle-demo" title="Toggle offline simulation demo">
+            <input type="checkbox" id="demo-mode-toggle">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Demo</span>
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab 1: Standard Controller View -->
+    <main id="tab-controller" class="tab-content active">
+      <div class="dashboard-grid">
+        <!-- Left Column: Hero Chamber Thermal Dial & Session Controls -->
+        <section class="card hero-card" aria-label="Live Chamber Thermal Telemetry">
+          <div class="card-header">
+            <div class="card-title-wrap">
+              <span class="subtitle-tag">LIVE TELEMETRY</span>
+              <h2 class="card-title">Chamber Dynamics</h2>
+            </div>
+            <div id="state-badge" class="state-tag state-disconnected">
+              DISCONNECTED
+            </div>
+          </div>
+
+          <!-- Thermal Gauge -->
+          <div class="gauge-container">
+            <div class="gauge-glow-halo" id="gauge-halo"></div>
+            <svg class="dial-svg" viewBox="0 0 320 320">
+              <defs>
+                <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#1f2430" />
+                  <stop offset="100%" stop-color="#141720" />
+                </linearGradient>
+                <linearGradient id="heatGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00f2fe" />
+                  <stop offset="35%" stop-color="#ff9900" />
+                  <stop offset="70%" stop-color="#ff4500" />
+                  <stop offset="100%" stop-color="#f72585" />
+                </linearGradient>
+                <filter id="dialGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              <circle class="dial-track" cx="160" cy="160" r="120" />
+              <!-- Calibration Scale Ticks (400°, 450°, 500°, 550°, 600°) -->
+              <g class="dial-ticks" opacity="0.4">
+                <line x1="258" y1="160" x2="268" y2="160" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="209" y1="244.9" x2="215" y2="255.3" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="111" y1="244.9" x2="105" y2="255.3" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="62" y1="160" x2="52" y2="160" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="111" y1="75.1" x2="105" y2="64.7" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+              </g>
+              <circle id="dial-progress" class="dial-progress" cx="160" cy="160" r="120" filter="url(#dialGlow)" />
+              <g id="dial-needle-group" class="dial-needle-group">
+                <line id="dial-setpoint-needle" class="dial-needle" x1="266" y1="160" x2="294" y2="160" />
+                <circle class="dial-needle-dot" cx="280" cy="160" r="3" />
+              </g>
+            </svg>
+
+            <!-- Scale Endpoints (400°F to 600°F) -->
+            <div class="dial-scale-endpoints">
+              <span class="endpoint-min">400°F</span>
+              <span class="endpoint-max">600°F</span>
+            </div>
+
+            <!-- Dial Center Digital Readout -->
+            <div class="gauge-center">
+              <div class="temp-sublabel">CURRENT BOWL</div>
+              <div class="live-temp-display">
+                <span id="live-temp-val">--</span><span class="unit">°F</span>
+              </div>
+              <div class="target-temp-display">
+                SETPOINT: <span id="target-temp-val">485</span>°F
+              </div>
+              <div id="session-timer-pill" class="timer-pill hidden">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span id="time-remaining-val">0</span>s REMAINING
+              </div>
+            </div>
+          </div>
+
+          <!-- Session Command Bar (Touch-Optimized) -->
+          <div class="session-actions-bar">
+            <button id="start-sesh-btn" class="btn btn-sesh-start" disabled>
+              <div class="btn-glow-ring"></div>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+              </svg>
+              <span>START SESH</span>
+            </button>
+
+            <button id="boost-sesh-btn" class="btn btn-sesh-boost" disabled title="Add +15s duration and +10°F heat boost during session">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>BOOST +10°</span>
+            </button>
+
+            <button id="stop-sesh-btn" class="btn btn-sesh-stop" disabled title="Cancel / Abort current heat cycle">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              <span>STOP</span>
+            </button>
+          </div>
+
+          <!-- Live Session Heat Curve (Fills space below dial) -->
+          <div class="live-session-graph-card">
+            <div class="lsg-header">
+              <div class="lsg-title-group">
+                <span class="subtitle-tag">SESSION HEAT CURVE</span>
+                <span id="lsg-phase-pill" class="badge badge-subtle">STANDBY</span>
+              </div>
+              <div class="lsg-legend">
+                <span class="legend-item"><span class="legend-line line-target"></span> Target (<span id="lsg-target-readout">485°</span>)</span>
+                <span class="legend-item"><span class="legend-line line-actual"></span> Live Bowl (<span id="lsg-live-readout">--°</span>)</span>
+              </div>
+            </div>
+
+            <div class="lsg-graph-wrapper">
+              <div class="lsg-y-axis">
+                <span>600°</span>
+                <span>500°</span>
+                <span>400°</span>
+                <span>250°</span>
+                <span>70°</span>
+              </div>
+              <div class="lsg-canvas-container" id="lsg-container">
+                <svg id="lsg-svg" class="lsg-svg" viewBox="0 0 500 160" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="lsgFillGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.32" />
+                      <stop offset="100%" stop-color="#00f2fe" stop-opacity="0.01" />
+                    </linearGradient>
+                  </defs>
+
+                  <!-- Horizontal Grid Lines -->
+                  <line class="graph-grid-line" x1="0" y1="16" x2="500" y2="16" />
+                  <line class="graph-grid-line" x1="0" y1="46" x2="500" y2="46" />
+                  <line class="graph-grid-line" x1="0" y1="76" x2="500" y2="76" />
+                  <line class="graph-grid-line" x1="0" y1="116" x2="500" y2="116" />
+                  <line class="graph-grid-line" x1="0" y1="148" x2="500" y2="148" />
+
+                  <!-- Setpoint Baseline (Dashed Amber) -->
+                  <line id="lsg-target-line" class="lsg-target-line" x1="0" y1="60" x2="500" y2="60" />
+
+                  <!-- Live Temperature Fill & Stroke Trail -->
+                  <path id="lsg-trail-area" class="lsg-trail-area" d="" fill="url(#lsgFillGrad)" />
+                  <path id="lsg-trail-stroke" class="lsg-trail-stroke" d="" />
+
+                  <!-- Live Playhead Dot -->
+                  <circle id="lsg-live-dot" class="lsg-live-dot hidden" cx="0" cy="0" r="5" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="lsg-x-axis">
+              <span>0s</span>
+              <span id="lsg-t1">15s</span>
+              <span id="lsg-t2">30s</span>
+              <span id="lsg-t3">45s</span>
+              <span id="lsg-t4">60s</span>
+            </div>
+
+            <div class="lsg-footer">
+              <div class="lsg-stat">
+                <span class="lsg-stat-label">SESSION TIME</span>
+                <span id="lsg-time-stat" class="lsg-stat-val">0s / 50s</span>
+              </div>
+              <div class="lsg-stat">
+                <span class="lsg-stat-label">PEAK TEMP</span>
+                <span id="lsg-peak-stat" class="lsg-stat-val">--°F</span>
+              </div>
+              <div class="lsg-stat">
+                <span class="lsg-stat-label">AVG TEMP</span>
+                <span id="lsg-avg-stat" class="lsg-stat-val">--°F</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Column: Stored Profiles, Tuning & Hardware -->
+        <div class="right-stack">
+          <!-- Profiles Card -->
+          <section class="card profiles-card" aria-label="Heat Profiles">
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <span class="subtitle-tag">STORED PROFILES</span>
+                <h2 class="card-title">Flash Memory Slots</h2>
+              </div>
+              <span class="badge badge-info">Slots 1–4</span>
+            </div>
+
+            <div class="profiles-grid" id="profiles-grid-container">
+              <!-- Dynamically populated profile slots -->
+            </div>
+
+            <!-- Temperature Fine Tuning -->
+            <div class="temp-tuning-panel">
+              <div class="tuning-header">
+                <span class="tuning-label">Target Setpoint</span>
+                <span id="slider-temp-val" class="tuning-val">485°F</span>
+              </div>
+              <div class="slider-controls">
+                <button id="temp-dec-btn" class="btn-stepper" title="Decrease 5°F">-5°</button>
+                <input type="range" id="temp-range-slider" min="400" max="600" step="1" value="485" class="custom-range">
+                <button id="temp-inc-btn" class="btn-stepper" title="Increase 5°F">+5°</button>
+                <button id="apply-temp-btn" class="btn btn-secondary btn-apply">Apply</button>
+              </div>
+              <div class="preset-pills">
+                <button class="preset-pill" data-temp="450">450° Terps</button>
+                <button class="preset-pill" data-temp="485">485° Balanced</button>
+                <button class="preset-pill" data-temp="520">520° Vapor</button>
+                <button class="preset-pill" data-temp="550">550° Heavy</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Hardware Metrics & Diagnostics -->
+          <section class="card stats-card" aria-label="Hardware & Diagnostics">
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <span class="subtitle-tag">DIAGNOSTICS</span>
+                <h2 class="card-title">Hardware Metrics</h2>
+              </div>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <div class="metric-icon chamber-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">CHAMBER TYPE</span>
+                  <span id="stat-chamber-name" class="metric-value">3DXL</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon dabs-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">LIFETIME DABS</span>
+                  <span id="stat-total-dabs" class="metric-value">--</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon bt-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">MAC / UUID</span>
+                  <span id="stat-mac-address" class="metric-value text-mono">--</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon fw-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">FIRMWARE</span>
+                  <span id="stat-firmware-version" class="metric-value text-mono">--</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Peripherals & Power Controls -->
+          <section class="card controls-card" aria-label="Device Lighting & Power Controls">
+            <div class="device-controls-row">
+              <div class="control-toggle-card">
+                <div class="control-info">
+                  <span class="control-title">Stealth Mode</span>
+                  <span class="control-desc">Chamber &amp; body LEDs blackout</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="stealth-mode-toggle">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="control-toggle-card">
+                <div class="control-info">
+                  <span class="control-title">Lantern Mode</span>
+                  <span class="control-desc">Ambient light without heating</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="lantern-mode-toggle">
+                  <span class="slider slider-purple"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="power-buttons-row">
+              <button id="sleep-btn" class="btn btn-secondary" title="Enter low power sleep mode">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                Sleep Mode
+              </button>
+              <button id="power-off-btn" class="btn btn-danger-subtle" title="Turn device completely off">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                Power Off
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Tab 2: Custom Heat Curve Studio -->
+    <main id="tab-curves" class="tab-content hidden">
+      <div class="curve-studio-layout">
+        <!-- Curve Presets Selector Bar -->
+        <div class="card curve-presets-bar">
+          <div class="presets-header">
+            <div class="card-title-wrap">
+              <span class="subtitle-tag">DYNAMIC THERMAL GOVERNOR</span>
+              <h2 class="card-title">Curve Presets &amp; Custom Library</h2>
+            </div>
+            <div class="preset-actions">
+              <button id="new-curve-btn" class="btn btn-secondary btn-sm">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Curve
+              </button>
+              <button id="save-curve-btn" class="btn btn-secondary btn-sm">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save
+              </button>
+              <button id="share-curve-btn" class="btn btn-secondary btn-sm" title="Share curve link or export JSON">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Share
+              </button>
+            </div>
+          </div>
+
+          <!-- Curve List Pills -->
+          <div class="curve-pills-list" id="curve-pills-container">
+            <!-- Injected via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Main Curve Canvas & Telemetry Display -->
+        <div class="card curve-canvas-card">
+          <div class="curve-meta-header">
+            <div>
+              <h3 id="active-curve-title" class="curve-heading">Step 430 → 485 → 520</h3>
+              <p id="active-curve-desc" class="curve-desc">3-stage progression: initial low-temp terpene boil, steady extraction, high-temp cloud finish.</p>
+            </div>
+            <div class="curve-badges">
+              <span id="curve-duration-badge" class="badge badge-info">50s Sesh</span>
+              <span id="curve-status-badge" class="state-tag state-idle">READY</span>
+            </div>
+          </div>
+
+          <!-- Interactive SVG/Canvas Graph Area (Touch-Enabled) -->
+          <div class="graph-wrapper">
+            <div class="graph-y-axis">
+              <span>580°</span>
+              <span>535°</span>
+              <span>490°</span>
+              <span>445°</span>
+              <span>400°</span>
+            </div>
+            <div class="graph-container" id="curve-graph-container">
+              <svg id="curve-svg" class="curve-svg" viewBox="0 0 800 360" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="curveFillGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#ff7a00" stop-opacity="0.38" />
+                    <stop offset="100%" stop-color="#ff0055" stop-opacity="0.02" />
+                  </linearGradient>
+                  <linearGradient id="curveLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#00f2fe" />
+                    <stop offset="45%" stop-color="#ff9900" />
+                    <stop offset="85%" stop-color="#ff4500" />
+                    <stop offset="100%" stop-color="#f72585" />
+                  </linearGradient>
+                </defs>
+
+                <!-- Horizontal Grid Lines -->
+                <line class="graph-grid-line" x1="0" y1="36" x2="800" y2="36" />
+                <line class="graph-grid-line" x1="0" y1="108" x2="800" y2="108" />
+                <line class="graph-grid-line" x1="0" y1="180" x2="800" y2="180" />
+                <line class="graph-grid-line" x1="0" y1="252" x2="800" y2="252" />
+                <line class="graph-grid-line" x1="0" y1="324" x2="800" y2="324" />
+
+                <!-- Filled Area Under Curve -->
+                <path id="curve-area-path" class="curve-area" d="" fill="url(#curveFillGrad)" />
+                <!-- Planned Setpoint Curve Line -->
+                <path id="curve-stroke-path" class="curve-stroke" d="" stroke="url(#curveLineGrad)" />
+
+                <!-- Real-time Live Bowl Temperature Trail during run -->
+                <path id="curve-actual-trail" class="curve-actual-trail" d="" />
+
+                <!-- Playhead Indicator (Scrub Line) -->
+                <line id="curve-playhead-line" class="playhead-line hidden" x1="0" y1="0" x2="0" y2="360" />
+                <circle id="curve-playhead-dot" class="playhead-dot hidden" cx="0" cy="0" r="7" />
+
+                <!-- Keyframe Control Nodes Container -->
+                <g id="curve-points-layer"></g>
+              </svg>
+
+              <div class="graph-hint">
+                <span class="hint-bullet">•</span> Tap / Click to add setpoints
+                <span class="hint-bullet">•</span> Drag nodes to adjust time &amp; temp
+                <span class="hint-bullet">•</span> Double-tap node to delete
+              </div>
+            </div>
+          </div>
+          <div class="graph-x-axis">
+            <span>0s</span>
+            <span>15s</span>
+            <span>30s</span>
+            <span>45s</span>
+            <span>60s</span>
+            <span>75s</span>
+            <span>90s</span>
+          </div>
+
+          <!-- Curve Real-Time Readout & Execution Command Bar -->
+          <div class="curve-command-bar">
+            <div class="curve-live-metrics">
+              <div class="c-metric">
+                <span class="c-label">ELAPSED TIME</span>
+                <span id="curve-elapsed-display" class="c-val">0.0s / 50s</span>
+              </div>
+              <div class="c-metric">
+                <span class="c-label">CURVE SETPOINT</span>
+                <span id="curve-setpoint-display" class="c-val text-amber">430.0°F</span>
+              </div>
+              <div class="c-metric">
+                <span class="c-label">ACTUAL BOWL</span>
+                <span id="curve-actual-display" class="c-val text-cyan">--°F</span>
+              </div>
+            </div>
+
+            <div class="curve-cta-group">
+              <button id="run-curve-btn" class="btn btn-sesh-start btn-run-curve">
+                <div class="btn-glow-ring"></div>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="run-curve-btn-label">EXECUTE HEAT CURVE</span>
+              </button>
+              <button id="stop-curve-btn" class="btn btn-sesh-stop" disabled>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                <span>ABORT</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Keyframe Editor Table -->
+          <div class="keyframe-editor-section">
+            <div class="kf-header">
+              <span class="kf-title">Keyframe Table</span>
+              <button id="add-keyframe-btn" class="btn btn-secondary btn-xs">+ Add Keyframe</button>
+            </div>
+            <div class="kf-table-container">
+              <table class="kf-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Time (Seconds)</th>
+                    <th>Target Temp (°F)</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="keyframe-table-body">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Save Curve Modal -->
+    <div id="save-curve-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title">Save Custom Curve</h3>
+          <button id="close-save-curve-modal" class="btn-icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="save-curve-name-input" class="form-label">Curve Name</label>
+            <input type="text" id="save-curve-name-input" class="form-input" placeholder="e.g. Terp Burst 435→515">
+          </div>
+          <div class="form-group">
+            <label for="save-curve-desc-input" class="form-label">Description / Notes</label>
+            <textarea id="save-curve-desc-input" class="form-input form-textarea" rows="2" placeholder="e.g. Optimized for fresh press rosin"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="confirm-save-curve-btn" class="btn btn-primary">Save to Library</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share Curve Modal -->
+    <div id="share-curve-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title">Share Custom Curve</h3>
+          <button id="close-share-curve-modal" class="btn-icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Direct Share Link</label>
+            <input type="text" id="share-link-input" class="form-input" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">JSON Data</label>
+            <textarea id="share-json-input" class="form-input form-textarea" rows="4" readonly></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="copy-share-link-btn" class="btn btn-primary">Copy Share Link</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compatibility Guide Modal -->
+    <div id="compat-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-window">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">Mobile Bluetooth Guide</h3>
+            <p class="modal-subtitle">Connecting to your Peak Pro or Proxy directly from your phone</p>
+          </div>
+          <button id="close-compat-modal" class="btn-icon">✕</button>
+        </div>
+        <div class="modal-body" style="font-size: 0.88rem; line-height: 1.5; color: #cbd5e1;">
+          <h4 style="color: #fff; margin-bottom: 6px;">🍏 iPhone / iPad (iOS):</h4>
+          <p style="margin-bottom: 12px;">Apple blocks Web Bluetooth in Mobile Safari and standard Chrome for iOS. To connect directly via Bluetooth:</p>
+          <ol style="padding-left: 20px; margin-bottom: 16px;">
+            <li style="margin-bottom: 6px;">Download <strong style="color: var(--accent-cyan);">Path Browser</strong> (Puffco's official iOS utility) or <strong style="color: var(--accent-cyan);">Bluefy</strong> from the App Store.</li>
+            <li style="margin-bottom: 6px;">Open this website inside Path Browser or Bluefy.</li>
+            <li>Tap <strong>Connect</strong> and pick your Puffco from the Bluetooth prompt!</li>
+          </ol>
+
+          <h4 style="color: #fff; margin-bottom: 6px;">🤖 Android &amp; Desktop:</h4>
+          <p style="margin-bottom: 14px;">Web Bluetooth is supported natively in <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, and <strong>Samsung Internet</strong>. Simply tap <strong>Connect</strong>.</p>
+
+          <h4 style="color: #fff; margin-bottom: 6px;">⚠️ Can't Find Your Device?</h4>
+          <ul style="padding-left: 20px; margin-bottom: 14px; font-size: 0.83rem;">
+            <li style="margin-bottom: 4px;"><strong>Close the official Puffco App:</strong> Puffco devices only support <em>one</em> Bluetooth connection at a time. If your phone or another app is connected, the Puffco stops broadcasting!</li>
+            <li style="margin-bottom: 4px;"><strong>Pairing Mode:</strong> Hold the Puffco power button for <strong>6 seconds</strong> until the lights glow <strong>pulsing blue</strong>.</li>
+            <li style="margin-bottom: 4px;"><strong>Renamed Device:</strong> Tap <strong style="color: var(--accent-cyan);">Scan All</strong> in the top header to show all nearby Bluetooth devices without name filters.</li>
+            <li style="margin-bottom: 4px;"><strong>Desktop Permissions:</strong> On macOS, ensure Chrome has Bluetooth access enabled in <em>System Settings &gt; Privacy &amp; Security &gt; Bluetooth</em>.</li>
+          </ul>
+
+          <h4 style="color: #fff; margin-bottom: 6px;">✨ Try Demo Mode:</h4>
+          <p>You can toggle <strong>Demo</strong> in the top header at any time to test the dial HUD, live graphs, and thermal curve editor with realistic chamber physics.</p>
+        </div>
+        <div class="modal-footer">
+          <button id="close-compat-modal-btn" class="btn btn-secondary">Got It</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div>Puff Studio • Standalone Web BLE Controller &amp; Curve Engine</div>
+      <div id="bt-indicator" class="ws-pill ws-connected">Web BLE Ready</div>
+    </footer>
+  </div>
+
+  <!-- Application Logic Modules -->
+  <script src="./curves-data.js?v=2.4"></script>
+  <script src="./puffco-ble.js?v=2.4"></script>
+  <script src="./simulator.js?v=2.4"></script>
+  <script src="./curve-governor.js?v=2.4"></script>
+  <script src="./app.js?v=2.4"></script>
+</body>
+</html>
