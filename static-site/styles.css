@@ -2041,19 +2041,21 @@ input, textarea, table {
     max-width: 100%;
   }
 
-  /* Fix graph overflow: container height must match wrapper height */
+  /* Fix graph overflow: container height must match wrapper height.
+     Keep y-axis to the LEFT of the chart (row direction). */
   .graph-wrapper {
-    height: auto;
-    flex-direction: column;
+    height: 260px;
   }
 
   .graph-container {
-    height: 260px;
+    height: 100%;
+    min-width: 0; /* prevent flex overflow */
   }
 
   .graph-y-axis {
     width: 32px;
     font-size: 0.65rem;
+    flex-shrink: 0;
   }
 
   /* Adjust x-axis left padding to match y-axis width on mobile */
@@ -2233,8 +2235,12 @@ input, textarea, table {
   }
 
   /* Even smaller graph on tiny screens */
-  .graph-container {
+  .graph-wrapper {
     height: 200px;
+  }
+
+  .graph-container {
+    height: 100%;
   }
 
   .graph-y-axis {
