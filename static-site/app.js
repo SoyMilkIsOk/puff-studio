@@ -283,7 +283,7 @@ function handleTelemetryUpdate(data) {
 
   // Device & Status Pill
   if (connected) {
-    el.devicePill.className = 'status-pill status-connected';
+    el.devicePill.className = 'status-pill status-connected' + (data.is_demo ? ' status-demo' : '');
     el.deviceName.textContent = data.device_name || 'Puff Device';
     el.mainConnectBtn.innerHTML = `
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1870,7 +1870,16 @@ function setupTabs() {
 
 async function handleConnectToggle(options = {}) {
   if (isDemoMode) {
-    showToast('Demo mode active. Turn off Demo mode switch to connect hardware.', 'info');
+    if (activeClient && activeClient.isConnected) {
+      showToast('Disconnecting demo...', 'info', 1500);
+      await activeClient.disconnect();
+      showToast('Demo Puffco disconnected', 'info', 2500);
+    } else {
+      showToast('Connecting demo Puffco...', 'info', 1500);
+      await activeClient.connect();
+      showToast('Demo Puffco reconnected ⚡', 'success', 2500);
+    }
+    handleTelemetryUpdate(activeClient.telemetry);
     return;
   }
 
@@ -1972,8 +1981,10 @@ function updateLockscreenClock() {
   }
 }
 
-function unlockToDashboard() {
-  if ('vibrate' in navigator) {
+function unlockToDashboard(options = {}) {
+  const silent = typeof options === 'object' && !!options?.silent;
+
+  if (!silent && 'vibrate' in navigator) {
     try { navigator.vibrate(45); } catch (e) {}
   }
 
@@ -1999,14 +2010,20 @@ function unlockToDashboard() {
   // Animate lockscreen sliding up
   if (el.lockscreen) {
     el.lockscreen.classList.add('unlocked');
-    setTimeout(() => {
-      if (el.lockscreen && el.lockscreen.classList.contains('unlocked')) {
-        el.lockscreen.style.display = 'none';
-      }
-    }, 700);
+    if (silent) {
+      el.lockscreen.style.display = 'none';
+    } else {
+      setTimeout(() => {
+        if (el.lockscreen && el.lockscreen.classList.contains('unlocked')) {
+          el.lockscreen.style.display = 'none';
+        }
+      }, 700);
+    }
   }
 
-  showToast('puffsn0w unlocked 🔓', 'success', 3500);
+  if (!silent) {
+    showToast('puffsn0w unlocked 🔓', 'success', 3500);
+  }
 }
 
 function lockToLockscreen() {
@@ -2728,18 +2745,53 @@ function bootstrap() {
   loadCurvesList();
   renderCurveGraph();
 
-  // Initial UI state
-  handleTelemetryUpdate(activeClient.telemetry);
+  // Detect /demo route, demo parameter, or demo dataset flag
+  const isDemoRequested =
+    window.__DEMO_MODE__ === true ||
+    document.documentElement.dataset.demo === 'true' ||
+    document.body?.dataset.demo === 'true' ||
+    window.location.pathname.replace(/\/+$/, '').endsWith('/demo') ||
+    window.location.pathname.includes('/demo/') ||
+    new URLSearchParams(window.location.search).has('demo') ||
+    window.location.hash.toLowerCase().includes('demo');
 
-  // Auto-connect to previously paired Bluetooth device if permitted by browser
-  if (bleClient && bleClient.isWebBluetoothSupported() && typeof navigator.bluetooth?.getDevices === 'function') {
-    bleClient.autoConnect().then((connected) => {
-      if (connected) {
-        showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
-      }
+  if (isDemoRequested) {
+    isDemoMode = true;
+    activeClient = simClient;
+    curveGovernor.client = simClient;
+    document.documentElement.dataset.demo = 'true';
+    if (document.body) document.body.dataset.demo = 'true';
+
+    // Pre-configure lockscreen in connected state so it is instantly slideable
+    if (el.lockscreen) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+      if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.add('connected');
+      if (el.lockscreenBatteryVal) el.lockscreenBatteryVal.textContent = '84%';
+      if (el.lockscreenBatteryFill) el.lockscreenBatteryFill.setAttribute('width', '10');
+      if (el.lockscreenSliderTrack) el.lockscreenSliderTrack.classList.remove('slider-locked');
+      if (el.lockscreenConnectCard) el.lockscreenConnectCard.classList.add('connected-hidden');
+    }
+
+    // Connect demo hardware simulation on dashboard behind lockscreen
+    simClient.connect().then(() => {
+      handleTelemetryUpdate(simClient.telemetry);
     }).catch((err) => {
-      console.log('[puffsn0w] Auto-connect check bypassed:', err);
+      console.warn('[Demo] Simulator connect error:', err);
     });
+  } else {
+    // Initial UI state for normal hardware mode
+    handleTelemetryUpdate(activeClient.telemetry);
+
+    // Auto-connect to previously paired Bluetooth device if permitted by browser
+    if (bleClient && bleClient.isWebBluetoothSupported() && typeof navigator.bluetooth?.getDevices === 'function') {
+      bleClient.autoConnect().then((connected) => {
+        if (connected) {
+          showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
+        }
+      }).catch((err) => {
+        console.log('[puffsn0w] Auto-connect check bypassed:', err);
+      });
+    }
   }
 
   // Register Service Worker for offline PWA

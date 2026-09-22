@@ -1251,7 +1251,15 @@ def create_app() -> web.Application:
     async def index_handler(request):
         return web.FileResponse(os.path.join(static_dir, "index.html"))
 
+    async def demo_handler(request):
+        demo_index = os.path.join(static_dir, "demo", "index.html")
+        if os.path.exists(demo_index):
+            return web.FileResponse(demo_index)
+        return web.FileResponse(os.path.join(static_dir, "index.html"))
+
     app.router.add_get("/", index_handler)
+    app.router.add_get("/demo", demo_handler)
+    app.router.add_get("/demo/", demo_handler)
     app.router.add_static("/static/", path=static_dir, name="static")
 
     app.on_startup.append(on_startup)

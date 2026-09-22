@@ -6,6 +6,22 @@
   <title>puffsn0w — free your e-rig</title>
   <meta name="description" content="free your e-rig — jailbreak controller &amp; dynamic heat curve studio for Peak Pro and Proxy devices.">
 
+  <!-- Early Demo Mode Detection -->
+  <script>
+    (function() {
+      var isDemo = window.__DEMO_MODE__ === true ||
+        document.documentElement.dataset.demo === 'true' ||
+        window.location.pathname.replace(/\/+$/, '').endsWith('/demo') ||
+        window.location.pathname.includes('/demo/') ||
+        new URLSearchParams(window.location.search).has('demo') ||
+        window.location.hash.toLowerCase().includes('demo');
+      if (isDemo) {
+        window.__DEMO_MODE__ = true;
+        document.documentElement.dataset.demo = 'true';
+      }
+    })();
+  </script>
+
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-4HJF59E8YR"></script>
   <script>
@@ -111,6 +127,9 @@
           <svg class="btn-ble-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
           <span id="lockscreen-connect-label">Connect Device</span>
         </button>
+        <div style="margin-top: 8px;">
+          <a href="./demo/" class="lockscreen-demo-link" title="Explore puffsn0w with a simulated Peak Pro">⚡ Or explore with Demo Puffco →</a>
+        </div>
       </div>
 
       <!-- Unobtrusive Analytics Consent Modal (inobtrusive popup below connect button) -->

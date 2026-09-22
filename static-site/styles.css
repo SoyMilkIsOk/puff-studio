@@ -3159,6 +3159,33 @@ body.lockscreen-active .btn-global-estop {
   pointer-events: none !important;
 }
 
+/* Demo Mode Status & Link Styling */
+.status-pill.status-demo {
+  border-color: rgba(0, 242, 254, 0.4);
+  background: rgba(0, 242, 254, 0.08);
+}
+
+.status-pill.status-demo .status-dot {
+  background: #00f2fe;
+  box-shadow: 0 0 10px #00f2fe;
+}
+
+.lockscreen-demo-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  letter-spacing: 0.03em;
+}
+
+.lockscreen-demo-link:hover {
+  color: #00f2fe;
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+}
+
 /* Lockscreen Fullscreen Overlay */
 .lockscreen-overlay {
   position: fixed;
