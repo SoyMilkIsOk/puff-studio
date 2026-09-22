@@ -36,7 +36,8 @@ let wasDeviceConnected = false;
 
 // DOM Element Cache
 const el = {
-  // Navigation Tabs
+  // Navigation Tabs & App Layout
+  appLayout: document.querySelector('.app-layout'),
   tabControllerBtn: document.getElementById('tab-controller-btn'),
   tabCurvesBtn: document.getElementById('tab-curves-btn'),
   tabController: document.getElementById('tab-controller'),
@@ -1034,7 +1035,8 @@ function renderKeyframeTable() {
     inputTime.min = 0;
     inputTime.max = TIME_MAX;
     inputTime.addEventListener('change', (e) => {
-      k.time_s = Math.max(0, Math.min(TIME_MAX, Number(e.target.value)));
+      const val = Number(e.target.value);
+      k.time_s = Math.max(0, Math.min(TIME_MAX, Number.isFinite(val) ? val : k.time_s));
       sortAndRefreshCurve();
     });
     tdTime.appendChild(inputTime);
@@ -1048,7 +1050,8 @@ function renderKeyframeTable() {
     inputTemp.min = TEMP_MIN;
     inputTemp.max = TEMP_MAX;
     inputTemp.addEventListener('change', (e) => {
-      k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number(e.target.value)));
+      const val = Number(e.target.value);
+      k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number.isFinite(val) ? val : k.temp_f));
       renderCurveGraph();
     });
     tdTemp.appendChild(inputTemp);
@@ -1399,10 +1402,11 @@ function loadCurvesList() {
       const base64 = location.hash.replace('#curve=', '');
       const json = decodeURIComponent(atob(base64));
       const shared = JSON.parse(json);
-      if (shared && shared.keyframes) {
-        currentCurve = shared;
-        curveStorage.upsert(shared);
-        showToast(`Loaded shared curve "${shared.name}"!`, 'success');
+      if (shared && typeof shared === 'object' && Array.isArray(shared.keyframes)) {
+        const validated = validateCurveStructure(shared);
+        currentCurve = validated;
+        curveStorage.upsert(validated);
+        showToast(`Loaded shared curve "${validated.name}"!`, 'success');
       }
     } catch (e) {
       console.warn('Could not parse shared curve from URL hash:', e);
@@ -1419,7 +1423,12 @@ function renderCurvePills() {
   curvesList.forEach((c) => {
     const pill = document.createElement('button');
     pill.className = `curve-pill ${currentCurve && c.id === currentCurve.id ? 'active' : ''}`;
-    pill.innerHTML = `<span class="curve-pill-dot"></span><span>${c.name}</span>`;
+    const dot = document.createElement('span');
+    dot.className = 'curve-pill-dot';
+    const label = document.createElement('span');
+    label.textContent = c.name;
+    pill.appendChild(dot);
+    pill.appendChild(label);
     pill.addEventListener('click', () => selectCurve(c));
     el.curvePillsContainer.appendChild(pill);
   });
@@ -1924,7 +1933,15 @@ function showToast(message, type = 'info', duration = 3200) {
   toast.className = `toast toast-${type}`;
 
   const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-  toast.innerHTML = `<span style="font-weight:700;">${icon}</span><span>${message}</span>`;
+  const iconSpan = document.createElement('span');
+  iconSpan.style.fontWeight = '700';
+  iconSpan.textContent = icon;
+
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = String(message);
+
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   el.toastContainer.appendChild(toast);
 
@@ -1959,15 +1976,46 @@ function unlockToDashboard() {
   if ('vibrate' in navigator) {
     try { navigator.vibrate(45); } catch (e) {}
   }
+
+  // Restore document scrolling capability and layout display
+  document.documentElement.classList.remove('lockscreen-active');
+  document.body.classList.remove('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.removeAttribute('inert');
+    el.appLayout.removeAttribute('aria-hidden');
+  }
+
+  // Ensure window scroll starts cleanly at top
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
+  // Recalculate curve graph for true layout dimensions
+  if (typeof renderCurveGraph === 'function') {
+    requestAnimationFrame(() => {
+      renderCurveGraph();
+    });
+  }
+
+  // Animate lockscreen sliding up
   if (el.lockscreen) {
     el.lockscreen.classList.add('unlocked');
+    setTimeout(() => {
+      if (el.lockscreen && el.lockscreen.classList.contains('unlocked')) {
+        el.lockscreen.style.display = 'none';
+      }
+    }, 700);
   }
+
   showToast('puffsn0w unlocked 🔓', 'success', 3500);
 }
 
 function lockToLockscreen() {
   if (el.lockscreen) {
+    el.lockscreen.style.display = 'flex';
+    // Force reflow before removing .unlocked
+    void el.lockscreen.offsetHeight;
     el.lockscreen.classList.remove('unlocked');
+
     const isConn = (activeClient && activeClient.isConnected) || false;
     if (isConn) {
       el.lockscreen.classList.remove('lockscreen-locked');
@@ -1975,6 +2023,17 @@ function lockToLockscreen() {
       el.lockscreen.classList.add('lockscreen-locked');
     }
   }
+
+  document.documentElement.classList.add('lockscreen-active');
+  document.body.classList.add('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.setAttribute('inert', '');
+    el.appLayout.setAttribute('aria-hidden', 'true');
+  }
+
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
   if (el.lockscreenSliderThumb) {
     el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
   }
@@ -2102,10 +2161,13 @@ function setupSlideToUnlock() {
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches && e.touches[0]) {
-      onDragMove(e.touches[0].clientX);
+    if (isDragging) {
+      if (e.cancelable) e.preventDefault();
+      if (e.touches && e.touches[0]) {
+        onDragMove(e.touches[0].clientX);
+      }
     }
-  }, { passive: true });
+  }, { passive: false });
 
   window.addEventListener('touchend', () => {
     if (isDragging) onDragEnd();
@@ -2169,6 +2231,21 @@ function setupLockscreen() {
     setupSlideToUnlock();
   } catch (e) {
     console.warn('[App] Slide to unlock setup error:', e);
+  }
+
+  // Prevent any wheel or touch scrolling while on the lockscreen
+  if (el.lockscreen) {
+    el.lockscreen.addEventListener('wheel', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    el.lockscreen.addEventListener('touchmove', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked') && !e.target.closest('.slide-thumb')) {
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
   }
 }
 
@@ -2443,7 +2520,7 @@ function attachEventListeners() {
 
   // Unload & Backgrounding Safety Watchdogs
   window.addEventListener('beforeunload', (e) => {
-    if (puffSafetySettings.tabUnloadProtection && activeClient?.telemetry?.is_heating) {
+    if (puffSafetySettings.tabUnloadProtection && (activeClient?.telemetry?.is_heating || isCurveRunning)) {
       e.preventDefault();
       e.returnValue = 'A heating session is active on your Puffco! Leaving may leave heating unmonitored.';
       return e.returnValue;
@@ -2451,8 +2528,8 @@ function attachEventListeners() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && activeClient?.telemetry?.is_heating && isCurveRunning) {
-      console.warn('[Safety] App backgrounded during active heat curve. Timers may be throttled by browser.');
+    if (document.visibilityState === 'hidden' && (activeClient?.telemetry?.is_heating || isCurveRunning)) {
+      console.warn('[Safety] App backgrounded during active heat cycle. Timers may be throttled by browser.');
     }
   });
 
@@ -2468,13 +2545,16 @@ function attachEventListeners() {
   });
 
   el.tempIncBtn.addEventListener('click', () => {
-    let val = Math.min(600, Number(el.tempSlider.value) + 5);
+    let val = Math.min(590, Number(el.tempSlider.value) + 5);
     el.tempSlider.value = val;
     el.sliderTempVal.textContent = `${val}°F`;
   });
 
   el.applyTempBtn.addEventListener('click', async () => {
-    const val = Number(el.tempSlider.value);
+    const raw = Number(el.tempSlider.value);
+    const val = Math.min(590, Math.max(400, Number.isFinite(raw) ? raw : 485));
+    el.tempSlider.value = val;
+    el.sliderTempVal.textContent = `${val}°F`;
     await activeClient.writeTemperature(val);
     showToast(`Target temperature set to ${val}°F`, 'success');
   });
@@ -2609,12 +2689,12 @@ function bootstrap() {
   curveGovernor.addCurveListener(handleCurveTelemetry);
 
   // Wire disconnect notification listener
-  bleClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
-    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional);
-    const wasHeating = bleClient.telemetry.is_heating || isCurveRunning;
+  bleClient.addDisconnectListener(({ wasConnected, isIntentional, wasHeating }) => {
+    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional, 'Was heating:', wasHeating);
+    const heatingActive = !!(wasHeating || isCurveRunning);
 
     if (wasConnected && !isIntentional) {
-      if (wasHeating) {
+      if (heatingActive) {
         // High-priority thermal emergency modal
         if (el.criticalDisconnectModal) {
           el.criticalDisconnectModal.classList.remove('hidden');
@@ -2631,9 +2711,14 @@ function bootstrap() {
     }
     handleTelemetryUpdate(bleClient.telemetry);
   });
-  simClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+  simClient.addDisconnectListener(({ wasConnected, isIntentional, wasHeating }) => {
+    const heatingActive = !!(wasHeating || isCurveRunning);
     if (wasConnected && !isIntentional) {
-      showToast('Demo device disconnected.', 'info', 3000);
+      if (heatingActive && el.criticalDisconnectModal) {
+        el.criticalDisconnectModal.classList.remove('hidden');
+      } else {
+        showToast('Demo device disconnected.', 'info', 3000);
+      }
     }
     handleTelemetryUpdate(simClient.telemetry);
   });

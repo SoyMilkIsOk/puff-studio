@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="lockscreen-active">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -36,7 +36,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css?v=4.1">
 </head>
-<body class="theme-dark">
+<body class="theme-dark lockscreen-active">
   <!-- Ambient background glow layers -->
   <div class="glow-backdrop" aria-hidden="true">
     <div class="radial-orb orb-amber"></div>
@@ -161,7 +161,7 @@
   <!-- ========================================================================= -->
   <!-- Main Application Dashboard Layout                                         -->
   <!-- ========================================================================= -->
-  <div class="app-layout">
+  <div class="app-layout" inert aria-hidden="true">
     <!-- Header / Navbar -->
     <header class="app-header">
       <div class="brand-section">
@@ -438,58 +438,6 @@
             </div>
           </section>
 
-          <!-- Hardware Metrics & Diagnostics -->
-          <section class="card stats-card" aria-label="Hardware & Diagnostics">
-            <div class="card-header">
-              <div class="card-title-wrap">
-                <span class="subtitle-tag">DIAGNOSTICS</span>
-                <h2 class="card-title">Hardware Metrics</h2>
-              </div>
-            </div>
-
-            <div class="metrics-grid">
-              <div class="metric-box">
-                <div class="metric-icon chamber-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                </div>
-                <div class="metric-data">
-                  <span class="metric-label">CHAMBER TYPE</span>
-                  <span id="stat-chamber-name" class="metric-value">3DXL</span>
-                </div>
-              </div>
-
-              <div class="metric-box">
-                <div class="metric-icon dabs-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                </div>
-                <div class="metric-data">
-                  <span class="metric-label">LIFETIME DABS</span>
-                  <span id="stat-total-dabs" class="metric-value">--</span>
-                </div>
-              </div>
-
-              <div class="metric-box">
-                <div class="metric-icon bt-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
-                </div>
-                <div class="metric-data">
-                  <span class="metric-label">MAC / UUID</span>
-                  <span id="stat-mac-address" class="metric-value text-mono">--</span>
-                </div>
-              </div>
-
-              <div class="metric-box">
-                <div class="metric-icon fw-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
-                </div>
-                <div class="metric-data">
-                  <span class="metric-label">FIRMWARE</span>
-                  <span id="stat-firmware-version" class="metric-value text-mono">--</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <!-- Peripherals & Power Controls -->
           <section class="card controls-card" aria-label="Device Lighting & Power Controls">
             <div class="device-controls-row">
@@ -610,6 +558,58 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                 Power Off
               </button>
+            </div>
+          </section>
+
+          <!-- Hardware Metrics & Diagnostics -->
+          <section class="card stats-card" aria-label="Hardware & Diagnostics">
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <span class="subtitle-tag">DIAGNOSTICS</span>
+                <h2 class="card-title">Hardware Metrics</h2>
+              </div>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <div class="metric-icon chamber-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">CHAMBER TYPE</span>
+                  <span id="stat-chamber-name" class="metric-value">3DXL</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon dabs-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">LIFETIME DABS</span>
+                  <span id="stat-total-dabs" class="metric-value">--</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon bt-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">MAC / UUID</span>
+                  <span id="stat-mac-address" class="metric-value text-mono">--</span>
+                </div>
+              </div>
+
+              <div class="metric-box">
+                <div class="metric-icon fw-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                </div>
+                <div class="metric-data">
+                  <span class="metric-label">FIRMWARE</span>
+                  <span id="stat-firmware-version" class="metric-value text-mono">--</span>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -942,7 +942,7 @@
       </div>
     </div>
 
-    <!-- Toast Notification Container -->
+    <!-- Toast Notification Container (Dashboard layer, behind lockscreen) -->
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
     <!-- Footer -->

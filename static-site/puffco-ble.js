@@ -534,6 +534,13 @@ class PuffcoBleClient {
     this._stateListeners.delete(cb);
   }
 
+  _notifyStateListeners(state) {
+    if (!this._stateListeners) return;
+    this._stateListeners.forEach((cb) => {
+      try { cb(state); } catch (e) { console.error(e); }
+    });
+  }
+
   addDisconnectListener(cb) {
     this._disconnectListeners.add(cb);
   }
@@ -849,6 +856,7 @@ class PuffcoBleClient {
   _onDisconnected(isIntentional = false) {
     console.warn('[PuffcoBLE] GATT disconnected. Intentional:', isIntentional);
     const wasConnected = this.isConnected;
+    const wasHeating = !!(this.telemetry && (this.telemetry.is_heating || ['HEAT_PREHEAT', 'HEAT_ACTIVE', 'READY'].includes(this.telemetry.operating_state)));
     this.isConnected = false;
     this._streaming = false;
     this.stopLanternEffect();
@@ -864,7 +872,7 @@ class PuffcoBleClient {
     this.telemetry = this._defaultTelemetry();
     this._notifyListeners();
     this._notifyStateListeners('DISCONNECTED');
-    this._notifyDisconnectListeners({ wasConnected, isIntentional });
+    this._notifyDisconnectListeners({ wasConnected, isIntentional, wasHeating });
     this._isIntentionalDisconnect = false;
   }
 

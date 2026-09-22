@@ -96,7 +96,9 @@ class PuffcoSimulator {
     return true;
   }
 
-  async disconnect() {
+  async disconnect(isIntentional = true) {
+    const wasConnected = this.isConnected;
+    const wasHeating = !!(this.telemetry && (this.telemetry.is_heating || ['HEAT_PREHEAT', 'HEAT_ACTIVE', 'READY'].includes(this.telemetry.operating_state)));
     this.isConnected = false;
     this._stopLoop();
     this.telemetry.connected = false;
@@ -104,6 +106,11 @@ class PuffcoSimulator {
     this.telemetry.state_name = 'Disconnected';
     this.telemetry.is_heating = false;
     this._notifyListeners();
+    if (this._disconnectListeners) {
+      this._disconnectListeners.forEach((cb) => {
+        try { cb({ wasConnected, isIntentional, wasHeating }); } catch (_) {}
+      });
+    }
   }
 
   _startLoop() {

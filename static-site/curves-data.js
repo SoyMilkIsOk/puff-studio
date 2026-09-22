@@ -249,6 +249,18 @@ function validateCurveStructure(curve) {
   if (!curve.name || typeof curve.name !== 'string') {
     throw new Error('Curve must have a valid name');
   }
+
+  // Sanitize name and description to prevent XSS / HTML injection
+  const sanitizedName = curve.name.replace(/<[^>]*>?/gm, '').trim().slice(0, 48) || 'Custom Curve';
+  const sanitizedDesc = typeof curve.description === 'string' 
+    ? curve.description.replace(/<[^>]*>?/gm, '').trim().slice(0, 200) 
+    : '';
+
+  // Sanitize identifier
+  const sanitizedId = (typeof curve.id === 'string' && /^[a-zA-Z0-9_-]{1,48}$/.test(curve.id))
+    ? curve.id
+    : `custom-${Date.now().toString(36)}`;
+
   if (!Array.isArray(curve.keyframes) || curve.keyframes.length < 2) {
     throw new Error('Curve must contain at least 2 keyframes');
   }
@@ -276,10 +288,14 @@ function validateCurveStructure(curve) {
     });
   }
 
-  const duration_s = Math.min(120, Math.max(15, Number(curve.duration_s || sanitizedKeyframes[sanitizedKeyframes.length - 1].time_s || 50)));
+  const lastTime_s = sanitizedKeyframes[sanitizedKeyframes.length - 1].time_s;
+  const rawDuration = Number(curve.duration_s || lastTime_s || 50);
+  const duration_s = Math.min(120, Math.max(15, Math.max(lastTime_s, Number.isFinite(rawDuration) ? rawDuration : lastTime_s)));
 
   return {
-    ...curve,
+    id: sanitizedId,
+    name: sanitizedName,
+    description: sanitizedDesc,
     duration_s,
     keyframes: sanitizedKeyframes,
   };
