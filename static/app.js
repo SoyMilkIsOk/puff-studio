@@ -36,7 +36,8 @@ let wasDeviceConnected = false;
 
 // DOM Element Cache
 const el = {
-  // Navigation Tabs
+  // Navigation Tabs & App Layout
+  appLayout: document.querySelector('.app-layout'),
   tabControllerBtn: document.getElementById('tab-controller-btn'),
   tabCurvesBtn: document.getElementById('tab-curves-btn'),
   tabController: document.getElementById('tab-controller'),
@@ -1749,15 +1750,46 @@ function unlockToDashboard() {
   if ('vibrate' in navigator) {
     try { navigator.vibrate(45); } catch (e) {}
   }
+
+  // Restore document scrolling capability and layout display
+  document.documentElement.classList.remove('lockscreen-active');
+  document.body.classList.remove('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.removeAttribute('inert');
+    el.appLayout.removeAttribute('aria-hidden');
+  }
+
+  // Ensure window scroll starts cleanly at top
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
+  // Recalculate curve graph for true layout dimensions
+  if (typeof renderCurveGraph === 'function') {
+    requestAnimationFrame(() => {
+      renderCurveGraph();
+    });
+  }
+
+  // Animate lockscreen sliding up
   if (el.lockscreen) {
     el.lockscreen.classList.add('unlocked');
+    setTimeout(() => {
+      if (el.lockscreen && el.lockscreen.classList.contains('unlocked')) {
+        el.lockscreen.style.display = 'none';
+      }
+    }, 700);
   }
+
   showToast('puffsn0w unlocked 🔓', 'success', 3500);
 }
 
 function lockToLockscreen() {
   if (el.lockscreen) {
+    el.lockscreen.style.display = 'flex';
+    // Force reflow before removing .unlocked
+    void el.lockscreen.offsetHeight;
     el.lockscreen.classList.remove('unlocked');
+
     const isConn = (activeClient && activeClient.isConnected) || false;
     if (isConn) {
       el.lockscreen.classList.remove('lockscreen-locked');
@@ -1765,6 +1797,17 @@ function lockToLockscreen() {
       el.lockscreen.classList.add('lockscreen-locked');
     }
   }
+
+  document.documentElement.classList.add('lockscreen-active');
+  document.body.classList.add('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.setAttribute('inert', '');
+    el.appLayout.setAttribute('aria-hidden', 'true');
+  }
+
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
   if (el.lockscreenSliderThumb) {
     el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
   }
@@ -1880,10 +1923,13 @@ function setupSlideToUnlock() {
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches && e.touches[0]) {
-      onDragMove(e.touches[0].clientX);
+    if (isDragging) {
+      if (e.cancelable) e.preventDefault();
+      if (e.touches && e.touches[0]) {
+        onDragMove(e.touches[0].clientX);
+      }
     }
-  }, { passive: true });
+  }, { passive: false });
 
   window.addEventListener('touchend', () => {
     if (isDragging) onDragEnd();
@@ -1935,6 +1981,21 @@ function setupLockscreen() {
 
   setupAnalyticsConsent();
   setupSlideToUnlock();
+
+  // Prevent any wheel or touch scrolling while on the lockscreen
+  if (el.lockscreen) {
+    el.lockscreen.addEventListener('wheel', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    el.lockscreen.addEventListener('touchmove', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked') && !e.target.closest('.slide-thumb')) {
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+  }
 }
 
 // ==========================================================================

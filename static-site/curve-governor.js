@@ -12,6 +12,22 @@ class CurveGovernor {
     this._timer = null;
     this._listeners = new Set();
     this._backupProfile = null;
+
+    // Loss-of-Link Deadman Safeguard: Immediately abort if BLE connection drops
+    this._disconnectHandler = () => {
+      if (this.isActive) {
+        console.warn('[Governor] BLE connection lost during active curve execution! Halting governor immediately.');
+        this.isActive = false;
+        if (this.client?.telemetry) {
+          this.client.telemetry.active_curve_running = false;
+        }
+        this._broadcast({
+          is_active: false,
+          status: 'connection_lost',
+          error: 'Bluetooth disconnected during heat cycle',
+        });
+      }
+    };
   }
 
   addCurveListener(cb) {
@@ -45,13 +61,23 @@ class CurveGovernor {
       this.client.telemetry.active_curve_running = true;
     }
 
+    // Attach link loss listener to halt governor if connection drops
+    if (typeof this.client.addDisconnectListener === 'function') {
+      this.client.addDisconnectListener(this._disconnectHandler);
+    }
+
     const cid = curve.id;
     const cname = curve.name;
-    const durationS = Number(curve.duration_s || keyframes[keyframes.length - 1].time_s || 50);
-    const initialTemp = Number(keyframes[0].temp_f || 485);
-    const slot = Number(this.client.telemetry.active_profile ?? 0);
+    // Hard duration cap at 120 seconds for safety
+    const durationS = Math.min(120, Math.max(15, Number(curve.duration_s || keyframes[keyframes.length - 1].time_s || 50)));
+    const initialTemp = Math.min(590, Math.max(350, Number(keyframes[0].temp_f || 485)));
 
-    console.log(`[Governor] Starting curve "${cname}" (${durationS}s) on profile slot ${slot}...`);
+    // Dedicated Curve Slot: Use Slot 3 (4th slot / Easter Egg) by default to protect user Profiles 0, 1, and 2
+    const useDedicatedSlot = window.puffSafetySettings ? window.puffSafetySettings.dedicatedCurveSlot !== false : true;
+    const origActiveSlot = Number(this.client.telemetry.active_profile ?? 0);
+    const slot = useDedicatedSlot ? 3 : origActiveSlot;
+
+    console.log(`[Governor] Starting curve "${cname}" (${durationS}s) on profile slot ${slot} (dedicatedSlot=${useDedicatedSlot})...`);
 
     // 1. Backup existing profile settings
     const activeProf = (this.client.telemetry.profiles && this.client.telemetry.profiles[slot]) || {};
@@ -59,7 +85,12 @@ class CurveGovernor {
       slot,
       target_temp_f: activeProf.target_temp_f || this.client.telemetry.target_temp_f || 485,
       duration_s: activeProf.duration_s || 50,
+      origActiveSlot,
     };
+
+    if (useDedicatedSlot && origActiveSlot !== 3) {
+      await this.client.setProfile(3);
+    }
 
     // 2. Program initial curve duration and temp
     console.log(`[Governor] Programming initial curve setpoint: ${initialTemp}°F, duration: ${durationS}s to slot ${slot}`);
@@ -185,6 +216,7 @@ class CurveGovernor {
     // ---------------- PHASE 2: ACTIVE REAL-TIME GOVERNOR ----------------
     const startTime = performance.now();
     let lastSentTemp = initialTemp;
+    let lastWriteTime = performance.now();
     let activeIdleCount = 0;
     console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s...`);
 
@@ -261,15 +293,21 @@ class CurveGovernor {
 
       // Compute piecewise interpolated target temperature for elapsed timestamp
       let currentTarget = Math.round(window.interpolateCurveTarget(keyframes, elapsed) * 10) / 10;
-      // Hard safety clamp: Never command setpoint to exceed 590°F
+      // Hard safety clamp: Never command setpoint outside [350°F, 590°F]
       currentTarget = Math.min(590.0, Math.max(350.0, currentTarget));
 
-      // Update hardware setpoint if target changed by >= 1.0°F (matches server.py)
-      if (Math.abs(currentTarget - lastSentTemp) >= 1.0) {
+      // Slew-rate check & flash wear reduction delta filter:
+      // Only write to device flash if setpoint changed by >= 2.0°F (or if >= 2.5s since last write)
+      const flashWearThrottling = window.puffSafetySettings ? window.puffSafetySettings.flashWearThrottling !== false : true;
+      const threshold = flashWearThrottling ? 2.0 : 1.0;
+      const timeSinceLastWrite = now - lastWriteTime;
+
+      if (Math.abs(currentTarget - lastSentTemp) >= threshold || (timeSinceLastWrite >= 2500 && Math.abs(currentTarget - lastSentTemp) >= 0.5)) {
         console.log(`[Governor] Modulating setpoint at t=${elapsed.toFixed(1)}s: ${lastSentTemp}°F -> ${currentTarget}°F`);
         const ok = await this.client.writeTemperature(currentTarget, slot);
         if (ok) {
           lastSentTemp = currentTarget;
+          lastWriteTime = now;
         }
       }
 
@@ -295,6 +333,9 @@ class CurveGovernor {
   async stop() {
     console.log('[Governor] Stopping heat curve governor...');
     this.isActive = false;
+    if (this.client && typeof this.client.removeDisconnectListener === 'function') {
+      this.client.removeDisconnectListener(this._disconnectHandler);
+    }
     if (this.client && this.client.telemetry) {
       this.client.telemetry.active_curve_running = false;
     }
@@ -315,11 +356,13 @@ class CurveGovernor {
   async _restoreProfile() {
     if (this._backupProfile && this.client && this.client.isConnected) {
       try {
-        const { slot, target_temp_f, duration_s } = this._backupProfile;
+        const { slot, target_temp_f, duration_s, origActiveSlot } = this._backupProfile;
         console.log(`[Governor] Restoring original profile ${slot} (temp=${target_temp_f}°F, dur=${duration_s}s)...`);
         await this.client.writeTemperature(target_temp_f, slot);
         await this.client.writeDuration(duration_s, slot);
-        await this.client.setProfile(slot);
+        if (typeof origActiveSlot === 'number') {
+          await this.client.setProfile(origActiveSlot);
+        }
       } catch (e) {
         console.warn('[Governor] Failed to restore profile:', e);
       }

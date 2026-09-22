@@ -187,17 +187,18 @@ class CurveStorage {
   }
 
   upsert(curve) {
-    if (!curve.id) {
-      curve.id = `custom-${Date.now().toString(36)}`;
+    const validated = validateCurveStructure(curve);
+    if (!validated.id) {
+      validated.id = `custom-${Date.now().toString(36)}`;
     }
-    const idx = this._curves.findIndex((c) => c.id === curve.id);
+    const idx = this._curves.findIndex((c) => c.id === validated.id);
     if (idx >= 0) {
-      this._curves[idx] = JSON.parse(JSON.stringify(curve));
+      this._curves[idx] = JSON.parse(JSON.stringify(validated));
     } else {
-      this._curves.push(JSON.parse(JSON.stringify(curve)));
+      this._curves.push(JSON.parse(JSON.stringify(validated)));
     }
     this.save();
-    return curve;
+    return validated;
   }
 
   delete(id) {
@@ -222,19 +223,82 @@ class CurveStorage {
     try {
       const parsed = JSON.parse(jsonString);
       if (!Array.isArray(parsed)) throw new Error("Expected an array of curves");
+      const validatedList = [];
       for (const item of parsed) {
-        if (!item.id || !item.name || !Array.isArray(item.keyframes)) {
-          throw new Error("Invalid curve structure");
-        }
+        validatedList.push(validateCurveStructure(item));
       }
-      this._curves = parsed;
+      this._curves = validatedList;
       this.save();
       return true;
     } catch (e) {
-      console.error("Import curves failed:", e);
+      console.error("Import curves validation failed:", e);
       return false;
     }
   }
+}
+
+/**
+ * Strict Thermal Safety Curve Validator
+ * Ensures keyframes are chronologically ordered, durations within 15-120s,
+ * and temperatures strictly bounded to [350°F, 590°F].
+ */
+function validateCurveStructure(curve) {
+  if (!curve || typeof curve !== 'object') {
+    throw new Error('Curve definition must be an object');
+  }
+  if (!curve.name || typeof curve.name !== 'string') {
+    throw new Error('Curve must have a valid name');
+  }
+
+  // Sanitize name and description to prevent XSS / HTML injection
+  const sanitizedName = curve.name.replace(/<[^>]*>?/gm, '').trim().slice(0, 48) || 'Custom Curve';
+  const sanitizedDesc = typeof curve.description === 'string' 
+    ? curve.description.replace(/<[^>]*>?/gm, '').trim().slice(0, 200) 
+    : '';
+
+  // Sanitize identifier
+  const sanitizedId = (typeof curve.id === 'string' && /^[a-zA-Z0-9_-]{1,48}$/.test(curve.id))
+    ? curve.id
+    : `custom-${Date.now().toString(36)}`;
+
+  if (!Array.isArray(curve.keyframes) || curve.keyframes.length < 2) {
+    throw new Error('Curve must contain at least 2 keyframes');
+  }
+
+  let lastTime = -1;
+  const sanitizedKeyframes = [];
+  for (let i = 0; i < curve.keyframes.length; i++) {
+    const kf = curve.keyframes[i];
+    const time_s = Number(kf.time_s);
+    const temp_f = Number(kf.temp_f);
+
+    if (!Number.isFinite(time_s) || time_s < 0 || time_s > 120) {
+      throw new Error(`Keyframe ${i + 1}: Timestamp (${kf.time_s}s) must be between 0 and 120 seconds`);
+    }
+    if (time_s < lastTime) {
+      throw new Error(`Keyframe ${i + 1}: Timestamps must be in chronological order`);
+    }
+    if (!Number.isFinite(temp_f) || temp_f < 350 || temp_f > 590) {
+      throw new Error(`Keyframe ${i + 1}: Temperature (${kf.temp_f}°F) must be between 350°F and 590°F`);
+    }
+    lastTime = time_s;
+    sanitizedKeyframes.push({
+      time_s: Math.round(time_s * 10) / 10,
+      temp_f: Math.round(temp_f * 10) / 10,
+    });
+  }
+
+  const lastTime_s = sanitizedKeyframes[sanitizedKeyframes.length - 1].time_s;
+  const rawDuration = Number(curve.duration_s || lastTime_s || 50);
+  const duration_s = Math.min(120, Math.max(15, Math.max(lastTime_s, Number.isFinite(rawDuration) ? rawDuration : lastTime_s)));
+
+  return {
+    id: sanitizedId,
+    name: sanitizedName,
+    description: sanitizedDesc,
+    duration_s,
+    keyframes: sanitizedKeyframes,
+  };
 }
 
 /**

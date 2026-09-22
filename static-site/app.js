@@ -36,7 +36,8 @@ let wasDeviceConnected = false;
 
 // DOM Element Cache
 const el = {
-  // Navigation Tabs
+  // Navigation Tabs & App Layout
+  appLayout: document.querySelector('.app-layout'),
   tabControllerBtn: document.getElementById('tab-controller-btn'),
   tabCurvesBtn: document.getElementById('tab-curves-btn'),
   tabController: document.getElementById('tab-controller'),
@@ -193,9 +194,55 @@ const el = {
   shareLinkInput: document.getElementById('share-link-input'),
   shareJsonInput: document.getElementById('share-json-input'),
   copyShareLinkBtn: document.getElementById('copy-share-link-btn'),
+  // Safety Controls & Emergency
+  globalEmergencyStop: document.getElementById('global-emergency-stop'),
+  safetySettingsBtn: document.getElementById('safety-settings-btn'),
+  safetySettingsModal: document.getElementById('safety-settings-modal'),
+  closeSafetyModal: document.getElementById('close-safety-modal'),
+  closeSafetyModalBtn: document.getElementById('close-safety-modal-btn'),
+  safetyHoldToFireToggle: document.getElementById('safety-hold-to-fire-toggle'),
+  safetyDedicatedSlotToggle: document.getElementById('safety-dedicated-slot-toggle'),
+  safetyHotChamberToggle: document.getElementById('safety-hot-chamber-toggle'),
+  safetyTabUnloadToggle: document.getElementById('safety-tab-unload-toggle'),
+  safetyFlashWearToggle: document.getElementById('safety-flash-wear-toggle'),
+  restoreVaultBtn: document.getElementById('restore-vault-btn'),
+  vaultStatusBadge: document.getElementById('vault-status-badge'),
+  criticalDisconnectModal: document.getElementById('critical-disconnect-modal'),
+  dismissCriticalDisconnectBtn: document.getElementById('dismiss-critical-disconnect-btn'),
+  htfProgressFillSesh: document.getElementById('htf-progress-fill-sesh'),
+  htfProgressFillCurve: document.getElementById('htf-progress-fill-curve'),
 
   toastContainer: document.getElementById('toast-container'),
 };
+
+// ==========================================================================
+// Safety Policy & Configuration
+// ==========================================================================
+
+const DEFAULT_SAFETY_SETTINGS = {
+  holdToFire: true,
+  dedicatedCurveSlot: true,
+  hotChamberInterlock: true,
+  tabUnloadProtection: true,
+  flashWearThrottling: true,
+};
+
+let puffSafetySettings = { ...DEFAULT_SAFETY_SETTINGS };
+try {
+  const savedSafety = localStorage.getItem('puff_safety_settings');
+  if (savedSafety) {
+    puffSafetySettings = Object.assign(puffSafetySettings, JSON.parse(savedSafety));
+  }
+} catch (e) {
+  console.warn('Could not load safety settings:', e);
+}
+window.puffSafetySettings = puffSafetySettings;
+
+function saveSafetySettings() {
+  try {
+    localStorage.setItem('puff_safety_settings', JSON.stringify(puffSafetySettings));
+  } catch (e) {}
+}
 
 // ==========================================================================
 // Browser & Web Bluetooth Feature Detection
@@ -389,6 +436,17 @@ function handleTelemetryUpdate(data) {
 
   // User Controls Disabling / Greying Out
   const controlsEnabled = connected && !isSyncing;
+
+  // Global Emergency Stop Button Visibility (Always visible across all tabs when heating)
+  if (el.globalEmergencyStop) {
+    if (connected && (isHeating || isCurveRunning)) {
+      el.globalEmergencyStop.classList.remove('hidden');
+      if (el.toastContainer) el.toastContainer.classList.add('estop-shift');
+    } else {
+      el.globalEmergencyStop.classList.add('hidden');
+      if (el.toastContainer) el.toastContainer.classList.remove('estop-shift');
+    }
+  }
 
   // Sesh Control Buttons State
   el.startSeshBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
@@ -977,7 +1035,8 @@ function renderKeyframeTable() {
     inputTime.min = 0;
     inputTime.max = TIME_MAX;
     inputTime.addEventListener('change', (e) => {
-      k.time_s = Math.max(0, Math.min(TIME_MAX, Number(e.target.value)));
+      const val = Number(e.target.value);
+      k.time_s = Math.max(0, Math.min(TIME_MAX, Number.isFinite(val) ? val : k.time_s));
       sortAndRefreshCurve();
     });
     tdTime.appendChild(inputTime);
@@ -991,7 +1050,8 @@ function renderKeyframeTable() {
     inputTemp.min = TEMP_MIN;
     inputTemp.max = TEMP_MAX;
     inputTemp.addEventListener('change', (e) => {
-      k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number(e.target.value)));
+      const val = Number(e.target.value);
+      k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number.isFinite(val) ? val : k.temp_f));
       renderCurveGraph();
     });
     tdTemp.appendChild(inputTemp);
@@ -1165,6 +1225,7 @@ function updateNodeScales() {
 
 function setupSvgInteraction() {
   const svg = el.curveSvg;
+  if (!svg) return;
 
   function getSvgCoords(clientX, clientY) {
     const rect = svg.getBoundingClientRect();
@@ -1341,10 +1402,11 @@ function loadCurvesList() {
       const base64 = location.hash.replace('#curve=', '');
       const json = decodeURIComponent(atob(base64));
       const shared = JSON.parse(json);
-      if (shared && shared.keyframes) {
-        currentCurve = shared;
-        curveStorage.upsert(shared);
-        showToast(`Loaded shared curve "${shared.name}"!`, 'success');
+      if (shared && typeof shared === 'object' && Array.isArray(shared.keyframes)) {
+        const validated = validateCurveStructure(shared);
+        currentCurve = validated;
+        curveStorage.upsert(validated);
+        showToast(`Loaded shared curve "${validated.name}"!`, 'success');
       }
     } catch (e) {
       console.warn('Could not parse shared curve from URL hash:', e);
@@ -1361,7 +1423,12 @@ function renderCurvePills() {
   curvesList.forEach((c) => {
     const pill = document.createElement('button');
     pill.className = `curve-pill ${currentCurve && c.id === currentCurve.id ? 'active' : ''}`;
-    pill.innerHTML = `<span class="curve-pill-dot"></span><span>${c.name}</span>`;
+    const dot = document.createElement('span');
+    dot.className = 'curve-pill-dot';
+    const label = document.createElement('span');
+    label.textContent = c.name;
+    pill.appendChild(dot);
+    pill.appendChild(label);
     pill.addEventListener('click', () => selectCurve(c));
     el.curvePillsContainer.appendChild(pill);
   });
@@ -1380,169 +1447,317 @@ function selectCurve(curve) {
   renderCurveGraph();
 }
 
-function setupCurveActions() {
-  // New Curve
-  el.newCurveBtn.addEventListener('click', () => {
-    currentCurve = {
-      id: `custom-${Date.now().toString(36)}`,
-      name: 'Custom Curve',
-      description: 'User-defined custom temperature profile',
-      duration_s: 50,
-      keyframes: [
-        { time_s: 0, temp_f: 435 },
-        { time_s: 25, temp_f: 485 },
-        { time_s: 50, temp_f: 515 },
-      ],
+// ==========================================================================
+// Hold-to-Fire (HtF) Left-to-Right Progress Interaction
+// ==========================================================================
+
+function bindHoldToFire(btn, fillEl, onTrigger, toastMessage) {
+  if (!btn) return;
+  let htfTimer = null;
+  let htfStartTime = 0;
+  let htfAnimFrame = null;
+  const HTF_DURATION = 800; // 0.8s hold duration
+
+  function resetHtf() {
+    if (htfTimer) {
+      clearTimeout(htfTimer);
+      htfTimer = null;
+    }
+    if (htfAnimFrame) {
+      cancelAnimationFrame(htfAnimFrame);
+      htfAnimFrame = null;
+    }
+    btn.classList.remove('holding');
+    if (fillEl) {
+      fillEl.style.transition = 'width 0.2s ease-out';
+      fillEl.style.width = '0%';
+    }
+  }
+
+  function onHtfDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (btn.disabled) return;
+    if (!activeClient || !activeClient.isConnected || activeClient.telemetry?.is_heating || isCurveRunning) return;
+
+    // If Hold-to-Fire is disabled in settings, ignite immediately on tap
+    if (!puffSafetySettings.holdToFire) {
+      onTrigger();
+      return;
+    }
+
+    resetHtf();
+    btn.classList.add('holding');
+    htfStartTime = performance.now();
+    if (fillEl) {
+      fillEl.style.transition = 'none';
+      fillEl.style.width = '0%';
+    }
+
+    const updateFill = () => {
+      const elapsed = performance.now() - htfStartTime;
+      const progress = Math.min(1, elapsed / HTF_DURATION);
+      if (fillEl) {
+        fillEl.style.width = `${(progress * 100).toFixed(1)}%`;
+      }
+      if (progress < 1) {
+        htfAnimFrame = requestAnimationFrame(updateFill);
+      }
     };
-    renderCurvePills();
-    renderCurveGraph();
-    showToast('New curve draft created', 'info');
+    htfAnimFrame = requestAnimationFrame(updateFill);
+
+    htfTimer = setTimeout(() => {
+      resetHtf();
+      if (typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate([40, 30, 80]); } catch (err) {}
+      }
+      onTrigger();
+    }, HTF_DURATION);
+  }
+
+  function onHtfUp() {
+    if (!puffSafetySettings.holdToFire) return;
+    if (htfTimer) {
+      const elapsed = performance.now() - htfStartTime;
+      resetHtf();
+      if (elapsed < HTF_DURATION && elapsed > 80) {
+        showToast(toastMessage || 'Hold button for 0.8s to ignite 🔥', 'info', 1800);
+      }
+    }
+  }
+
+  btn.addEventListener('pointerdown', onHtfDown);
+  btn.addEventListener('pointerup', onHtfUp);
+  btn.addEventListener('pointerleave', resetHtf);
+  btn.addEventListener('pointercancel', resetHtf);
+  btn.addEventListener('contextmenu', (e) => {
+    if (puffSafetySettings.holdToFire) e.preventDefault();
   });
-
-  // Save Curve Modal
-  el.saveCurveBtn.addEventListener('click', () => {
-    el.saveCurveNameInput.value = currentCurve.name;
-    el.saveCurveDescInput.value = currentCurve.description || '';
-    el.saveCurveModal.classList.remove('hidden');
-  });
-
-  el.closeSaveCurveModal.addEventListener('click', () => {
-    el.saveCurveModal.classList.add('hidden');
-  });
-
-  el.confirmSaveCurveBtn.addEventListener('click', () => {
-    const name = el.saveCurveNameInput.value.trim() || 'Custom Curve';
-    const desc = el.saveCurveDescInput.value.trim();
-    currentCurve.name = name;
-    currentCurve.description = desc;
-
-    curveStorage.upsert(currentCurve);
-    curvesList = curveStorage.listAll();
-    renderCurvePills();
-    renderCurveGraph();
-
-    showToast(`Curve "${name}" saved to library!`, 'success');
-    el.saveCurveModal.classList.add('hidden');
-  });
-
-  // Share Curve Modal
-  el.shareCurveBtn.addEventListener('click', () => {
-    const json = JSON.stringify(currentCurve);
-    const base64 = btoa(encodeURIComponent(json));
-    const url = `${location.origin}${location.pathname}#curve=${base64}`;
-
-    el.shareLinkInput.value = url;
-    el.shareJsonInput.value = JSON.stringify(currentCurve, null, 2);
-    el.shareCurveModal.classList.remove('hidden');
-  });
-
-  el.closeShareCurveModal.addEventListener('click', () => {
-    el.shareCurveModal.classList.add('hidden');
-  });
-
-  el.copyShareLinkBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(el.shareLinkInput.value);
-      showToast('Share link copied to clipboard! 📋', 'success');
-    } catch (e) {
-      el.shareLinkInput.select();
-      document.execCommand('copy');
-      showToast('Link copied!', 'success');
+  btn.addEventListener('click', (e) => {
+    // If Hold-to-Fire is off, keyboard activation (detail === 0) triggers
+    if (!puffSafetySettings.holdToFire && e.detail === 0) {
+      onTrigger();
     }
   });
+}
 
-  // Run Curve
-  el.runCurveBtn.addEventListener('click', async () => {
+function setupCurveActions() {
+  // New Curve
+  if (el.newCurveBtn) {
+    el.newCurveBtn.addEventListener('click', () => {
+      currentCurve = {
+        id: `custom-${Date.now().toString(36)}`,
+        name: 'Custom Curve',
+        description: 'User-defined custom temperature profile',
+        duration_s: 50,
+        keyframes: [
+          { time_s: 0, temp_f: 435 },
+          { time_s: 25, temp_f: 485 },
+          { time_s: 50, temp_f: 515 },
+        ],
+      };
+      renderCurvePills();
+      renderCurveGraph();
+      showToast('New curve draft created', 'info');
+    });
+  }
+
+  // Save Curve Modal
+  if (el.saveCurveBtn) {
+    el.saveCurveBtn.addEventListener('click', () => {
+      if (el.saveCurveNameInput) el.saveCurveNameInput.value = currentCurve.name;
+      if (el.saveCurveDescInput) el.saveCurveDescInput.value = currentCurve.description || '';
+      if (el.saveCurveModal) el.saveCurveModal.classList.remove('hidden');
+    });
+  }
+
+  if (el.closeSaveCurveModal) {
+    el.closeSaveCurveModal.addEventListener('click', () => {
+      if (el.saveCurveModal) el.saveCurveModal.classList.add('hidden');
+    });
+  }
+
+  if (el.confirmSaveCurveBtn) {
+    el.confirmSaveCurveBtn.addEventListener('click', () => {
+      const name = (el.saveCurveNameInput?.value || '').trim() || 'Custom Curve';
+      const desc = (el.saveCurveDescInput?.value || '').trim();
+      currentCurve.name = name;
+      currentCurve.description = desc;
+
+      curveStorage.upsert(currentCurve);
+      curvesList = curveStorage.listAll();
+      renderCurvePills();
+      renderCurveGraph();
+
+      showToast(`Curve "${name}" saved to library!`, 'success');
+      if (el.saveCurveModal) el.saveCurveModal.classList.add('hidden');
+    });
+  }
+
+  // Share Curve Modal
+  if (el.shareCurveBtn) {
+    el.shareCurveBtn.addEventListener('click', () => {
+      const json = JSON.stringify(currentCurve);
+      const base64 = btoa(encodeURIComponent(json));
+      const url = `${location.origin}${location.pathname}#curve=${base64}`;
+
+      if (el.shareLinkInput) el.shareLinkInput.value = url;
+      if (el.shareJsonInput) el.shareJsonInput.value = JSON.stringify(currentCurve, null, 2);
+      if (el.shareCurveModal) el.shareCurveModal.classList.remove('hidden');
+    });
+  }
+
+  if (el.closeShareCurveModal) {
+    el.closeShareCurveModal.addEventListener('click', () => {
+      if (el.shareCurveModal) el.shareCurveModal.classList.add('hidden');
+    });
+  }
+
+  if (el.copyShareLinkBtn) {
+    el.copyShareLinkBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(el.shareLinkInput.value);
+        showToast('Share link copied to clipboard! 📋', 'success');
+      } catch (e) {
+        el.shareLinkInput.select();
+        document.execCommand('copy');
+        showToast('Link copied!', 'success');
+      }
+    });
+  }
+
+  // Start Curve with Hold-to-Fire
+  async function triggerStartCurve() {
     if (isCurveRunning) return;
     if (!currentTelemetry?.connected) {
       showToast('Connect your Puff device to run this curve', 'error');
       return;
     }
 
+    // Hot chamber interlock warning
+    if (puffSafetySettings.hotChamberInterlock && activeClient?.telemetry?.live_temp_f > 480.0) {
+      const proceed = confirm(`⚠️ CAUTION: Chamber temperature is currently ${Math.round(activeClient.telemetry.live_temp_f)}°F.\n\nExecuting a full heat curve on an already hot chamber can stress silicone base seals. Proceed anyway?`);
+      if (!proceed) return;
+    }
+
     actualTrailPoints = [];
-    el.curveActualTrail.setAttribute('d', '');
-    el.runCurveBtn.disabled = true;
-    el.runCurveBtnLabel.textContent = 'STARTING...';
+    if (el.curveActualTrail) el.curveActualTrail.setAttribute('d', '');
+    if (el.runCurveBtn) el.runCurveBtn.disabled = true;
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'STARTING...';
 
     try {
       curveGovernor.client = activeClient;
       isCurveRunning = true;
-      el.runCurveBtn.disabled = false;
-      el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
-      el.stopCurveBtn.disabled = false;
-      el.curveStatusBadge.className = 'state-tag state-heating';
-      el.curveStatusBadge.textContent = 'HEATING CURVE';
-      el.curvePlayheadLine.classList.remove('hidden');
+      if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+      if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
+      if (el.stopCurveBtn) el.stopCurveBtn.disabled = false;
+      if (el.curveStatusBadge) {
+        el.curveStatusBadge.className = 'state-tag state-heating';
+        el.curveStatusBadge.textContent = 'HEATING CURVE';
+      }
+      if (el.curvePlayheadLine) el.curvePlayheadLine.classList.remove('hidden');
       if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.remove('hidden');
-      el.curvePlayheadDot.classList.remove('hidden');
+      if (el.curvePlayheadDot) el.curvePlayheadDot.classList.remove('hidden');
 
-      showToast(`Executing curve "${currentCurve.name}"! 🔥`, 'success');
+      showToast(`Starting curve "${currentCurve.name}"! 🔥`, 'success');
       await curveGovernor.run(currentCurve);
     } catch (err) {
       showToast(err.message || 'Failed to start curve', 'error');
     } finally {
       isCurveRunning = false;
-      el.runCurveBtn.disabled = false;
-      el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
-      el.stopCurveBtn.disabled = true;
-      el.curveStatusBadge.className = 'state-tag state-idle';
-      el.curveStatusBadge.textContent = 'READY';
+      if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+      if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
+      if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
+      if (el.curveStatusBadge) {
+        el.curveStatusBadge.className = 'state-tag state-idle';
+        el.curveStatusBadge.textContent = 'READY';
+      }
     }
-  });
+  }
+
+  // Bind Hold-to-Fire on Start Curve button
+  bindHoldToFire(
+    el.runCurveBtn,
+    el.htfProgressFillCurve,
+    triggerStartCurve,
+    'Hold button for 0.8s to start curve 📈'
+  );
 
   // Stop Curve
-  el.stopCurveBtn.addEventListener('click', async () => {
-    el.stopCurveBtn.disabled = true;
-    el.runCurveBtnLabel.textContent = 'STOPPING...';
-    try {
-      await curveGovernor.stop();
-      if (activeClient && activeClient.isConnected) {
-        await activeClient.stopSession();
-      }
-      showToast('Heat curve stopped and heating aborted', 'info');
-    } catch (e) {
-      console.warn('Error stopping curve:', e);
-    } finally {
-      isCurveRunning = false;
-      el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
-      el.runCurveBtn.disabled = false;
+  if (el.stopCurveBtn) {
+    el.stopCurveBtn.addEventListener('click', async () => {
       el.stopCurveBtn.disabled = true;
-      el.curveStatusBadge.className = 'state-tag state-idle';
-      el.curveStatusBadge.textContent = 'READY';
-    }
-  });
+      if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'STOPPING...';
+      try {
+        await curveGovernor.stop();
+        if (activeClient && activeClient.isConnected) {
+          await activeClient.stopSession();
+        }
+        showToast('Heat curve stopped and heating aborted', 'info');
+      } catch (e) {
+        console.warn('Error stopping curve:', e);
+      } finally {
+        isCurveRunning = false;
+        if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
+        if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+        el.stopCurveBtn.disabled = true;
+        if (el.curveStatusBadge) {
+          el.curveStatusBadge.className = 'state-tag state-idle';
+          el.curveStatusBadge.textContent = 'READY';
+        }
+      }
+    });
+  }
 }
 
 function handleCurveTelemetry(data) {
   if (data.status === 'emergency_cutoff') {
     isCurveRunning = false;
-    el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
-    el.runCurveBtn.disabled = false;
-    el.stopCurveBtn.disabled = true;
-    el.curveStatusBadge.className = 'state-tag state-offline';
-    el.curveStatusBadge.textContent = 'OVERHEAT CUTOFF';
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
+    if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+    if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
+    if (el.curveStatusBadge) {
+      el.curveStatusBadge.className = 'state-tag state-offline';
+      el.curveStatusBadge.textContent = 'OVERHEAT CUTOFF';
+    }
     showToast(`🚨 EMERGENCY SAFETY CUTOFF: Chamber reached ${Number(data.live_temp_f || 600).toFixed(1)}°F! Heating auto-aborted to prevent damage.`, 'error');
-    el.curvePlayheadLine.classList.add('hidden');
+    if (el.curvePlayheadLine) el.curvePlayheadLine.classList.add('hidden');
     if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.add('hidden');
-    el.curvePlayheadDot.classList.add('hidden');
+    if (el.curvePlayheadDot) el.curvePlayheadDot.classList.add('hidden');
+    return;
+  }
+
+  if (data.status === 'connection_lost') {
+    isCurveRunning = false;
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
+    if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+    if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
+    if (el.curveStatusBadge) {
+      el.curveStatusBadge.className = 'state-tag state-offline';
+      el.curveStatusBadge.textContent = 'LINK LOST';
+    }
+    if (el.curvePlayheadLine) el.curvePlayheadLine.classList.add('hidden');
+    if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.add('hidden');
+    if (el.curvePlayheadDot) el.curvePlayheadDot.classList.add('hidden');
     return;
   }
 
   if (data.status === 'stopped' || data.status === 'completed' || data.status === 'ended_early' || !data.is_active) {
     isCurveRunning = false;
-    el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
-    el.runCurveBtn.disabled = false;
-    el.stopCurveBtn.disabled = true;
-    el.curveStatusBadge.className = 'state-tag state-idle';
-    el.curveStatusBadge.textContent = data.status === 'completed' ? 'COMPLETED' : 'READY';
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
+    if (el.runCurveBtn) el.runCurveBtn.disabled = false;
+    if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
+    if (el.curveStatusBadge) {
+      el.curveStatusBadge.className = 'state-tag state-idle';
+      el.curveStatusBadge.textContent = data.status === 'completed' ? 'COMPLETED' : 'READY';
+    }
     if (data.status === 'completed') {
       showToast('Heat curve completed successfully!', 'success');
     }
     setTimeout(() => {
       if (!isCurveRunning) {
-        el.curvePlayheadLine.classList.add('hidden');
+        if (el.curvePlayheadLine) el.curvePlayheadLine.classList.add('hidden');
         if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.add('hidden');
-        el.curvePlayheadDot.classList.add('hidden');
+        if (el.curvePlayheadDot) el.curvePlayheadDot.classList.add('hidden');
       }
     }, 4000);
     return;
@@ -1629,20 +1844,24 @@ function handleCurveTelemetry(data) {
 // ==========================================================================
 
 function setupTabs() {
-  el.tabControllerBtn.addEventListener('click', () => {
-    el.tabControllerBtn.classList.add('active');
-    el.tabCurvesBtn.classList.remove('active');
-    el.tabController.classList.remove('hidden');
-    el.tabCurves.classList.add('hidden');
-  });
+  if (el.tabControllerBtn) {
+    el.tabControllerBtn.addEventListener('click', () => {
+      el.tabControllerBtn.classList.add('active');
+      if (el.tabCurvesBtn) el.tabCurvesBtn.classList.remove('active');
+      if (el.tabController) el.tabController.classList.remove('hidden');
+      if (el.tabCurves) el.tabCurves.classList.add('hidden');
+    });
+  }
 
-  el.tabCurvesBtn.addEventListener('click', () => {
-    el.tabCurvesBtn.classList.add('active');
-    el.tabControllerBtn.classList.remove('active');
-    el.tabCurves.classList.remove('hidden');
-    el.tabController.classList.add('hidden');
-    renderCurveGraph();
-  });
+  if (el.tabCurvesBtn) {
+    el.tabCurvesBtn.addEventListener('click', () => {
+      el.tabCurvesBtn.classList.add('active');
+      if (el.tabControllerBtn) el.tabControllerBtn.classList.remove('active');
+      if (el.tabCurves) el.tabCurves.classList.remove('hidden');
+      if (el.tabController) el.tabController.classList.add('hidden');
+      renderCurveGraph();
+    });
+  }
 }
 
 // ==========================================================================
@@ -1714,7 +1933,15 @@ function showToast(message, type = 'info', duration = 3200) {
   toast.className = `toast toast-${type}`;
 
   const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-  toast.innerHTML = `<span style="font-weight:700;">${icon}</span><span>${message}</span>`;
+  const iconSpan = document.createElement('span');
+  iconSpan.style.fontWeight = '700';
+  iconSpan.textContent = icon;
+
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = String(message);
+
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   el.toastContainer.appendChild(toast);
 
@@ -1749,15 +1976,46 @@ function unlockToDashboard() {
   if ('vibrate' in navigator) {
     try { navigator.vibrate(45); } catch (e) {}
   }
+
+  // Restore document scrolling capability and layout display
+  document.documentElement.classList.remove('lockscreen-active');
+  document.body.classList.remove('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.removeAttribute('inert');
+    el.appLayout.removeAttribute('aria-hidden');
+  }
+
+  // Ensure window scroll starts cleanly at top
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
+  // Recalculate curve graph for true layout dimensions
+  if (typeof renderCurveGraph === 'function') {
+    requestAnimationFrame(() => {
+      renderCurveGraph();
+    });
+  }
+
+  // Animate lockscreen sliding up
   if (el.lockscreen) {
     el.lockscreen.classList.add('unlocked');
+    setTimeout(() => {
+      if (el.lockscreen && el.lockscreen.classList.contains('unlocked')) {
+        el.lockscreen.style.display = 'none';
+      }
+    }, 700);
   }
+
   showToast('puffsn0w unlocked 🔓', 'success', 3500);
 }
 
 function lockToLockscreen() {
   if (el.lockscreen) {
+    el.lockscreen.style.display = 'flex';
+    // Force reflow before removing .unlocked
+    void el.lockscreen.offsetHeight;
     el.lockscreen.classList.remove('unlocked');
+
     const isConn = (activeClient && activeClient.isConnected) || false;
     if (isConn) {
       el.lockscreen.classList.remove('lockscreen-locked');
@@ -1765,6 +2023,17 @@ function lockToLockscreen() {
       el.lockscreen.classList.add('lockscreen-locked');
     }
   }
+
+  document.documentElement.classList.add('lockscreen-active');
+  document.body.classList.add('lockscreen-active');
+
+  if (el.appLayout) {
+    el.appLayout.setAttribute('inert', '');
+    el.appLayout.setAttribute('aria-hidden', 'true');
+  }
+
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
   if (el.lockscreenSliderThumb) {
     el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
   }
@@ -1774,19 +2043,27 @@ function lockToLockscreen() {
 }
 
 function setupAnalyticsConsent() {
-  const consent = localStorage.getItem('puffsn0w_analytics_consent');
-  if (consent) {
-    if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
-    if (consent === 'granted' && typeof gtag === 'function') {
-      gtag('consent', 'update', {
-        'analytics_storage': 'granted'
-      });
+  try {
+    const consent = localStorage.getItem('puffsn0w_analytics_consent');
+    if (consent) {
+      if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+      if (consent === 'granted' && typeof gtag === 'function') {
+        gtag('consent', 'update', {
+          'analytics_storage': 'granted'
+        });
+      }
     }
+  } catch (e) {
+    console.warn('[App] LocalStorage access blocked:', e);
   }
 
   if (el.analyticsAcceptBtn) {
     el.analyticsAcceptBtn.addEventListener('click', () => {
-      localStorage.setItem('puffsn0w_analytics_consent', 'granted');
+      try {
+        localStorage.setItem('puffsn0w_analytics_consent', 'granted');
+      } catch (e) {
+        console.warn('[App] LocalStorage write failed:', e);
+      }
       if (typeof gtag === 'function') {
         gtag('consent', 'update', {
           'analytics_storage': 'granted'
@@ -1799,7 +2076,11 @@ function setupAnalyticsConsent() {
 
   if (el.analyticsDismissBtn) {
     el.analyticsDismissBtn.addEventListener('click', () => {
-      localStorage.setItem('puffsn0w_analytics_consent', 'denied');
+      try {
+        localStorage.setItem('puffsn0w_analytics_consent', 'denied');
+      } catch (e) {
+        console.warn('[App] LocalStorage write failed:', e);
+      }
       if (typeof gtag === 'function') {
         gtag('consent', 'update', {
           'analytics_storage': 'denied'
@@ -1880,10 +2161,13 @@ function setupSlideToUnlock() {
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches && e.touches[0]) {
-      onDragMove(e.touches[0].clientX);
+    if (isDragging) {
+      if (e.cancelable) e.preventDefault();
+      if (e.touches && e.touches[0]) {
+        onDragMove(e.touches[0].clientX);
+      }
     }
-  }, { passive: true });
+  }, { passive: false });
 
   window.addEventListener('touchend', () => {
     if (isDragging) onDragEnd();
@@ -1912,8 +2196,12 @@ function setupSlideToUnlock() {
 }
 
 function setupLockscreen() {
-  updateLockscreenClock();
-  setInterval(updateLockscreenClock, 1000);
+  try {
+    updateLockscreenClock();
+    setInterval(updateLockscreenClock, 1000);
+  } catch (e) {
+    console.warn('[App] Clock update error:', e);
+  }
 
   // Lockscreen Connect Button
   if (el.lockscreenConnectBtn) {
@@ -1933,8 +2221,32 @@ function setupLockscreen() {
     });
   }
 
-  setupAnalyticsConsent();
-  setupSlideToUnlock();
+  try {
+    setupAnalyticsConsent();
+  } catch (e) {
+    console.warn('[App] Analytics consent setup error:', e);
+  }
+
+  try {
+    setupSlideToUnlock();
+  } catch (e) {
+    console.warn('[App] Slide to unlock setup error:', e);
+  }
+
+  // Prevent any wheel or touch scrolling while on the lockscreen
+  if (el.lockscreen) {
+    el.lockscreen.addEventListener('wheel', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    el.lockscreen.addEventListener('touchmove', (e) => {
+      if (!el.lockscreen.classList.contains('unlocked') && !e.target.closest('.slide-thumb')) {
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+  }
 }
 
 // ==========================================================================
@@ -1942,13 +2254,35 @@ function setupLockscreen() {
 // ==========================================================================
 
 function attachEventListeners() {
-  setupTabs();
-  setupSvgInteraction();
-  setupCurveActions();
-  setupLockscreen();
+  // Lockscreen & home interactions first
+  try {
+    setupLockscreen();
+  } catch (e) {
+    console.error('[App] Critical lockscreen setup failure:', e);
+  }
+
+  try {
+    setupTabs();
+  } catch (e) {
+    console.warn('[App] Tab setup error:', e);
+  }
+
+  try {
+    setupSvgInteraction();
+  } catch (e) {
+    console.warn('[App] SVG interaction setup error:', e);
+  }
+
+  try {
+    setupCurveActions();
+  } catch (e) {
+    console.warn('[App] Curve actions setup error:', e);
+  }
 
   // Connect Button
-  el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+  if (el.mainConnectBtn) {
+    el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+  }
 
   // Information / Connection Tutorial Modal
   if (el.infoTutorialBtn) {
@@ -2016,13 +2350,33 @@ function attachEventListeners() {
     if (e.target === el.compatModal) el.compatModal.classList.add('hidden');
   });
 
-  // Standard Sesh Buttons
-  el.startSeshBtn.addEventListener('click', async () => {
+  // Standard Sesh Buttons with Safety Interlocks & Hold-to-Fire
+  async function triggerStartSession() {
     if (!activeClient.isConnected) return;
+
+    // Hot chamber interlock check
+    if (puffSafetySettings.hotChamberInterlock && activeClient.telemetry?.live_temp_f > 480.0) {
+      const proceed = confirm(`⚠️ CAUTION: Chamber temperature is currently ${Math.round(activeClient.telemetry.live_temp_f)}°F.\n\nStarting back-to-back cycles on an already hot chamber can stress silicone base seals. Proceed with ignition?`);
+      if (!proceed) return;
+    }
+
     el.startSeshBtn.disabled = true;
-    showToast('Heating session initiated! 🔥', 'success');
-    await activeClient.startSession();
-  });
+    try {
+      showToast('Heating session initiated! 🔥', 'success');
+      await activeClient.startSession();
+    } catch (err) {
+      showToast(err.message || 'Failed to start session', 'error', 4500);
+      el.startSeshBtn.disabled = false;
+    }
+  }
+
+  // Hold-to-Fire (HtF) for Start Sesh Button (Left-to-Right fill)
+  bindHoldToFire(
+    el.startSeshBtn,
+    el.htfProgressFillSesh,
+    triggerStartSession,
+    'Hold button for 0.8s to ignite 🔥'
+  );
 
   el.boostSeshBtn.addEventListener('click', async () => {
     if (!activeClient.isConnected) return;
@@ -2039,6 +2393,146 @@ function attachEventListeners() {
     await activeClient.stopSession();
   });
 
+  // Global Floating Emergency Stop Button
+  if (el.globalEmergencyStop) {
+    el.globalEmergencyStop.addEventListener('click', async () => {
+      showToast('🚨 GLOBAL EMERGENCY STOP ACTIVATED!', 'error', 4000);
+      if (typeof navigator.vibrate === 'function') {
+        navigator.vibrate([100, 50, 100, 50, 150]);
+      }
+      if (isCurveRunning) {
+        await curveGovernor.stop();
+      }
+      await activeClient.stopSession(true);
+    });
+  }
+
+  // Safety Policy & Controls Modal
+  if (el.safetySettingsBtn) {
+    el.safetySettingsBtn.addEventListener('click', () => {
+      if (el.safetyHoldToFireToggle) el.safetyHoldToFireToggle.checked = puffSafetySettings.holdToFire;
+      if (el.safetyDedicatedSlotToggle) el.safetyDedicatedSlotToggle.checked = puffSafetySettings.dedicatedCurveSlot;
+      if (el.safetyHotChamberToggle) el.safetyHotChamberToggle.checked = puffSafetySettings.hotChamberInterlock;
+      if (el.safetyTabUnloadToggle) el.safetyTabUnloadToggle.checked = puffSafetySettings.tabUnloadProtection;
+      if (el.safetyFlashWearToggle) el.safetyFlashWearToggle.checked = puffSafetySettings.flashWearThrottling;
+
+      // Update Vault status readout
+      const vaultRaw = localStorage.getItem('puff_profile_vault');
+      if (vaultRaw && el.vaultStatusBadge) {
+        try {
+          const parsed = JSON.parse(vaultRaw);
+          const dateStr = new Date(parsed.timestamp).toLocaleTimeString();
+          el.vaultStatusBadge.textContent = `Backed up at ${dateStr}`;
+          el.vaultStatusBadge.className = 'badge badge-primary';
+        } catch (e) {
+          el.vaultStatusBadge.textContent = 'Vault active';
+        }
+      } else if (el.vaultStatusBadge) {
+        el.vaultStatusBadge.textContent = 'Auto-saves on connect';
+        el.vaultStatusBadge.className = 'badge badge-subtle';
+      }
+
+      el.safetySettingsModal.classList.remove('hidden');
+    });
+  }
+
+  if (el.closeSafetyModal) {
+    el.closeSafetyModal.addEventListener('click', () => el.safetySettingsModal.classList.add('hidden'));
+  }
+  if (el.closeSafetyModalBtn) {
+    el.closeSafetyModalBtn.addEventListener('click', () => el.safetySettingsModal.classList.add('hidden'));
+  }
+  if (el.safetySettingsModal) {
+    el.safetySettingsModal.addEventListener('click', (e) => {
+      if (e.target === el.safetySettingsModal) el.safetySettingsModal.classList.add('hidden');
+    });
+  }
+
+  // Safety Policy Toggles
+  if (el.safetyHoldToFireToggle) {
+    el.safetyHoldToFireToggle.addEventListener('change', (e) => {
+      puffSafetySettings.holdToFire = e.target.checked;
+      saveSafetySettings();
+      showToast(`Hold-to-Fire ${e.target.checked ? 'enabled (0.8s hold)' : 'disabled (single-tap fire)'}`, 'info');
+    });
+  }
+  if (el.safetyDedicatedSlotToggle) {
+    el.safetyDedicatedSlotToggle.addEventListener('change', (e) => {
+      puffSafetySettings.dedicatedCurveSlot = e.target.checked;
+      saveSafetySettings();
+      showToast(`Dedicated Curve Slot ${e.target.checked ? 'enabled (Slot 4)' : 'disabled (Active profile)'}`, 'info');
+    });
+  }
+  if (el.safetyHotChamberToggle) {
+    el.safetyHotChamberToggle.addEventListener('change', (e) => {
+      puffSafetySettings.hotChamberInterlock = e.target.checked;
+      saveSafetySettings();
+      showToast(`Hot Chamber Guard ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
+    });
+  }
+  if (el.safetyTabUnloadToggle) {
+    el.safetyTabUnloadToggle.addEventListener('change', (e) => {
+      puffSafetySettings.tabUnloadProtection = e.target.checked;
+      saveSafetySettings();
+    });
+  }
+  if (el.safetyFlashWearToggle) {
+    el.safetyFlashWearToggle.addEventListener('change', (e) => {
+      puffSafetySettings.flashWearThrottling = e.target.checked;
+      saveSafetySettings();
+    });
+  }
+
+  // Restore Profile Vault
+  if (el.restoreVaultBtn) {
+    el.restoreVaultBtn.addEventListener('click', async () => {
+      if (!activeClient.isConnected) {
+        showToast('Connect your device to restore profiles', 'error');
+        return;
+      }
+      try {
+        el.restoreVaultBtn.disabled = true;
+        el.restoreVaultBtn.textContent = 'Restoring...';
+        await activeClient.restoreProfileVault();
+        showToast('Original hardware profiles restored! ✅', 'success', 3500);
+      } catch (err) {
+        showToast(err.message || 'Failed to restore profiles', 'error', 3500);
+      } finally {
+        el.restoreVaultBtn.disabled = false;
+        el.restoreVaultBtn.textContent = 'Restore Profiles to Hardware';
+      }
+    });
+  }
+
+  // Critical Disconnect Emergency Modal Dismiss
+  if (el.dismissCriticalDisconnectBtn) {
+    el.dismissCriticalDisconnectBtn.addEventListener('click', () => {
+      el.criticalDisconnectModal.classList.add('hidden');
+    });
+  }
+  if (el.criticalDisconnectModal) {
+    el.criticalDisconnectModal.addEventListener('click', (e) => {
+      if (e.target === el.criticalDisconnectModal) {
+        el.criticalDisconnectModal.classList.add('hidden');
+      }
+    });
+  }
+
+  // Unload & Backgrounding Safety Watchdogs
+  window.addEventListener('beforeunload', (e) => {
+    if (puffSafetySettings.tabUnloadProtection && (activeClient?.telemetry?.is_heating || isCurveRunning)) {
+      e.preventDefault();
+      e.returnValue = 'A heating session is active on your Puffco! Leaving may leave heating unmonitored.';
+      return e.returnValue;
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && (activeClient?.telemetry?.is_heating || isCurveRunning)) {
+      console.warn('[Safety] App backgrounded during active heat cycle. Timers may be throttled by browser.');
+    }
+  });
+
   // Temperature Controls
   el.tempSlider.addEventListener('input', (e) => {
     el.sliderTempVal.textContent = `${e.target.value}°F`;
@@ -2051,13 +2545,16 @@ function attachEventListeners() {
   });
 
   el.tempIncBtn.addEventListener('click', () => {
-    let val = Math.min(600, Number(el.tempSlider.value) + 5);
+    let val = Math.min(590, Number(el.tempSlider.value) + 5);
     el.tempSlider.value = val;
     el.sliderTempVal.textContent = `${val}°F`;
   });
 
   el.applyTempBtn.addEventListener('click', async () => {
-    const val = Number(el.tempSlider.value);
+    const raw = Number(el.tempSlider.value);
+    const val = Math.min(590, Math.max(400, Number.isFinite(raw) ? raw : 485));
+    el.tempSlider.value = val;
+    el.sliderTempVal.textContent = `${val}°F`;
     await activeClient.writeTemperature(val);
     showToast(`Target temperature set to ${val}°F`, 'success');
   });
@@ -2192,16 +2689,36 @@ function bootstrap() {
   curveGovernor.addCurveListener(handleCurveTelemetry);
 
   // Wire disconnect notification listener
-  bleClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
-    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional);
+  bleClient.addDisconnectListener(({ wasConnected, isIntentional, wasHeating }) => {
+    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional, 'Was heating:', wasHeating);
+    const heatingActive = !!(wasHeating || isCurveRunning);
+
     if (wasConnected && !isIntentional) {
-      showToast('Device connection lost. Reconnect to resume control.', 'error', 6500);
+      if (heatingActive) {
+        // High-priority thermal emergency modal
+        if (el.criticalDisconnectModal) {
+          el.criticalDisconnectModal.classList.remove('hidden');
+        }
+        if (typeof navigator.vibrate === 'function') {
+          navigator.vibrate([200, 100, 200, 100, 300]);
+        }
+        if (isCurveRunning) {
+          curveGovernor.stop().catch(() => {});
+        }
+      } else {
+        showToast('Device connection lost. Reconnect to resume control.', 'error', 6500);
+      }
     }
     handleTelemetryUpdate(bleClient.telemetry);
   });
-  simClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+  simClient.addDisconnectListener(({ wasConnected, isIntentional, wasHeating }) => {
+    const heatingActive = !!(wasHeating || isCurveRunning);
     if (wasConnected && !isIntentional) {
-      showToast('Demo device disconnected.', 'info', 3000);
+      if (heatingActive && el.criticalDisconnectModal) {
+        el.criticalDisconnectModal.classList.remove('hidden');
+      } else {
+        showToast('Demo device disconnected.', 'info', 3000);
+      }
     }
     handleTelemetryUpdate(simClient.telemetry);
   });
