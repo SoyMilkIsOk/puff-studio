@@ -1,40 +1,29 @@
 /**
- * Puff Studio — Frontend Controller, Live Telemetry & Heat Curve Studio
- * Features:
- * - Real-time WebSockets telemetry & dual-trace graph
- * - Interactive SVG curve canvas with draggable keyframe nodes
- * - Clean curve presets & persistent custom library
- * - BLE host governor execution with real-time playhead tracking
+ * puffsn0w — Standalone E-Rig Jailbreak Controller & Heat Curve Studio
+ * Direct hardware & simulator integration, SVG curve editor with touch dragging,
+ * live telemetry HUD, and dynamic thermal curve governor.
  */
+
+// Core Services
+let curveStorage = null;
+let bleClient = null;
+let simClient = null;
+let activeClient = null;
+let curveGovernor = null;
 
 // Global State
 let currentTelemetry = null;
-let ws = null;
-let wsReconnectTimer = null;
-let isScanning = false;
-
-// Curves State
+let isDemoMode = false;
+let isCurveRunning = false;
 let curvesList = [];
-let currentCurve = {
-  id: "preset-step-3",
-  name: "Step 430 → 485 → 520",
-  description: "3-stage progression: initial low-temp terpene boil, steady extraction, high-temp cloud finish.",
-  duration_s: 50,
-  keyframes: [
-    { time_s: 0, temp_f: 430 },
-    { time_s: 15, temp_f: 430 },
-    { time_s: 18, temp_f: 485 },
-    { time_s: 35, temp_f: 485 },
-    { time_s: 38, temp_f: 520 },
-    { time_s: 50, temp_f: 520 },
-  ],
-};
+let currentCurve = null;
+
+// Curve Dragging State
 let isDraggingNode = false;
 let draggingNodeIndex = -1;
-let actualTrailPoints = []; // [{x, y}] for live recorded bowl temperature
-let isCurveRunning = false;
+let actualTrailPoints = [];
 
-// Live Session Heat Curve State (below dial)
+// Live Session Heat Curve State (dial graph)
 let liveSessionPoints = [];
 let sessionStartTime = null;
 let lastPointRecordTime = 0;
@@ -42,24 +31,66 @@ let sessionPeakTemp = 0;
 let sessionTempSum = 0;
 let sessionTempCount = 0;
 let wasHeating = false;
+let wasDeviceConnected = false;
 
-// DOM Elements Cache
+// DOM Element Cache
 const el = {
-  // Tabs
+  // Navigation Tabs
   tabControllerBtn: document.getElementById('tab-controller-btn'),
   tabCurvesBtn: document.getElementById('tab-curves-btn'),
   tabController: document.getElementById('tab-controller'),
   tabCurves: document.getElementById('tab-curves'),
 
+  // Lockscreen & Slide to Unlock Elements
+  lockscreen: document.getElementById('lockscreen'),
+  lockscreenCenterSection: document.getElementById('lockscreen-center-section'),
+  lockscreenConnectCard: document.getElementById('lockscreen-connect-card'),
+  lockscreenClock: document.getElementById('lockscreen-clock'),
+  lockscreenDate: document.getElementById('lockscreen-date'),
+  lockscreenBtBadge: document.getElementById('lockscreen-bt-badge'),
+  lockscreenBatteryPill: document.getElementById('lockscreen-battery-pill'),
+  lockscreenBatteryVal: document.getElementById('lockscreen-battery-val'),
+  lockscreenBatteryFill: document.getElementById('lockscreen-battery-fill'),
+  lockscreenConnectBtn: document.getElementById('lockscreen-connect-btn'),
+  lockscreenConnectLabel: document.getElementById('lockscreen-connect-label'),
+  lockscreenGuideBtn: document.getElementById('lockscreen-guide-btn'),
+  lockscreenDemoBtn: document.getElementById('lockscreen-demo-btn'),
+  lockscreenStatusIndicator: document.getElementById('lockscreen-status-indicator'),
+  lockscreenStatusMsg: document.getElementById('lockscreen-status-msg'),
+  analyticsModal: document.getElementById('analytics-modal'),
+  analyticsAcceptBtn: document.getElementById('analytics-accept-btn'),
+  analyticsDismissBtn: document.getElementById('analytics-dismiss-btn'),
+  lockscreenSliderTrack: document.getElementById('lockscreen-slider-track'),
+  lockscreenSliderThumb: document.getElementById('lockscreen-slider-thumb'),
+  slideShimmerLabel: document.getElementById('slide-shimmer-label'),
+  sliderLockedHint: document.getElementById('slider-locked-hint'),
+  sliderLockedText: document.getElementById('slider-locked-text'),
+  lockScreenBtn: document.getElementById('lock-screen-btn'),
+
   // Header Status & Device
   deviceName: document.getElementById('device-name-display'),
   devicePill: document.getElementById('device-pill'),
   chamberPill: document.getElementById('chamber-pill'),
+  batteryWidget: document.getElementById('battery-widget'),
   batteryDisplay: document.getElementById('battery-level-display'),
   batteryBolt: document.getElementById('battery-bolt'),
+  batteryFill: document.getElementById('battery-fill-icon'),
   mainConnectBtn: document.getElementById('main-connect-btn'),
-  demoModeToggle: document.getElementById('demo-mode-toggle'),
-  wsIndicator: document.getElementById('ws-indicator'),
+  infoTutorialBtn: document.getElementById('info-tutorial-btn'),
+  connectTutorialModal: document.getElementById('connect-tutorial-modal'),
+  closeTutorialModal: document.getElementById('close-tutorial-modal'),
+  tutorialDismissBtn: document.getElementById('tutorial-dismiss-btn'),
+  tutorialConnectBtn: document.getElementById('tutorial-connect-btn'),
+  btIndicator: document.getElementById('bt-indicator'),
+
+  // Compatibility Banner & Modal
+  compatBanner: document.getElementById('compat-banner'),
+  compatBannerMsg: document.getElementById('compat-banner-msg'),
+  compatGuideBtn: document.getElementById('compat-guide-btn'),
+  compatDismissBtn: document.getElementById('compat-dismiss-btn'),
+  compatModal: document.getElementById('compat-modal'),
+  closeCompatModal: document.getElementById('close-compat-modal'),
+  closeCompatModalBtn: document.getElementById('close-compat-modal-btn'),
 
   // Standard Controller Gauge
   stateBadge: document.getElementById('state-badge'),
@@ -114,10 +145,18 @@ const el = {
   sleepBtn: document.getElementById('sleep-btn'),
   powerOffBtn: document.getElementById('power-off-btn'),
 
+  // Lantern Controls Panel
+  lanternControlsPanel: document.getElementById('lantern-controls-panel'),
+  lanternAuraPreview: document.getElementById('lantern-aura-preview'),
+  lanternActiveEffectName: document.getElementById('lantern-active-effect-name'),
+  lanternBrightnessSlider: document.getElementById('lantern-brightness-slider'),
+  lanternBrightnessVal: document.getElementById('lantern-brightness-val'),
+
   // Curve Studio
   curvePillsContainer: document.getElementById('curve-pills-container'),
   newCurveBtn: document.getElementById('new-curve-btn'),
   saveCurveBtn: document.getElementById('save-curve-btn'),
+  shareCurveBtn: document.getElementById('share-curve-btn'),
   activeCurveTitle: document.getElementById('active-curve-title'),
   activeCurveDesc: document.getElementById('active-curve-desc'),
   curveDurationBadge: document.getElementById('curve-duration-badge'),
@@ -145,67 +184,45 @@ const el = {
   saveCurveDescInput: document.getElementById('save-curve-desc-input'),
   confirmSaveCurveBtn: document.getElementById('confirm-save-curve-btn'),
 
-  scanModal: document.getElementById('scan-modal'),
-  scanModalBtn: document.getElementById('scan-modal-btn'),
-  closeScanModal: document.getElementById('close-scan-modal'),
-  rescanBtn: document.getElementById('rescan-btn'),
-  scannedDevicesList: document.getElementById('scanned-devices-list'),
-  scanStatusBanner: document.getElementById('scan-status-banner'),
-  scanStatusText: document.getElementById('scan-status-text'),
+  shareCurveModal: document.getElementById('share-curve-modal'),
+  closeShareCurveModal: document.getElementById('close-share-curve-modal'),
+  shareLinkInput: document.getElementById('share-link-input'),
+  shareJsonInput: document.getElementById('share-json-input'),
+  copyShareLinkBtn: document.getElementById('copy-share-link-btn'),
 
   toastContainer: document.getElementById('toast-container'),
 };
 
-// ---------------- WebSocket Telemetry ----------------
+// ==========================================================================
+// Browser & Web Bluetooth Feature Detection
+// ==========================================================================
 
-function initWebSocket() {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${location.host}/ws`;
+function checkBrowserCompatibility() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const hasWebBluetooth = typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  const isDismissed = sessionStorage.getItem('compat_dismissed') === '1';
 
-  if (ws) {
-    try { ws.close(); } catch (e) {}
-  }
+  if (!hasWebBluetooth) {
+    el.btIndicator.textContent = 'No Web BLE';
+    el.btIndicator.className = 'ws-pill ws-disconnected';
 
-  ws = new WebSocket(wsUrl);
-
-  ws.onopen = () => {
-    el.wsIndicator.textContent = 'WS Live';
-    el.wsIndicator.className = 'ws-pill ws-connected';
-    if (wsReconnectTimer) {
-      clearTimeout(wsReconnectTimer);
-      wsReconnectTimer = null;
-    }
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'telemetry' && msg.data) {
-        handleTelemetryUpdate(msg.data);
-      } else if (msg.type === 'curve_telemetry' && msg.data) {
-        handleCurveTelemetry(msg.data);
-      } else if (msg.type === 'event') {
-        showToast(msg.message, 'info');
+    if (!isDismissed) {
+      el.compatBanner.classList.remove('hidden');
+      if (isIOS) {
+        el.compatBannerMsg.innerHTML = `<strong>iOS Notice:</strong> Safari does not support Bluetooth. Open in <strong>Path Browser</strong> or <strong>Bluefy</strong> to connect, or use <strong>Demo Mode</strong>!`;
+      } else {
+        el.compatBannerMsg.innerHTML = `<strong>Browser Notice:</strong> Web Bluetooth is not available in this browser. Use <strong>Google Chrome</strong> or <strong>Edge</strong>, or toggle <strong>Demo Mode</strong>!`;
       }
-    } catch (err) {
-      console.error('Failed to parse WS message:', err);
     }
-  };
-
-  ws.onclose = () => {
-    el.wsIndicator.textContent = 'WS Offline';
-    el.wsIndicator.className = 'ws-pill ws-disconnected';
-    if (!wsReconnectTimer) {
-      wsReconnectTimer = setTimeout(initWebSocket, 2000);
-    }
-  };
-
-  ws.onerror = (err) => {
-    console.warn('WS error:', err);
-  };
+  } else {
+    el.btIndicator.textContent = 'Web BLE Ready';
+    el.btIndicator.className = 'ws-pill ws-connected';
+  }
 }
 
-// ---------------- Telemetry Rendering ----------------
+// ==========================================================================
+// Telemetry Rendering
+// ==========================================================================
 
 function handleTelemetryUpdate(data) {
   currentTelemetry = data;
@@ -217,31 +234,124 @@ function handleTelemetryUpdate(data) {
   if (connected) {
     el.devicePill.className = 'status-pill status-connected';
     el.deviceName.textContent = data.device_name || 'Puff Device';
-    el.mainConnectBtn.textContent = 'Disconnect';
+    el.mainConnectBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Disconnect
+    `;
     el.mainConnectBtn.className = 'btn btn-secondary';
   } else {
     el.devicePill.className = 'status-pill status-disconnected';
-    el.deviceName.textContent = 'Disconnected';
-    el.mainConnectBtn.textContent = 'Connect';
+    el.deviceName.textContent = 'No Device';
+    el.mainConnectBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+      Connect
+    `;
     el.mainConnectBtn.className = 'btn btn-primary';
   }
 
   // Chamber Pill
-  el.chamberPill.textContent = data.chamber_name || '3DXL';
-  el.statChamberName.textContent = (data.chamber_name || '3DXL') + ' Chamber';
+  const isSyncing = connected && (!!data.is_syncing || data.battery_pct === null);
+  const chamberStr = isSyncing ? 'Detecting...' : (data.chamber_name || (connected ? '3DXL' : 'Standard'));
+  el.chamberPill.textContent = isSyncing ? 'Detecting...' : (data.chamber_name || '3DXL');
+  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : ' Chamber');
 
   // Battery Widget
-  const batPct = Math.max(0, Math.min(100, data.battery_pct || 0));
-  el.batteryDisplay.textContent = connected ? `${batPct}%` : '--%';
-  el.batteryBolt.classList.toggle('hidden', !data.is_charging);
-  if (connected && data.is_charging) {
-    el.batteryDisplay.parentElement.classList.add('charging');
-  } else {
-    el.batteryDisplay.parentElement.classList.remove('charging');
+  if (el.batteryWidget) {
+    el.batteryWidget.className = 'battery-pill';
   }
 
+  if (isSyncing) {
+    el.batteryDisplay.textContent = '--%';
+    el.batteryDisplay.classList.add('telemetry-syncing');
+    el.batteryBolt.classList.add('hidden');
+    if (el.batteryFill) el.batteryFill.setAttribute('width', '4');
+    if (el.batteryWidget) {
+      el.batteryWidget.classList.add('syncing');
+    }
+  } else {
+    el.batteryDisplay.classList.remove('telemetry-syncing');
+    const batPct = Math.max(0, Math.min(100, data.battery_pct || 0));
+    el.batteryDisplay.textContent = connected ? `${batPct}%` : '--%';
+    el.batteryBolt.classList.toggle('hidden', !data.is_charging);
+
+    // Dynamic SVG Battery Fill Rect (inner width ranges from 0 to 12)
+    if (el.batteryFill) {
+      if (!connected || batPct <= 0) {
+        el.batteryFill.setAttribute('width', '0');
+      } else {
+        const fillW = Math.max(2, Math.round((batPct / 100) * 12));
+        el.batteryFill.setAttribute('width', String(fillW));
+      }
+    }
+
+    // Dynamic Battery States
+    if (el.batteryWidget && connected) {
+      if (data.is_charging) {
+        el.batteryWidget.classList.add('charging');
+      } else if (batPct > 65) {
+        el.batteryWidget.classList.add('battery-full');
+      } else if (batPct > 25) {
+        el.batteryWidget.classList.add('battery-med');
+      } else if (batPct > 10) {
+        el.batteryWidget.classList.add('battery-low');
+      } else {
+        el.batteryWidget.classList.add('battery-critical');
+      }
+    }
+  }
+
+  // Lockscreen Telemetry & Unlock Synchronization
+  if (el.lockscreen) {
+    if (connected) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+      if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.add('connected');
+      if (el.lockscreenBatteryVal) {
+        const batPct = isSyncing ? '--' : Math.max(0, Math.min(100, data.battery_pct || 0));
+        el.lockscreenBatteryVal.textContent = isSyncing ? '--%' : `${batPct}%`;
+      }
+      if (el.lockscreenBatteryFill) {
+        const batPct = isSyncing ? 25 : Math.max(0, Math.min(100, data.battery_pct || 0));
+        el.lockscreenBatteryFill.setAttribute('width', String(Math.max(2, Math.round((batPct / 100) * 12))));
+      }
+      if (el.lockscreenSliderTrack) {
+        el.lockscreenSliderTrack.classList.remove('slider-locked');
+      }
+      if (el.lockscreenConnectCard) {
+        el.lockscreenConnectCard.classList.add('connected-hidden');
+      }
+      if (!wasDeviceConnected) {
+        showToast(`${data.device_name || 'Device'} Connected! Slide to unlock 🔓`, 'success', 3500);
+      }
+      if (el.lockscreenConnectBtn) {
+        el.lockscreenConnectBtn.classList.add('connected');
+        if (el.lockscreenConnectLabel) {
+          el.lockscreenConnectLabel.textContent = `✓ ${data.device_name || 'E-Rig'} Connected`;
+        }
+      }
+    } else {
+      el.lockscreen.classList.add('lockscreen-locked');
+      if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.remove('connected');
+      if (el.lockscreenBatteryVal) el.lockscreenBatteryVal.textContent = '--%';
+      if (el.lockscreenBatteryFill) el.lockscreenBatteryFill.setAttribute('width', '2');
+      if (el.lockscreenSliderTrack) {
+        el.lockscreenSliderTrack.classList.add('slider-locked');
+      }
+      if (el.lockscreenConnectCard) {
+        el.lockscreenConnectCard.classList.remove('connected-hidden');
+      }
+      if (el.lockscreenConnectBtn) {
+        el.lockscreenConnectBtn.classList.remove('connected');
+        if (el.lockscreenConnectLabel) {
+          el.lockscreenConnectLabel.textContent = 'Connect Device';
+        }
+      }
+    }
+  }
+
+  wasDeviceConnected = connected;
+
   // Operating State Badge
-  updateStateBadge(data.operating_state, data.state_name);
+  updateStateBadge(data.operating_state, data.state_name, isSyncing);
 
   // Temperature Readouts
   const liveTemp = Number(data.live_temp_f || 0);
@@ -249,10 +359,10 @@ function handleTelemetryUpdate(data) {
   el.liveTempVal.textContent = connected && liveTemp > 30 ? Math.round(liveTemp) : '--';
   el.targetTempVal.textContent = Math.round(targetTemp);
 
-  // Update SVG Dial Arc & Needle (Operating dab range: 350°F to 600°F)
+  // Update SVG Dial Arc & Needle (350°F to 600°F)
   updateGauge(liveTemp, targetTemp, isHeating, data.operating_state);
 
-  // Update Live Session Heat Curve (below dial)
+  // Update Live Session Heat Curve below dial
   updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp);
 
   // Session Timer Pill
@@ -264,23 +374,79 @@ function handleTelemetryUpdate(data) {
     el.timerPill.classList.add('hidden');
   }
 
+  // Heat Curve Studio Tab passive readouts (when curve is not actively running)
+  if (!isCurveRunning && el.curveActualDisplay && el.curveSetpointDisplay) {
+    el.curveActualDisplay.textContent = connected && liveTemp > 30 ? `${liveTemp.toFixed(1)}°F` : '--°F';
+    el.curveSetpointDisplay.textContent = `${targetTemp.toFixed(1)}°F`;
+    if (el.curveElapsedDisplay && currentCurve) {
+      el.curveElapsedDisplay.textContent = `READY (0.0s / ${currentCurve.duration_s || 50}s)`;
+    }
+  }
+
+  // User Controls Disabling / Greying Out
+  const controlsEnabled = connected && !isSyncing;
+
   // Sesh Control Buttons State
-  el.startSeshBtn.disabled = !connected || isHeating || isCurveRunning;
-  el.boostSeshBtn.disabled = !connected || !isHeating;
-  el.stopSeshBtn.disabled = !connected || !isHeating;
+  el.startSeshBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
+  el.boostSeshBtn.disabled = !controlsEnabled || !isHeating;
+  el.stopSeshBtn.disabled = !controlsEnabled || !isHeating;
+
+  // Run Curve Button State
+  if (el.runCurveBtn) {
+    el.runCurveBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
+  }
+
+  // Temperature Slider & Wrap
+  if (el.tempSlider) {
+    el.tempSlider.disabled = !controlsEnabled;
+    const wrap = el.tempSlider.closest('.temp-slider-wrap');
+    if (wrap) wrap.classList.toggle('disabled', !controlsEnabled);
+  }
+
+  // Quick Controls
+  if (el.stealthToggle) {
+    el.stealthToggle.disabled = !controlsEnabled;
+    el.stealthToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  }
+  if (el.lanternToggle) {
+    el.lanternToggle.disabled = !controlsEnabled;
+    el.lanternToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  }
+  if (el.sleepBtn) el.sleepBtn.disabled = !controlsEnabled;
+  if (el.powerOffBtn) el.powerOffBtn.disabled = !controlsEnabled;
+
+  // Lantern Controls Panel Visibility & States
+  if (el.lanternControlsPanel) {
+    el.lanternControlsPanel.classList.toggle('disabled', !controlsEnabled);
+    if (!data.lantern_active) {
+      el.lanternControlsPanel.classList.add('hidden');
+    } else {
+      el.lanternControlsPanel.classList.remove('hidden');
+      updateLanternPanelUI(data);
+    }
+  }
 
   // Profiles Matrix
-  renderProfiles(data.profiles || [], data.active_profile, connected);
+  renderProfiles(data.profiles || [], data.active_profile, controlsEnabled);
 
   // Hardware Diagnostics
-  el.statTotalDabs.textContent = connected ? Number(data.lifetime_dabs || 0).toLocaleString() : '--';
-  el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
-  el.statFirmwareVersion.textContent = connected && data.firmware_version ? data.firmware_version : (connected ? 'V1.3' : '--');
+  if (isSyncing) {
+    el.statTotalDabs.textContent = '--';
+    el.statTotalDabs.classList.add('telemetry-syncing');
+    el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
+    el.statFirmwareVersion.textContent = '--';
+    el.statFirmwareVersion.classList.add('telemetry-syncing');
+  } else {
+    el.statTotalDabs.classList.remove('telemetry-syncing');
+    el.statFirmwareVersion.classList.remove('telemetry-syncing');
+    el.statTotalDabs.textContent = connected ? Number(data.lifetime_dabs || 0).toLocaleString() : '--';
+    el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
+    el.statFirmwareVersion.textContent = connected && data.firmware_version ? data.firmware_version : (connected ? 'V1.3.8' : '--');
+  }
 
   // Stealth & Lantern toggles sync
   el.stealthToggle.checked = !!data.stealth_mode;
   el.lanternToggle.checked = !!data.lantern_active;
-  el.demoModeToggle.checked = !!data.is_demo;
 
   // Sync slider if not actively dragging
   if (!document.activeElement || document.activeElement !== el.tempSlider) {
@@ -289,13 +455,58 @@ function handleTelemetryUpdate(data) {
   }
 }
 
-function updateStateBadge(state, stateName) {
+function updateLanternPanelUI(data) {
+  const effectName = data.lantern_effect || 'campfire';
+
+  // Update effect buttons active state
+  const fxBtns = document.querySelectorAll('.lantern-fx-btn');
+  fxBtns.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.effect === effectName);
+  });
+
+  // Update aura preview
+  if (el.lanternAuraPreview) {
+    el.lanternAuraPreview.className = `lantern-aura-preview effect-${effectName}`;
+    if (el.lanternActiveEffectName) {
+      const effectIcons = {
+        campfire: 'Campfire 🔥',
+        flicker: 'Candle Flicker 🕯️',
+        night_light: 'Night Light 🌙',
+        rainbow: 'Rainbow Spectrum 🌈',
+        waterfall: 'Waterfall Cascade 🌊',
+        breathing: 'Meditative Breath 🧘',
+        disco: 'Party Disco ⚡',
+        aurora: 'Aurora Borealis 🔮',
+      };
+      el.lanternActiveEffectName.textContent = effectIcons[effectName] || effectName;
+    }
+  }
+
+  // Update brightness slider
+  if (el.lanternBrightnessSlider && el.lanternBrightnessVal) {
+    const rawVal = data.lantern_brightness ?? 255;
+    const pct = Math.round((rawVal / 255) * 100);
+    if (document.activeElement !== el.lanternBrightnessSlider) {
+      el.lanternBrightnessSlider.value = pct;
+      el.lanternBrightnessVal.textContent = `${pct}%`;
+    }
+  }
+}
+
+function updateStateBadge(state, stateName, isSyncing = false) {
   const badge = el.stateBadge;
   badge.className = 'state-tag';
+
+  if (isSyncing) {
+    badge.classList.add('state-syncing');
+    badge.textContent = 'SYNCING DATA...';
+    return;
+  }
 
   switch (state) {
     case 'HEAT_PREHEAT':
     case 'HEAT_ACTIVE':
+    case 'HEAT_FADE':
       badge.classList.add('state-heating');
       badge.textContent = stateName || 'HEATING';
       break;
@@ -327,7 +538,6 @@ function updateGauge(liveTemp, targetTemp, isHeating, state) {
   const minDialTemp = 400;
   const maxDialTemp = 600;
 
-  // Progress arc fills from 400°F to 600°F (the active vaporization range)
   let livePct = 0;
   if (liveTemp >= minDialTemp) {
     livePct = Math.max(0, Math.min(1, (liveTemp - minDialTemp) / (maxDialTemp - minDialTemp)));
@@ -335,17 +545,13 @@ function updateGauge(liveTemp, targetTemp, isHeating, state) {
   const offset = maxArc * (1 - livePct);
   el.dialProgress.style.strokeDashoffset = offset;
 
-  // Target setpoint needle tick (accurately calibrated to 400°F - 600°F arc)
+  // Setpoint needle calibrated to 400°F - 600°F arc
   const targetPct = Math.max(0, Math.min(1, (targetTemp - minDialTemp) / (maxDialTemp - minDialTemp)));
   const needleAngle = targetPct * 240;
 
-  // Dual SVG attribute + CSS transform for 100% robust cross-browser pivot alignment
   if (el.dialNeedleGroup) {
     el.dialNeedleGroup.setAttribute('transform', `rotate(${needleAngle} 160 160)`);
     el.dialNeedleGroup.style.transform = `rotate(${needleAngle}deg)`;
-  } else if (el.dialNeedle) {
-    el.dialNeedle.setAttribute('transform', `rotate(${needleAngle} 160 160)`);
-    el.dialNeedle.style.transform = `rotate(${needleAngle}deg)`;
   }
 
   el.gaugeHalo.className = 'gauge-glow-halo';
@@ -359,11 +565,10 @@ function updateGauge(liveTemp, targetTemp, isHeating, state) {
 function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
   if (!el.lsgTargetLine) return;
 
-  // 1. Legend labels
   el.lsgTargetReadout.textContent = `${Math.round(targetTemp)}°`;
   el.lsgLiveReadout.textContent = liveTemp > 30 ? `${Math.round(liveTemp)}°` : '--°';
 
-  // 2. Position horizontal target line (scale 70°F to 600°F -> y: 148 to 16)
+  // Position target line (70°F to 600°F -> y: 148 to 16)
   const targetNorm = Math.max(0, Math.min(1, (targetTemp - 70) / (600 - 70)));
   const targetY = 148 - targetNorm * (148 - 16);
   el.lsgTargetLine.setAttribute('y1', targetY);
@@ -371,7 +576,7 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
 
   const totalDuration = Number(data.total_time || 50);
 
-  // 3. Detect session start (records initial bowl temp at t = 0)
+  // Detect session start
   if (isHeating && !wasHeating) {
     sessionStartTime = performance.now();
     lastPointRecordTime = sessionStartTime;
@@ -384,13 +589,12 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
     el.lsgLiveDot.classList.remove('hidden');
   }
 
-  // 4. While session is active
+  // During active heating
   if (isHeating && sessionStartTime !== null) {
     const now = performance.now();
     const elapsed = Math.max(0, (now - sessionStartTime) / 1000);
     const opState = data.operating_state || '';
 
-    // Update phase pill
     if (opState === 'HEAT_PREHEAT') {
       el.lsgPhasePill.className = 'badge badge-warning';
       el.lsgPhasePill.textContent = 'PREHEATING';
@@ -398,90 +602,104 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
       el.lsgPhasePill.className = 'badge badge-info';
       el.lsgPhasePill.textContent = 'READY TO INHALE';
     } else {
-      el.lsgPhasePill.className = 'badge badge-subtle';
-      el.lsgPhasePill.textContent = 'ACTIVE SESH';
+      el.lsgPhasePill.className = 'badge badge-success';
+      el.lsgPhasePill.textContent = 'EXTRACTING';
     }
 
-    // Peak & Average statistics
-    if (liveTemp > sessionPeakTemp) sessionPeakTemp = liveTemp;
-    sessionTempSum += liveTemp;
-    sessionTempCount++;
-
-    el.lsgPeakStat.textContent = `${Math.round(sessionPeakTemp)}°F`;
-    el.lsgAvgStat.textContent = `${Math.round(sessionTempSum / sessionTempCount)}°F`;
-    el.lsgTimeStat.textContent = `${Math.round(elapsed)}s / ${totalDuration}s`;
-
-    // Sample points cleanly (~100ms interval or significant temp change)
-    if (now - lastPointRecordTime >= 100 || Math.abs(liveTemp - (liveSessionPoints[liveSessionPoints.length - 1]?.temp || 0)) >= 1.0) {
-      liveSessionPoints.push({ t: elapsed, temp: liveTemp });
+    if (now - lastPointRecordTime >= 300) {
       lastPointRecordTime = now;
+      liveSessionPoints.push({ t: elapsed, temp: liveTemp });
+      sessionPeakTemp = Math.max(sessionPeakTemp, liveTemp);
+      sessionTempSum += liveTemp;
+      sessionTempCount++;
+
+      // Render live SVG trail
+      renderLiveSessionTrail(totalDuration);
     }
 
-    // Dynamic timeline window (automatically expands if preheat + session exceeds profile duration)
-    const windowDuration = Math.max(totalDuration, elapsed > totalDuration ? Math.ceil(elapsed + 5) : totalDuration);
-    if (el.lsgT1) el.lsgT1.textContent = `${Math.round(windowDuration * 0.25)}s`;
-    if (el.lsgT2) el.lsgT2.textContent = `${Math.round(windowDuration * 0.5)}s`;
-    if (el.lsgT3) el.lsgT3.textContent = `${Math.round(windowDuration * 0.75)}s`;
-    if (el.lsgT4) el.lsgT4.textContent = `${windowDuration}s`;
-
-    // Render smooth SVG path & gradient fill
-    if (liveSessionPoints.length > 0) {
-      let strokeD = '';
-      let currX = 0;
-      let currY = 148;
-
-      for (let i = 0; i < liveSessionPoints.length; i++) {
-        const pt = liveSessionPoints[i];
-        const px = Math.min(500, Math.max(0, (pt.t / windowDuration) * 500));
-        const pyNorm = Math.max(0, Math.min(1, (pt.temp - 70) / (600 - 70)));
-        const py = 148 - pyNorm * (148 - 16);
-        currX = px;
-        currY = py;
-
-        if (i === 0) {
-          strokeD += `M ${px.toFixed(1)} ${py.toFixed(1)}`;
-        } else {
-          strokeD += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
-        }
-      }
-
-      el.lsgTrailStroke.setAttribute('d', strokeD);
-      const areaD = `${strokeD} L ${currX.toFixed(1)} 160 L 0 160 Z`;
-      el.lsgTrailArea.setAttribute('d', areaD);
-
-      el.lsgLiveDot.setAttribute('cx', currX.toFixed(1));
-      el.lsgLiveDot.setAttribute('cy', currY.toFixed(1));
-      el.lsgLiveDot.classList.remove('hidden');
-    }
-  } else if (!isHeating) {
-    if (wasHeating) {
-      el.lsgPhasePill.className = 'badge badge-subtle';
-      el.lsgPhasePill.textContent = 'COMPLETE';
-      el.lsgLiveDot.classList.add('hidden');
-    } else if (liveSessionPoints.length === 0) {
-      el.lsgPhasePill.className = 'badge badge-subtle';
-      el.lsgPhasePill.textContent = 'STANDBY';
-      el.lsgTimeStat.textContent = `0s / ${totalDuration}s`;
-    }
+    el.lsgTimeStat.textContent = `${Math.round(elapsed)}s / ${totalDuration}s`;
+    el.lsgPeakStat.textContent = `${Math.round(sessionPeakTemp)}°F`;
+    const avg = sessionTempCount > 0 ? Math.round(sessionTempSum / sessionTempCount) : Math.round(liveTemp);
+    el.lsgAvgStat.textContent = `${avg}°F`;
+  } else if (!isHeating && wasHeating) {
+    el.lsgPhasePill.className = 'badge badge-subtle';
+    el.lsgPhasePill.textContent = 'COMPLETE';
+    el.lsgLiveDot.classList.add('hidden');
   }
 
   wasHeating = isHeating;
 }
 
+function renderLiveSessionTrail(totalDuration) {
+  if (liveSessionPoints.length < 2) return;
+
+  const width = 500;
+  const height = 160;
+  const minY = 148;
+  const maxY = 16;
+  const minTemp = 70;
+  const maxTemp = 600;
+
+  const maxT = Math.max(totalDuration, liveSessionPoints[liveSessionPoints.length - 1].t, 30);
+
+  function ptToSvg(pt) {
+    const x = Math.min(width, (pt.t / maxT) * width);
+    const normY = Math.max(0, Math.min(1, (pt.temp - minTemp) / (maxTemp - minTemp)));
+    const y = minY - normY * (minY - maxY);
+    return { x, y };
+  }
+
+  let strokeD = '';
+  let areaD = '';
+
+  liveSessionPoints.forEach((pt, idx) => {
+    const { x, y } = ptToSvg(pt);
+    if (idx === 0) {
+      strokeD = `M ${x} ${y}`;
+      areaD = `M ${x} ${height} L ${x} ${y}`;
+    } else {
+      strokeD += ` L ${x} ${y}`;
+      areaD += ` L ${x} ${y}`;
+    }
+  });
+
+  const lastPt = ptToSvg(liveSessionPoints[liveSessionPoints.length - 1]);
+  areaD += ` L ${lastPt.x} ${height} Z`;
+
+  el.lsgTrailStroke.setAttribute('d', strokeD);
+  el.lsgTrailArea.setAttribute('d', areaD);
+
+  el.lsgLiveDot.setAttribute('cx', lastPt.x);
+  el.lsgLiveDot.setAttribute('cy', lastPt.y);
+
+  // Scale x-axis ticks
+  el.lsgT1.textContent = `${Math.round(maxT * 0.25)}s`;
+  el.lsgT2.textContent = `${Math.round(maxT * 0.5)}s`;
+  el.lsgT3.textContent = `${Math.round(maxT * 0.75)}s`;
+  el.lsgT4.textContent = `${Math.round(maxT)}s`;
+}
+
 function renderProfiles(profiles, activeSlot, connected) {
+  const defaultProfiles = [
+    { slot: 0, name: 'Low', target_temp_f: 480, duration_s: 50 },
+    { slot: 1, name: 'Medium', target_temp_f: 485, duration_s: 60 },
+    { slot: 2, name: 'High', target_temp_f: 530, duration_s: 40 },
+    { slot: 3, name: 'ROSIN', target_temp_f: 465, duration_s: 90 },
+  ];
+
+  const list = profiles && profiles.length === 4 ? profiles : defaultProfiles;
   const existingCards = el.profilesContainer.querySelectorAll('.profile-card');
 
-  // If cards already exist and match profiles length, update in-place without touching DOM tree
-  if (existingCards.length === profiles.length && existingCards.length > 0) {
-    profiles.forEach((p, idx) => {
+  // If cards already exist and match count, update in-place without rebuilding DOM tree
+  if (existingCards.length === list.length && existingCards.length > 0) {
+    list.forEach((p, idx) => {
       const card = existingCards[idx];
       const slot = p.slot ?? idx;
+      const isActive = connected && slot === activeSlot;
       card.dataset.slot = slot;
+      card.classList.toggle('active', isActive);
+      card.classList.toggle('disabled', !connected);
 
-      // Update active state cleanly
-      card.classList.toggle('active', idx === activeSlot);
-
-      // Update values if changed
       const nameEl = card.querySelector('.profile-name');
       const tempEl = card.querySelector('.p-temp');
       const durEl = card.querySelector('.p-dur');
@@ -497,18 +715,21 @@ function renderProfiles(profiles, activeSlot, connected) {
     return;
   }
 
-  // Initial creation or length mismatch
+  // Initial creation or card count mismatch
   el.profilesContainer.innerHTML = '';
 
-  profiles.forEach((p, idx) => {
+  list.forEach((p, idx) => {
     const card = document.createElement('div');
-    card.className = `profile-card ${idx === activeSlot ? 'active' : ''}`;
     const slot = p.slot ?? idx;
+    const isActive = connected && slot === activeSlot;
+    card.className = `profile-card ${isActive ? 'active' : ''} ${connected ? '' : 'disabled'}`;
     card.dataset.slot = slot;
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
 
     const slotBadge = document.createElement('div');
     slotBadge.className = 'profile-slot-badge';
-    slotBadge.textContent = `SLOT ${idx + 1}`;
+    slotBadge.textContent = `SLOT ${slot + 1}`;
 
     const nameDiv = document.createElement('div');
     nameDiv.className = 'profile-name';
@@ -532,34 +753,20 @@ function renderProfiles(profiles, activeSlot, connected) {
     card.appendChild(nameDiv);
     card.appendChild(specsDiv);
 
-    card.addEventListener('click', () => {
-      if (!currentTelemetry?.connected) {
+    card.addEventListener('click', async () => {
+      if (!currentTelemetry?.connected || currentTelemetry?.is_syncing) {
         showToast('Connect device to change heat profile', 'error');
         return;
       }
-      selectProfile(slot);
+      try {
+        await activeClient.setProfile(slot);
+        showToast(`Profile ${slot + 1} (${p.name || 'Slot ' + (slot + 1)}) activated`, 'info');
+      } catch (err) {
+        showToast(`Failed to set profile: ${err.message}`, 'error');
+      }
     });
 
     el.profilesContainer.appendChild(card);
-  });
-}
-
-// ---------------- Tab Navigation ----------------
-
-function setupTabs() {
-  el.tabControllerBtn.addEventListener('click', () => {
-    el.tabControllerBtn.classList.add('active');
-    el.tabCurvesBtn.classList.remove('active');
-    el.tabController.classList.remove('hidden');
-    el.tabCurves.classList.add('hidden');
-  });
-
-  el.tabCurvesBtn.addEventListener('click', () => {
-    el.tabCurvesBtn.classList.add('active');
-    el.tabControllerBtn.classList.remove('active');
-    el.tabCurves.classList.remove('hidden');
-    el.tabController.classList.add('hidden');
-    renderCurveGraph();
   });
 }
 
@@ -569,9 +776,9 @@ function setupTabs() {
 
 const GRAPH_WIDTH = 800;
 const GRAPH_HEIGHT = 360;
-const TIME_MAX = 90; // Seconds
-const TEMP_MIN = 400; // °F
-const TEMP_MAX = 580; // °F
+const TIME_MAX = 90;
+const TEMP_MIN = 400;
+const TEMP_MAX = 580;
 
 function timeToX(t) {
   return (Math.max(0, Math.min(TIME_MAX, t)) / TIME_MAX) * GRAPH_WIDTH;
@@ -583,7 +790,7 @@ function xToTime(x) {
 
 function tempToY(t) {
   const norm = (Math.max(TEMP_MIN, Math.min(TEMP_MAX, t)) - TEMP_MIN) / (TEMP_MAX - TEMP_MIN);
-  return (1 - norm) * (GRAPH_HEIGHT - 36) + 18; // Leave margin top/bottom
+  return (1 - norm) * (GRAPH_HEIGHT - 36) + 18;
 }
 
 function yToTemp(y) {
@@ -593,10 +800,10 @@ function yToTemp(y) {
 }
 
 function renderCurveGraph() {
+  if (!currentCurve) return;
   const kfs = currentCurve.keyframes;
   if (!kfs || kfs.length === 0) return;
 
-  // Build SVG path
   let pathD = '';
   let areaD = '';
 
@@ -628,14 +835,14 @@ function renderCurveGraph() {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx', x);
     circle.setAttribute('cy', y);
-    circle.setAttribute('r', '7');
+    circle.setAttribute('r', '8');
     circle.setAttribute('fill', '#11141e');
     circle.setAttribute('stroke', '#ff7a00');
     circle.setAttribute('stroke-width', '3');
     circle.setAttribute('class', 'curve-node');
     circle.dataset.index = idx;
 
-    // Drag events
+    // Mouse drag
     circle.addEventListener('mousedown', (e) => {
       e.stopPropagation();
       isDraggingNode = true;
@@ -643,7 +850,15 @@ function renderCurveGraph() {
       circle.classList.add('dragging');
     });
 
-    // Double-click to delete
+    // Touch drag on mobile
+    circle.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      isDraggingNode = true;
+      draggingNodeIndex = idx;
+      circle.classList.add('dragging');
+    }, { passive: false });
+
+    // Double-click / double-tap to delete
     circle.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       deleteKeyframe(idx);
@@ -652,7 +867,7 @@ function renderCurveGraph() {
     el.curvePointsLayer.appendChild(circle);
   });
 
-  // Update Meta labels
+  // Meta labels
   el.activeCurveTitle.textContent = currentCurve.name;
   el.activeCurveDesc.textContent = currentCurve.description || '';
   el.curveDurationBadge.textContent = `${currentCurve.duration_s}s Sesh`;
@@ -661,7 +876,6 @@ function renderCurveGraph() {
     el.curveSetpointDisplay.textContent = `${kfs[0].temp_f}°F`;
   }
 
-  // Rebuild Keyframe Table
   renderKeyframeTable();
 }
 
@@ -742,41 +956,37 @@ function addKeyframe(time_s, temp_f) {
   showToast(`Added keyframe at ${time_s}s, ${temp_f}°F`, 'info');
 }
 
-// Setup SVG Drag & Click Interaction
+// ==========================================================================
+// Touch & Mouse Dragging for Curve Canvas
+// ==========================================================================
+
 function setupSvgInteraction() {
   const svg = el.curveSvg;
 
-  function getSvgCoords(e) {
+  function getSvgCoords(clientX, clientY) {
     const rect = svg.getBoundingClientRect();
     const scaleX = GRAPH_WIDTH / rect.width;
     const scaleY = GRAPH_HEIGHT / rect.height;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   }
 
-  // Click on blank SVG canvas to add keyframe
+  // Click on canvas to add setpoint
   svg.addEventListener('click', (e) => {
     if (isDraggingNode) return;
-    const coords = getSvgCoords(e);
+    const coords = getSvgCoords(e.clientX, e.clientY);
     const time = xToTime(coords.x);
     const temp = yToTemp(coords.y);
     addKeyframe(time, temp);
   });
 
+  // Mouse drag
   window.addEventListener('mousemove', (e) => {
     if (!isDraggingNode || draggingNodeIndex < 0) return;
-    const coords = getSvgCoords(e);
-    const time = xToTime(coords.x);
-    const temp = yToTemp(coords.y);
-
-    const kf = currentCurve.keyframes[draggingNodeIndex];
-    if (kf) {
-      kf.time_s = time;
-      kf.temp_f = temp;
-      renderCurveGraph();
-    }
+    const coords = getSvgCoords(e.clientX, e.clientY);
+    applyNodeDrag(coords.x, coords.y);
   });
 
   window.addEventListener('mouseup', () => {
@@ -787,6 +997,36 @@ function setupSvgInteraction() {
     }
   });
 
+  // Touch drag for mobile screens
+  window.addEventListener('touchmove', (e) => {
+    if (!isDraggingNode || draggingNodeIndex < 0) return;
+    const touch = e.touches[0];
+    if (touch) {
+      const coords = getSvgCoords(touch.clientX, touch.clientY);
+      applyNodeDrag(coords.x, coords.y);
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    if (isDraggingNode) {
+      isDraggingNode = false;
+      draggingNodeIndex = -1;
+      sortAndRefreshCurve();
+    }
+  });
+
+  function applyNodeDrag(x, y) {
+    const time = xToTime(x);
+    const temp = yToTemp(y);
+
+    const kf = currentCurve.keyframes[draggingNodeIndex];
+    if (kf) {
+      kf.time_s = time;
+      kf.temp_f = temp;
+      renderCurveGraph();
+    }
+  }
+
   el.addKeyframeBtn.addEventListener('click', () => {
     const last = currentCurve.keyframes[currentCurve.keyframes.length - 1];
     const newTime = last ? Math.min(TIME_MAX, last.time_s + 10) : 30;
@@ -794,13 +1034,32 @@ function setupSvgInteraction() {
   });
 }
 
-// ---------------- Curve Presets & Library ----------------
+// ==========================================================================
+// Curve Presets & Persistence
+// ==========================================================================
 
-async function loadCurvesList() {
-  const res = await apiRequest('/api/curves');
-  if (res.ok && res.data?.curves) {
-    curvesList = res.data.curves;
-    renderCurvePills();
+function loadCurvesList() {
+  curvesList = curveStorage.listAll();
+  renderCurvePills();
+
+  // Check URL Hash for shared curve: #curve=...
+  if (location.hash && location.hash.startsWith('#curve=')) {
+    try {
+      const base64 = location.hash.replace('#curve=', '');
+      const json = decodeURIComponent(atob(base64));
+      const shared = JSON.parse(json);
+      if (shared && shared.keyframes) {
+        currentCurve = shared;
+        curveStorage.upsert(shared);
+        showToast(`Loaded shared curve "${shared.name}"!`, 'success');
+      }
+    } catch (e) {
+      console.warn('Could not parse shared curve from URL hash:', e);
+    }
+  }
+
+  if (!currentCurve) {
+    currentCurve = JSON.parse(JSON.stringify(curvesList[0]));
   }
 }
 
@@ -808,7 +1067,7 @@ function renderCurvePills() {
   el.curvePillsContainer.innerHTML = '';
   curvesList.forEach((c) => {
     const pill = document.createElement('button');
-    pill.className = `curve-pill ${c.id === currentCurve.id ? 'active' : ''}`;
+    pill.className = `curve-pill ${currentCurve && c.id === currentCurve.id ? 'active' : ''}`;
     pill.innerHTML = `<span class="curve-pill-dot"></span><span>${c.name}</span>`;
     pill.addEventListener('click', () => selectCurve(c));
     el.curvePillsContainer.appendChild(pill);
@@ -833,8 +1092,8 @@ function setupCurveActions() {
   el.newCurveBtn.addEventListener('click', () => {
     currentCurve = {
       id: `custom-${Date.now().toString(36)}`,
-      name: "Custom Curve",
-      description: "User-defined custom temperature profile",
+      name: 'Custom Curve',
+      description: 'User-defined custom temperature profile',
       duration_s: 50,
       keyframes: [
         { time_s: 0, temp_f: 435 },
@@ -858,19 +1117,44 @@ function setupCurveActions() {
     el.saveCurveModal.classList.add('hidden');
   });
 
-  el.confirmSaveCurveBtn.addEventListener('click', async () => {
+  el.confirmSaveCurveBtn.addEventListener('click', () => {
     const name = el.saveCurveNameInput.value.trim() || 'Custom Curve';
     const desc = el.saveCurveDescInput.value.trim();
     currentCurve.name = name;
     currentCurve.description = desc;
 
-    const res = await apiRequest('/api/curves', 'POST', currentCurve);
-    if (res.ok) {
-      showToast(`Curve "${name}" saved to library!`, 'success');
-      el.saveCurveModal.classList.add('hidden');
-      await loadCurvesList();
-    } else {
-      showToast('Failed to save curve', 'error');
+    curveStorage.upsert(currentCurve);
+    curvesList = curveStorage.listAll();
+    renderCurvePills();
+    renderCurveGraph();
+
+    showToast(`Curve "${name}" saved to library!`, 'success');
+    el.saveCurveModal.classList.add('hidden');
+  });
+
+  // Share Curve Modal
+  el.shareCurveBtn.addEventListener('click', () => {
+    const json = JSON.stringify(currentCurve);
+    const base64 = btoa(encodeURIComponent(json));
+    const url = `${location.origin}${location.pathname}#curve=${base64}`;
+
+    el.shareLinkInput.value = url;
+    el.shareJsonInput.value = JSON.stringify(currentCurve, null, 2);
+    el.shareCurveModal.classList.remove('hidden');
+  });
+
+  el.closeShareCurveModal.addEventListener('click', () => {
+    el.shareCurveModal.classList.add('hidden');
+  });
+
+  el.copyShareLinkBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(el.shareLinkInput.value);
+      showToast('Share link copied to clipboard! 📋', 'success');
+    } catch (e) {
+      el.shareLinkInput.select();
+      document.execCommand('copy');
+      showToast('Link copied!', 'success');
     }
   });
 
@@ -887,8 +1171,8 @@ function setupCurveActions() {
     el.runCurveBtn.disabled = true;
     el.runCurveBtnLabel.textContent = 'STARTING...';
 
-    const res = await apiRequest('/api/curves/run', 'POST', currentCurve);
-    if (res.ok) {
+    try {
+      curveGovernor.client = activeClient;
       isCurveRunning = true;
       el.runCurveBtn.disabled = false;
       el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
@@ -897,22 +1181,58 @@ function setupCurveActions() {
       el.curveStatusBadge.textContent = 'HEATING CURVE';
       el.curvePlayheadLine.classList.remove('hidden');
       el.curvePlayheadDot.classList.remove('hidden');
+
       showToast(`Executing curve "${currentCurve.name}"! 🔥`, 'success');
-    } else {
+      await curveGovernor.run(currentCurve);
+    } catch (err) {
+      showToast(err.message || 'Failed to start curve', 'error');
+    } finally {
+      isCurveRunning = false;
       el.runCurveBtn.disabled = false;
       el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
-      showToast(res.data?.message || 'Failed to start curve', 'error');
+      el.stopCurveBtn.disabled = true;
+      el.curveStatusBadge.className = 'state-tag state-idle';
+      el.curveStatusBadge.textContent = 'READY';
     }
   });
 
   // Stop Curve
   el.stopCurveBtn.addEventListener('click', async () => {
-    await apiRequest('/api/curves/stop', 'POST');
-    showToast('Curve governor stopped', 'info');
+    el.stopCurveBtn.disabled = true;
+    el.runCurveBtnLabel.textContent = 'STOPPING...';
+    try {
+      await curveGovernor.stop();
+      if (activeClient && activeClient.isConnected) {
+        await activeClient.stopSession();
+      }
+      showToast('Heat curve stopped and heating aborted', 'info');
+    } catch (e) {
+      console.warn('Error stopping curve:', e);
+    } finally {
+      isCurveRunning = false;
+      el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
+      el.runCurveBtn.disabled = false;
+      el.stopCurveBtn.disabled = true;
+      el.curveStatusBadge.className = 'state-tag state-idle';
+      el.curveStatusBadge.textContent = 'READY';
+    }
   });
 }
 
 function handleCurveTelemetry(data) {
+  if (data.status === 'emergency_cutoff') {
+    isCurveRunning = false;
+    el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
+    el.runCurveBtn.disabled = false;
+    el.stopCurveBtn.disabled = true;
+    el.curveStatusBadge.className = 'state-tag state-offline';
+    el.curveStatusBadge.textContent = 'OVERHEAT CUTOFF';
+    showToast(`🚨 EMERGENCY SAFETY CUTOFF: Chamber reached ${Number(data.live_temp_f || 600).toFixed(1)}°F! Heating auto-aborted to prevent damage.`, 'error');
+    el.curvePlayheadLine.classList.add('hidden');
+    el.curvePlayheadDot.classList.add('hidden');
+    return;
+  }
+
   if (data.status === 'stopped' || data.status === 'completed' || data.status === 'ended_early' || !data.is_active) {
     isCurveRunning = false;
     el.runCurveBtnLabel.textContent = 'EXECUTE HEAT CURVE';
@@ -940,7 +1260,6 @@ function handleCurveTelemetry(data) {
   const target = Number(data.target_temp_f || 0);
   const live = Number(data.live_temp_f || 0);
 
-  // Distinguish PREHEATING vs RUNNING phase
   if (data.phase === 'preheating') {
     el.runCurveBtnLabel.textContent = 'PREHEATING BOWL...';
     el.curveStatusBadge.className = 'state-tag state-heating';
@@ -950,7 +1269,6 @@ function handleCurveTelemetry(data) {
     el.curveSetpointDisplay.textContent = `${target.toFixed(1)}°F`;
     el.curveActualDisplay.textContent = `${live.toFixed(1)}°F`;
 
-    // Keep playhead at start line during preheating
     const playheadX = timeToX(0);
     const playheadY = tempToY(target);
     el.curvePlayheadLine.setAttribute('x1', playheadX);
@@ -960,7 +1278,6 @@ function handleCurveTelemetry(data) {
     el.curvePlayheadLine.classList.remove('hidden');
     el.curvePlayheadDot.classList.remove('hidden');
   } else {
-    // Active curve governor phase
     el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
     el.curveStatusBadge.className = 'state-tag state-ready';
     el.curveStatusBadge.textContent = 'ACTIVE GOVERNOR';
@@ -969,7 +1286,6 @@ function handleCurveTelemetry(data) {
     el.curveSetpointDisplay.textContent = `${target.toFixed(1)}°F`;
     el.curveActualDisplay.textContent = `${live.toFixed(1)}°F`;
 
-    // Move Playhead Needle along timeline
     const playheadX = timeToX(elapsed);
     const playheadY = tempToY(target);
     el.curvePlayheadLine.setAttribute('x1', playheadX);
@@ -979,7 +1295,6 @@ function handleCurveTelemetry(data) {
     el.curvePlayheadLine.classList.remove('hidden');
     el.curvePlayheadDot.classList.remove('hidden');
 
-    // Record live actual temperature trail on the graph
     const liveY = tempToY(live);
     actualTrailPoints.push({ x: playheadX, y: liveY });
 
@@ -993,211 +1308,90 @@ function handleCurveTelemetry(data) {
   }
 }
 
-// ---------------- Standard REST API Actions ----------------
+// ==========================================================================
+// Tab Switching
+// ==========================================================================
 
-async function apiRequest(endpoint, method = 'GET', body = null) {
-  try {
-    const opts = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
-    if (body) {
-      opts.body = JSON.stringify(body);
-    }
-    const res = await fetch(endpoint, opts);
-    const data = await res.json();
-    return { ok: res.ok, data };
-  } catch (err) {
-    console.error(`API ${endpoint} error:`, err);
-    return { ok: false, data: { message: err.message } };
-  }
-}
+function setupTabs() {
+  el.tabControllerBtn.addEventListener('click', () => {
+    el.tabControllerBtn.classList.add('active');
+    el.tabCurvesBtn.classList.remove('active');
+    el.tabController.classList.remove('hidden');
+    el.tabCurves.classList.add('hidden');
+  });
 
-async function connectDevice(address = null) {
-  showToast('Connecting to Puff BLE device...', 'info');
-  el.mainConnectBtn.disabled = true;
-  el.mainConnectBtn.textContent = 'Connecting...';
-
-  const res = await apiRequest('/api/connect', 'POST', address ? { address } : {});
-  el.mainConnectBtn.disabled = false;
-
-  if (res.ok) {
-    showToast('Connected to device successfully!', 'success');
-  } else {
-    showToast(res.data?.message || 'Failed to connect. Ensure device is awake.', 'error');
-    el.mainConnectBtn.textContent = 'Connect';
-    el.mainConnectBtn.className = 'btn btn-primary';
-  }
-}
-
-async function disconnectDevice() {
-  showToast('Disconnecting...', 'info');
-  await apiRequest('/api/disconnect', 'POST');
-}
-
-async function startSession() {
-  const res = await apiRequest('/api/session/start', 'POST');
-  if (res.ok) {
-    showToast('Heating session initiated! 🔥', 'success');
-  } else {
-    showToast(res.data?.message || 'Failed to start session', 'error');
-  }
-}
-
-async function boostSession() {
-  const res = await apiRequest('/api/session/boost', 'POST');
-  if (res.ok) {
-    showToast('Heat boost triggered (+15s / +10°F) ⚡', 'success');
-  } else {
-    showToast(res.data?.message || 'Failed to send boost', 'error');
-  }
-}
-
-async function stopSession() {
-  const res = await apiRequest('/api/session/stop', 'POST');
-  if (res.ok) {
-    showToast('Session cancelled / cooling down', 'info');
-  } else {
-    showToast(res.data?.message || 'Failed to cancel session', 'error');
-  }
-}
-
-async function selectProfile(slot) {
-  const res = await apiRequest('/api/profile/select', 'POST', { slot });
-  if (res.ok) {
-    showToast(`Profile slot ${slot + 1} selected`, 'info');
-  } else {
-    showToast(res.data?.message || 'Failed to select profile', 'error');
-  }
-}
-
-async function applyTemperature(temp_f) {
-  const res = await apiRequest('/api/temperature', 'POST', { temp_f });
-  if (res.ok) {
-    showToast(`Target temperature set to ${temp_f}°F`, 'success');
-  } else {
-    showToast(res.data?.message || 'Failed to update temperature', 'error');
-  }
-}
-
-async function toggleStealth(enabled) {
-  const res = await apiRequest('/api/stealth', 'POST', { enabled });
-  if (res.ok) {
-    showToast(`Stealth mode ${enabled ? 'enabled (LEDs off)' : 'disabled'}`, 'info');
-  } else {
-    showToast('Failed to toggle stealth mode', 'error');
-  }
-}
-
-async function toggleLantern(enabled) {
-  const res = await apiRequest('/api/lantern', 'POST', { enabled });
-  if (res.ok) {
-    showToast(`Lantern mode ${enabled ? 'started ✨' : 'stopped'}`, 'info');
-  } else {
-    showToast('Failed to toggle lantern mode', 'error');
-  }
-}
-
-async function enterSleep() {
-  if (!confirm('Put device into low-power sleep mode?')) return;
-  const res = await apiRequest('/api/power/sleep', 'POST');
-  if (res.ok) {
-    showToast('Puff entered sleep mode 💤', 'info');
-  }
-}
-
-async function powerOff() {
-  if (!confirm('Completely power off your Puff device?')) return;
-  const res = await apiRequest('/api/power/off', 'POST');
-  if (res.ok) {
-    showToast('Device powered down', 'info');
-  }
-}
-
-async function toggleDemo(enabled) {
-  const res = await apiRequest('/api/demo', 'POST', { enabled });
-  if (res.ok) {
-    showToast(enabled ? 'Demo simulation mode enabled' : 'Demo mode deactivated', 'info');
-  }
-}
-
-// ---------------- Scanner Modal ----------------
-
-async function runDeviceScan() {
-  if (isScanning) return;
-  isScanning = true;
-  el.scanStatusBanner.classList.remove('hidden');
-  el.scanStatusText.textContent = 'Scanning for Bluetooth LE advertisements (4s)...';
-  el.scannedDevicesList.innerHTML = '';
-  el.rescanBtn.disabled = true;
-
-  const res = await apiRequest('/api/scan?timeout=4.0', 'GET');
-  isScanning = false;
-  el.rescanBtn.disabled = false;
-  el.scanStatusBanner.classList.add('hidden');
-
-  if (res.ok && res.data?.devices && res.data.devices.length > 0) {
-    renderScannedDevices(res.data.devices);
-  } else {
-    el.scannedDevicesList.innerHTML = `
-      <div style="text-align:center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">
-        No Puff devices found in range.<br>Ensure Bluetooth is enabled and device is awake.
-      </div>
-    `;
-  }
-}
-
-function renderScannedDevices(devices) {
-  el.scannedDevicesList.innerHTML = '';
-  devices.forEach((d) => {
-    const item = document.createElement('div');
-    item.className = 'device-item';
-
-    const info = document.createElement('div');
-    info.className = 'device-item-info';
-
-    const name = document.createElement('div');
-    name.className = 'device-item-name';
-    name.textContent = d.name || 'Puff Device';
-
-    const addr = document.createElement('div');
-    addr.className = 'device-item-addr';
-    addr.textContent = d.address;
-
-    const rssi = document.createElement('div');
-    rssi.className = 'device-item-rssi';
-    rssi.textContent = `RSSI: ${d.rssi} dBm`;
-
-    info.appendChild(name);
-    info.appendChild(addr);
-    info.appendChild(rssi);
-
-    const connectBtn = document.createElement('button');
-    connectBtn.className = 'btn btn-primary';
-    connectBtn.textContent = 'Connect';
-    connectBtn.style.padding = '6px 14px';
-    connectBtn.style.fontSize = '0.8rem';
-    connectBtn.addEventListener('click', async () => {
-      closeScanModal();
-      await connectDevice(d.address);
-    });
-
-    item.appendChild(info);
-    item.appendChild(connectBtn);
-    el.scannedDevicesList.appendChild(item);
+  el.tabCurvesBtn.addEventListener('click', () => {
+    el.tabCurvesBtn.classList.add('active');
+    el.tabControllerBtn.classList.remove('active');
+    el.tabCurves.classList.remove('hidden');
+    el.tabController.classList.add('hidden');
+    renderCurveGraph();
   });
 }
 
-function openScanModal() {
-  el.scanModal.classList.remove('hidden');
-  runDeviceScan();
+// ==========================================================================
+// Device Connection & Action Handlers
+// ==========================================================================
+
+async function handleConnectToggle(options = {}) {
+  if (isDemoMode) {
+    showToast('Demo mode active. Turn off Demo mode switch to connect hardware.', 'info');
+    return;
+  }
+
+  if (activeClient && activeClient.isConnected) {
+    showToast('Disconnecting...', 'info');
+    await activeClient.disconnect();
+    showToast('Disconnected', 'info');
+    handleTelemetryUpdate(activeClient.telemetry);
+  } else {
+    try {
+      showToast('Scanning for nearby Bluetooth devices...', 'info', 3000);
+      el.mainConnectBtn.disabled = true;
+      el.mainConnectBtn.textContent = 'Connecting...';
+
+      await activeClient.connect({ showAll: true, ...options });
+    } catch (err) {
+      console.warn('[App] Connect error:', err);
+      const isUserCancel =
+        err.message?.includes('cancelled') ||
+        err.message?.includes('No device selected') ||
+        err.name === 'NotFoundError';
+
+      if (isUserCancel) {
+        showToast('Pairing cancelled.', 'info', 2500);
+      } else {
+        showToast(err.message || 'Connection failed or device not recognized.', 'error', 5000);
+      }
+    } finally {
+      el.mainConnectBtn.disabled = false;
+      handleTelemetryUpdate(activeClient.telemetry);
+    }
+  }
 }
 
-function closeScanModal() {
-  el.scanModal.classList.add('hidden');
+async function handleDemoToggle(enabled) {
+  isDemoMode = enabled;
+
+  if (activeClient && activeClient.isConnected) {
+    await activeClient.disconnect();
+  }
+
+  if (enabled) {
+    activeClient = simClient;
+    curveGovernor.client = simClient;
+    await simClient.connect();
+    showToast('Demo simulation mode activated ⚡', 'info');
+  } else {
+    activeClient = bleClient;
+    curveGovernor.client = bleClient;
+    showToast('Switched to Bluetooth hardware mode', 'info');
+  }
 }
 
-// ---------------- Toast Alerts ----------------
+// ==========================================================================
+// Toast Alerts
+// ==========================================================================
 
 function showToast(message, type = 'info', duration = 3200) {
   const toast = document.createElement('div');
@@ -1215,28 +1409,321 @@ function showToast(message, type = 'info', duration = 3200) {
   }, duration);
 }
 
-// ---------------- Event Listeners ----------------
+// ==========================================================================
+// puffsn0w Lockscreen & iPod Touch "Slide to Unlock" Controller
+// ==========================================================================
+
+function updateLockscreenClock() {
+  const now = new Date();
+  if (el.lockscreenClock) {
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    // Classic 12-hour format without leading zero (e.g. 9:41)
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    el.lockscreenClock.textContent = `${hours}:${minutes}`;
+  }
+  if (el.lockscreenDate) {
+    const options = { weekday: 'long', month: 'long', day: 'numeric' };
+    el.lockscreenDate.textContent = now.toLocaleDateString(undefined, options);
+  }
+}
+
+function unlockToDashboard() {
+  if ('vibrate' in navigator) {
+    try { navigator.vibrate(45); } catch (e) {}
+  }
+  if (el.lockscreen) {
+    el.lockscreen.classList.add('unlocked');
+  }
+  showToast('puffsn0w unlocked 🔓', 'success', 3500);
+}
+
+function lockToLockscreen() {
+  if (el.lockscreen) {
+    el.lockscreen.classList.remove('unlocked');
+    const isConn = (activeClient && activeClient.isConnected) || false;
+    if (isConn) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+    } else {
+      el.lockscreen.classList.add('lockscreen-locked');
+    }
+  }
+  if (el.lockscreenSliderThumb) {
+    el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
+  }
+  if (el.slideShimmerLabel) {
+    el.slideShimmerLabel.style.opacity = '1';
+  }
+}
+
+function setupAnalyticsConsent() {
+  const consent = localStorage.getItem('puffsn0w_analytics_consent');
+  if (consent) {
+    if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+    if (consent === 'granted' && typeof gtag === 'function') {
+      gtag('consent', 'update', {
+        'analytics_storage': 'granted'
+      });
+    }
+  }
+
+  if (el.analyticsAcceptBtn) {
+    el.analyticsAcceptBtn.addEventListener('click', () => {
+      localStorage.setItem('puffsn0w_analytics_consent', 'granted');
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+          'analytics_storage': 'granted'
+        });
+      }
+      if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+      showToast('Anonymous compatibility analytics enabled. Thank you!', 'info', 3000);
+    });
+  }
+
+  if (el.analyticsDismissBtn) {
+    el.analyticsDismissBtn.addEventListener('click', () => {
+      localStorage.setItem('puffsn0w_analytics_consent', 'denied');
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+          'analytics_storage': 'denied'
+        });
+      }
+      if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+    });
+  }
+}
+
+function setupSlideToUnlock() {
+  const track = el.lockscreenSliderTrack;
+  const thumb = el.lockscreenSliderThumb;
+  const shimmer = el.slideShimmerLabel;
+  if (!track || !thumb) return;
+
+  let isDragging = false;
+  let startX = 0;
+  let currentTranslateX = 0;
+  let maxDistance = 0;
+
+  function calculateMaxDistance() {
+    const trackWidth = track.clientWidth;
+    const thumbWidth = thumb.offsetWidth || 68;
+    return Math.max(0, trackWidth - thumbWidth - 10);
+  }
+
+  function onDragStart(clientX) {
+    if (track.classList.contains('slider-locked')) {
+      showToast('Please connect your device first to unlock.', 'info', 2800);
+      return;
+    }
+    isDragging = true;
+    startX = clientX;
+    maxDistance = calculateMaxDistance();
+    thumb.classList.add('dragging');
+    thumb.classList.remove('snapping');
+  }
+
+  function onDragMove(clientX) {
+    if (!isDragging) return;
+    const deltaX = clientX - startX;
+    currentTranslateX = Math.max(0, Math.min(deltaX, maxDistance));
+    thumb.style.transform = `translateX(${currentTranslateX}px)`;
+
+    if (shimmer && maxDistance > 0) {
+      const progress = currentTranslateX / maxDistance;
+      shimmer.style.opacity = String(Math.max(0, 1 - progress * 1.35));
+    }
+  }
+
+  function onDragEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    thumb.classList.remove('dragging');
+
+    // Threshold: 78% or more triggers unlock
+    if (maxDistance > 0 && currentTranslateX >= maxDistance * 0.78) {
+      thumb.style.transform = `translateX(${maxDistance}px)`;
+      if (shimmer) shimmer.style.opacity = '0';
+      unlockToDashboard();
+    } else {
+      thumb.classList.add('snapping');
+      thumb.style.transform = 'translateX(0px)';
+      currentTranslateX = 0;
+      if (shimmer) shimmer.style.opacity = '1';
+      setTimeout(() => {
+        thumb.classList.remove('snapping');
+      }, 350);
+    }
+  }
+
+  // Touch Drag Listeners
+  thumb.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches[0]) {
+      onDragStart(e.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches && e.touches[0]) {
+      onDragMove(e.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', () => {
+    if (isDragging) onDragEnd();
+  }, { passive: true });
+
+  window.addEventListener('touchcancel', () => {
+    if (isDragging) onDragEnd();
+  }, { passive: true });
+
+  // Mouse Drag Listeners
+  thumb.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    onDragStart(e.clientX);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      e.preventDefault();
+      onDragMove(e.clientX);
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) onDragEnd();
+  });
+}
+
+function setupLockscreen() {
+  updateLockscreenClock();
+  setInterval(updateLockscreenClock, 1000);
+
+  // Lockscreen Connect Button
+  if (el.lockscreenConnectBtn) {
+    el.lockscreenConnectBtn.addEventListener('click', async () => {
+      if (activeClient && activeClient.isConnected) {
+        unlockToDashboard();
+      } else {
+        await handleConnectToggle({ showAll: true });
+      }
+    });
+  }
+
+  // Header Lock button
+  if (el.lockScreenBtn) {
+    el.lockScreenBtn.addEventListener('click', () => {
+      lockToLockscreen();
+    });
+  }
+
+  setupAnalyticsConsent();
+  setupSlideToUnlock();
+}
+
+// ==========================================================================
+// Event Listeners Binding
+// ==========================================================================
 
 function attachEventListeners() {
   setupTabs();
   setupSvgInteraction();
   setupCurveActions();
+  setupLockscreen();
 
-  // Main Connect / Disconnect button
-  el.mainConnectBtn.addEventListener('click', () => {
-    if (currentTelemetry && currentTelemetry.connected) {
-      disconnectDevice();
-    } else {
-      connectDevice();
+  // Connect Button
+  el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+
+  // Information / Connection Tutorial Modal
+  if (el.infoTutorialBtn) {
+    el.infoTutorialBtn.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.remove('hidden');
+    });
+  }
+
+  if (el.closeTutorialModal) {
+    el.closeTutorialModal.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  if (el.tutorialDismissBtn) {
+    el.tutorialDismissBtn.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  if (el.tutorialConnectBtn) {
+    el.tutorialConnectBtn.addEventListener('click', async () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+      await handleConnectToggle({ showAll: true });
+    });
+  }
+
+  if (el.connectTutorialModal) {
+    el.connectTutorialModal.addEventListener('click', (e) => {
+      if (e.target === el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  // Global Escape key to dismiss active modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (el.connectTutorialModal && !el.connectTutorialModal.classList.contains('hidden')) {
+        el.connectTutorialModal.classList.add('hidden');
+      }
+      if (el.compatModal && !el.compatModal.classList.contains('hidden')) {
+        el.compatModal.classList.add('hidden');
+      }
     }
   });
 
-  // Standard Sesh Control Buttons
-  el.startSeshBtn.addEventListener('click', startSession);
-  el.boostSeshBtn.addEventListener('click', boostSession);
-  el.stopSeshBtn.addEventListener('click', stopSession);
+  // Compatibility Guide Banner & Modal
+  el.compatGuideBtn.addEventListener('click', () => {
+    el.compatModal.classList.remove('hidden');
+  });
 
-  // Temperature Slider & Controls
+  el.compatDismissBtn.addEventListener('click', () => {
+    el.compatBanner.classList.add('hidden');
+    sessionStorage.setItem('compat_dismissed', '1');
+  });
+
+  el.closeCompatModal.addEventListener('click', () => {
+    el.compatModal.classList.add('hidden');
+  });
+
+  el.closeCompatModalBtn.addEventListener('click', () => {
+    el.compatModal.classList.add('hidden');
+  });
+
+  el.compatModal.addEventListener('click', (e) => {
+    if (e.target === el.compatModal) el.compatModal.classList.add('hidden');
+  });
+
+  // Standard Sesh Buttons
+  el.startSeshBtn.addEventListener('click', async () => {
+    if (!activeClient.isConnected) return;
+    el.startSeshBtn.disabled = true;
+    showToast('Heating session initiated! 🔥', 'success');
+    await activeClient.startSession();
+  });
+
+  el.boostSeshBtn.addEventListener('click', async () => {
+    if (!activeClient.isConnected) return;
+    showToast('Heat boost triggered (+15s / +10°F) ⚡', 'success');
+    await activeClient.boostSession();
+  });
+
+  el.stopSeshBtn.addEventListener('click', async () => {
+    if (!activeClient.isConnected) return;
+    if (isCurveRunning) {
+      await curveGovernor.stop();
+    }
+    showToast('Session cancelled / cooling down', 'info');
+    await activeClient.stopSession();
+  });
+
+  // Temperature Controls
   el.tempSlider.addEventListener('input', (e) => {
     el.sliderTempVal.textContent = `${e.target.value}°F`;
   });
@@ -1253,49 +1740,180 @@ function attachEventListeners() {
     el.sliderTempVal.textContent = `${val}°F`;
   });
 
-  el.applyTempBtn.addEventListener('click', () => {
-    applyTemperature(Number(el.tempSlider.value));
+  el.applyTempBtn.addEventListener('click', async () => {
+    const val = Number(el.tempSlider.value);
+    await activeClient.writeTemperature(val);
+    showToast(`Target temperature set to ${val}°F`, 'success');
   });
 
   el.presetPills.forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const temp = Number(btn.dataset.temp);
       el.tempSlider.value = temp;
       el.sliderTempVal.textContent = `${temp}°F`;
-      applyTemperature(temp);
+      await activeClient.writeTemperature(temp);
+      showToast(`Target setpoint adjusted to ${temp}°F`, 'info');
     });
   });
 
-  // Toggles
-  el.stealthToggle.addEventListener('change', (e) => toggleStealth(e.target.checked));
-  el.lanternToggle.addEventListener('change', (e) => toggleLantern(e.target.checked));
-  el.demoModeToggle.addEventListener('change', (e) => toggleDemo(e.target.checked));
+  // Stealth & Lantern toggles
+  el.stealthToggle.addEventListener('change', async (e) => {
+    await activeClient.setStealthMode(e.target.checked);
+    showToast(`Stealth mode ${e.target.checked ? 'enabled (LEDs blackout)' : 'disabled'}`, 'info');
+  });
 
-  // Power
-  el.sleepBtn.addEventListener('click', enterSleep);
-  el.powerOffBtn.addEventListener('click', powerOff);
+  el.lanternToggle.addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    if (el.lanternControlsPanel) {
+      if (isChecked) {
+        el.lanternControlsPanel.classList.remove('hidden');
+      } else {
+        el.lanternControlsPanel.classList.add('hidden');
+      }
+    }
+    await activeClient.setLanternMode(isChecked);
+    showToast(`Lantern mode ${isChecked ? 'started ✨' : 'stopped'}`, 'info');
+  });
 
-  // Scanner Modal
-  el.scanModalBtn.addEventListener('click', openScanModal);
-  el.closeScanModal.addEventListener('click', closeScanModal);
-  el.rescanBtn.addEventListener('click', runDeviceScan);
-  el.scanModal.addEventListener('click', (e) => {
-    if (e.target === el.scanModal) closeScanModal();
+  // Lantern Lighting Effect Buttons
+  const fxBtns = document.querySelectorAll('.lantern-fx-btn');
+  fxBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const effect = btn.dataset.effect;
+      if (!effect) return;
+
+      fxBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (activeClient && typeof activeClient.startLanternEffect === 'function') {
+        await activeClient.startLanternEffect(effect);
+      }
+
+      const effectTitles = {
+        campfire: 'Campfire 🔥',
+        flicker: 'Candle Flicker 🕯️',
+        night_light: 'Night Light 🌙',
+        rainbow: 'Rainbow Spectrum 🌈',
+        waterfall: 'Waterfall Cascade 🌊',
+        breathing: 'Meditative Breath 🧘',
+        disco: 'Party Disco ⚡',
+        aurora: 'Aurora Borealis 🔮',
+      };
+
+      if (el.lanternAuraPreview) {
+        el.lanternAuraPreview.className = `lantern-aura-preview effect-${effect}`;
+        if (el.lanternActiveEffectName) {
+          el.lanternActiveEffectName.textContent = effectTitles[effect] || effect;
+        }
+      }
+
+      showToast(`Lighting effect: ${effectTitles[effect] || effect}`, 'info', 2200);
+    });
+  });
+
+  // Lantern Color Swatches
+  const swatches = document.querySelectorAll('.swatch-btn');
+  swatches.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const colorStr = btn.dataset.color;
+      if (!colorStr) return;
+      const parts = colorStr.split(',').map((n) => parseInt(n.trim(), 10));
+      if (parts.length < 3) return;
+
+      swatches.forEach((s) => s.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (activeClient && typeof activeClient.setLanternColor === 'function') {
+        await activeClient.setLanternColor(parts[0], parts[1], parts[2]);
+      }
+      showToast('Color tint updated', 'info', 1800);
+    });
+  });
+
+  // Lantern Brightness Slider
+  if (el.lanternBrightnessSlider) {
+    el.lanternBrightnessSlider.addEventListener('input', (e) => {
+      if (el.lanternBrightnessVal) {
+        el.lanternBrightnessVal.textContent = `${e.target.value}%`;
+      }
+    });
+    el.lanternBrightnessSlider.addEventListener('change', async (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (activeClient && typeof activeClient.setLanternBrightness === 'function') {
+        await activeClient.setLanternBrightness(val);
+      }
+    });
+  }
+
+  // Power controls
+  el.sleepBtn.addEventListener('click', async () => {
+    if (!confirm('Put Puff device into low-power sleep mode?')) return;
+    await activeClient.enterSleepMode();
+    showToast('Device entered sleep mode 💤', 'info');
+  });
+
+  el.powerOffBtn.addEventListener('click', async () => {
+    if (!confirm('Completely power off your Puff device?')) return;
+    await activeClient.powerOff();
+    showToast('Device powered down', 'info');
   });
 }
 
-// ---------------- Bootstrap ----------------
+// ==========================================================================
+// Bootstrap
+// ==========================================================================
 
-async function bootstrap() {
+function bootstrap() {
+  curveStorage = new CurveStorage();
+  bleClient = new PuffcoBleClient();
+  simClient = new PuffcoSimulator();
+  activeClient = bleClient;
+  curveGovernor = new CurveGovernor(activeClient);
+
+  // Wire telemetry listeners
+  bleClient.addTelemetryListener(handleTelemetryUpdate);
+  simClient.addTelemetryListener(handleTelemetryUpdate);
+  curveGovernor.addCurveListener(handleCurveTelemetry);
+
+  // Wire disconnect notification listener
+  bleClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional);
+    if (wasConnected && !isIntentional) {
+      showToast('Device connection lost. Reconnect to resume control.', 'error', 6500);
+    }
+    handleTelemetryUpdate(bleClient.telemetry);
+  });
+  simClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+    if (wasConnected && !isIntentional) {
+      showToast('Demo device disconnected.', 'info', 3000);
+    }
+    handleTelemetryUpdate(simClient.telemetry);
+  });
+
   attachEventListeners();
-  initWebSocket();
-  await loadCurvesList();
+  checkBrowserCompatibility();
+  loadCurvesList();
   renderCurveGraph();
 
-  // Initial status fetch
-  const res = await apiRequest('/api/status');
-  if (res.ok && res.data) {
-    handleTelemetryUpdate(res.data);
+  // Initial UI state
+  handleTelemetryUpdate(activeClient.telemetry);
+
+  // Auto-connect to previously paired Bluetooth device if permitted by browser
+  if (bleClient && bleClient.isWebBluetoothSupported() && typeof navigator.bluetooth?.getDevices === 'function') {
+    bleClient.autoConnect().then((connected) => {
+      if (connected) {
+        showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
+      }
+    }).catch((err) => {
+      console.log('[puffsn0w] Auto-connect check bypassed:', err);
+    });
+  }
+
+  // Register Service Worker for offline PWA
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('./service-worker.js').catch((e) => {
+      console.log('ServiceWorker registration skipped:', e);
+    });
   }
 }
 

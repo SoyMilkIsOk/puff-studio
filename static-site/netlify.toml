@@ -1,4 +1,4 @@
-# Netlify Configuration for Puff Studio Static Site
+# Netlify Configuration for puffsn0w Static Site
 
 [build]
   publish = "."

@@ -1,5 +1,5 @@
 /**
- * Puff Studio — Real-Time Host-Side Thermal Curve Governor
+ * puffsn0w — Real-Time Host-Side Thermal Curve Governor
  * Executes piecewise linear heat curves against hardware or simulator at 2 Hz.
  * Handles preheat synchronization, live setpoint modulation, and profile flash safety.
  */

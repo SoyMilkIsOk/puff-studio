@@ -1,20 +1,30 @@
 /**
- * Puff Studio — Offline Service Worker
+ * puffsn0w — Offline Service Worker
  * Network-first strategy with offline cache fallback.
  */
 
-const CACHE_NAME = 'puff-studio-v3.1';
+const CACHE_NAME = 'puffsn0w-cache-v4.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './earth-wallpaper.png',
   './puffco-ble.js',
   './curve-governor.js',
   './simulator.js',
   './curves-data.js',
   './curves.json',
   './manifest.json',
+  './icons/favicon.ico',
+  './icons/favicon-32x32.png',
+  './icons/favicon-16x16.png',
+  './icons/apple-touch-icon.png',
+  './icons/android-chrome-192x192.png',
+  './icons/android-chrome-512x512.png',
+  './icons/puffsn0w-icon.svg',
+  './icons/puffsn0w-icon.png',
+  './icons/puffsn0w.png',
   './icons/icon.svg',
 ];
 

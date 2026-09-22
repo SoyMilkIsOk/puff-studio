@@ -1,5 +1,5 @@
 /**
- * Puff Studio — Curve Presets, Interpolation & LocalStorage Manager
+ * puffsn0w — Curve Presets, Interpolation & LocalStorage Manager
  * Companion heat curve library for Puffco devices.
  */
 

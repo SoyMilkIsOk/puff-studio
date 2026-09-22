@@ -1,5 +1,5 @@
 /**
- * Puff Studio — Standalone Mobile & Web Bluetooth Frontend Controller
+ * puffsn0w — Standalone E-Rig Jailbreak Controller & Heat Curve Studio
  * Direct hardware & simulator integration, SVG curve editor with touch dragging,
  * live telemetry HUD, and dynamic thermal curve governor.
  */
@@ -31,14 +31,41 @@ let sessionPeakTemp = 0;
 let sessionTempSum = 0;
 let sessionTempCount = 0;
 let wasHeating = false;
+let wasDeviceConnected = false;
 
-// DOM Cache
+// DOM Element Cache
 const el = {
-  // Tabs
+  // Navigation Tabs
   tabControllerBtn: document.getElementById('tab-controller-btn'),
   tabCurvesBtn: document.getElementById('tab-curves-btn'),
   tabController: document.getElementById('tab-controller'),
   tabCurves: document.getElementById('tab-curves'),
+
+  // Lockscreen & Slide to Unlock Elements
+  lockscreen: document.getElementById('lockscreen'),
+  lockscreenCenterSection: document.getElementById('lockscreen-center-section'),
+  lockscreenConnectCard: document.getElementById('lockscreen-connect-card'),
+  lockscreenClock: document.getElementById('lockscreen-clock'),
+  lockscreenDate: document.getElementById('lockscreen-date'),
+  lockscreenBtBadge: document.getElementById('lockscreen-bt-badge'),
+  lockscreenBatteryPill: document.getElementById('lockscreen-battery-pill'),
+  lockscreenBatteryVal: document.getElementById('lockscreen-battery-val'),
+  lockscreenBatteryFill: document.getElementById('lockscreen-battery-fill'),
+  lockscreenConnectBtn: document.getElementById('lockscreen-connect-btn'),
+  lockscreenConnectLabel: document.getElementById('lockscreen-connect-label'),
+  lockscreenGuideBtn: document.getElementById('lockscreen-guide-btn'),
+  lockscreenDemoBtn: document.getElementById('lockscreen-demo-btn'),
+  lockscreenStatusIndicator: document.getElementById('lockscreen-status-indicator'),
+  lockscreenStatusMsg: document.getElementById('lockscreen-status-msg'),
+  analyticsModal: document.getElementById('analytics-modal'),
+  analyticsAcceptBtn: document.getElementById('analytics-accept-btn'),
+  analyticsDismissBtn: document.getElementById('analytics-dismiss-btn'),
+  lockscreenSliderTrack: document.getElementById('lockscreen-slider-track'),
+  lockscreenSliderThumb: document.getElementById('lockscreen-slider-thumb'),
+  slideShimmerLabel: document.getElementById('slide-shimmer-label'),
+  sliderLockedHint: document.getElementById('slider-locked-hint'),
+  sliderLockedText: document.getElementById('slider-locked-text'),
+  lockScreenBtn: document.getElementById('lock-screen-btn'),
 
   // Header Status & Device
   deviceName: document.getElementById('device-name-display'),
@@ -272,6 +299,56 @@ function handleTelemetryUpdate(data) {
       }
     }
   }
+
+  // Lockscreen Telemetry & Unlock Synchronization
+  if (el.lockscreen) {
+    if (connected) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+      if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.add('connected');
+      if (el.lockscreenBatteryVal) {
+        const batPct = isSyncing ? '--' : Math.max(0, Math.min(100, data.battery_pct || 0));
+        el.lockscreenBatteryVal.textContent = isSyncing ? '--%' : `${batPct}%`;
+      }
+      if (el.lockscreenBatteryFill) {
+        const batPct = isSyncing ? 25 : Math.max(0, Math.min(100, data.battery_pct || 0));
+        el.lockscreenBatteryFill.setAttribute('width', String(Math.max(2, Math.round((batPct / 100) * 12))));
+      }
+      if (el.lockscreenSliderTrack) {
+        el.lockscreenSliderTrack.classList.remove('slider-locked');
+      }
+      if (el.lockscreenConnectCard) {
+        el.lockscreenConnectCard.classList.add('connected-hidden');
+      }
+      if (!wasDeviceConnected) {
+        showToast(`${data.device_name || 'Device'} Connected! Slide to unlock 🔓`, 'success', 3500);
+      }
+      if (el.lockscreenConnectBtn) {
+        el.lockscreenConnectBtn.classList.add('connected');
+        if (el.lockscreenConnectLabel) {
+          el.lockscreenConnectLabel.textContent = `✓ ${data.device_name || 'E-Rig'} Connected`;
+        }
+      }
+    } else {
+      el.lockscreen.classList.add('lockscreen-locked');
+      if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.remove('connected');
+      if (el.lockscreenBatteryVal) el.lockscreenBatteryVal.textContent = '--%';
+      if (el.lockscreenBatteryFill) el.lockscreenBatteryFill.setAttribute('width', '2');
+      if (el.lockscreenSliderTrack) {
+        el.lockscreenSliderTrack.classList.add('slider-locked');
+      }
+      if (el.lockscreenConnectCard) {
+        el.lockscreenConnectCard.classList.remove('connected-hidden');
+      }
+      if (el.lockscreenConnectBtn) {
+        el.lockscreenConnectBtn.classList.remove('connected');
+        if (el.lockscreenConnectLabel) {
+          el.lockscreenConnectLabel.textContent = 'Connect Device';
+        }
+      }
+    }
+  }
+
+  wasDeviceConnected = connected;
 
   // Operating State Badge
   updateStateBadge(data.operating_state, data.state_name, isSyncing);
@@ -1274,7 +1351,6 @@ async function handleConnectToggle(options = {}) {
       el.mainConnectBtn.textContent = 'Connecting...';
 
       await activeClient.connect({ showAll: true, ...options });
-      showToast(`Connected to ${activeClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
     } catch (err) {
       console.warn('[App] Connect error:', err);
       const isUserCancel =
@@ -1334,6 +1410,218 @@ function showToast(message, type = 'info', duration = 3200) {
 }
 
 // ==========================================================================
+// puffsn0w Lockscreen & iPod Touch "Slide to Unlock" Controller
+// ==========================================================================
+
+function updateLockscreenClock() {
+  const now = new Date();
+  if (el.lockscreenClock) {
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    // Classic 12-hour format without leading zero (e.g. 9:41)
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    el.lockscreenClock.textContent = `${hours}:${minutes}`;
+  }
+  if (el.lockscreenDate) {
+    const options = { weekday: 'long', month: 'long', day: 'numeric' };
+    el.lockscreenDate.textContent = now.toLocaleDateString(undefined, options);
+  }
+}
+
+function unlockToDashboard() {
+  if ('vibrate' in navigator) {
+    try { navigator.vibrate(45); } catch (e) {}
+  }
+  if (el.lockscreen) {
+    el.lockscreen.classList.add('unlocked');
+  }
+  showToast('puffsn0w unlocked 🔓', 'success', 3500);
+}
+
+function lockToLockscreen() {
+  if (el.lockscreen) {
+    el.lockscreen.classList.remove('unlocked');
+    const isConn = (activeClient && activeClient.isConnected) || false;
+    if (isConn) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+    } else {
+      el.lockscreen.classList.add('lockscreen-locked');
+    }
+  }
+  if (el.lockscreenSliderThumb) {
+    el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
+  }
+  if (el.slideShimmerLabel) {
+    el.slideShimmerLabel.style.opacity = '1';
+  }
+}
+
+function setupAnalyticsConsent() {
+  const consent = localStorage.getItem('puffsn0w_analytics_consent');
+  if (consent) {
+    if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+    if (consent === 'granted' && typeof gtag === 'function') {
+      gtag('consent', 'update', {
+        'analytics_storage': 'granted'
+      });
+    }
+  }
+
+  if (el.analyticsAcceptBtn) {
+    el.analyticsAcceptBtn.addEventListener('click', () => {
+      localStorage.setItem('puffsn0w_analytics_consent', 'granted');
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+          'analytics_storage': 'granted'
+        });
+      }
+      if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+      showToast('Anonymous compatibility analytics enabled. Thank you!', 'info', 3000);
+    });
+  }
+
+  if (el.analyticsDismissBtn) {
+    el.analyticsDismissBtn.addEventListener('click', () => {
+      localStorage.setItem('puffsn0w_analytics_consent', 'denied');
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+          'analytics_storage': 'denied'
+        });
+      }
+      if (el.analyticsModal) el.analyticsModal.classList.add('hidden');
+    });
+  }
+}
+
+function setupSlideToUnlock() {
+  const track = el.lockscreenSliderTrack;
+  const thumb = el.lockscreenSliderThumb;
+  const shimmer = el.slideShimmerLabel;
+  if (!track || !thumb) return;
+
+  let isDragging = false;
+  let startX = 0;
+  let currentTranslateX = 0;
+  let maxDistance = 0;
+
+  function calculateMaxDistance() {
+    const trackWidth = track.clientWidth;
+    const thumbWidth = thumb.offsetWidth || 68;
+    return Math.max(0, trackWidth - thumbWidth - 10);
+  }
+
+  function onDragStart(clientX) {
+    if (track.classList.contains('slider-locked')) {
+      showToast('Please connect your device first to unlock.', 'info', 2800);
+      return;
+    }
+    isDragging = true;
+    startX = clientX;
+    maxDistance = calculateMaxDistance();
+    thumb.classList.add('dragging');
+    thumb.classList.remove('snapping');
+  }
+
+  function onDragMove(clientX) {
+    if (!isDragging) return;
+    const deltaX = clientX - startX;
+    currentTranslateX = Math.max(0, Math.min(deltaX, maxDistance));
+    thumb.style.transform = `translateX(${currentTranslateX}px)`;
+
+    if (shimmer && maxDistance > 0) {
+      const progress = currentTranslateX / maxDistance;
+      shimmer.style.opacity = String(Math.max(0, 1 - progress * 1.35));
+    }
+  }
+
+  function onDragEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    thumb.classList.remove('dragging');
+
+    // Threshold: 78% or more triggers unlock
+    if (maxDistance > 0 && currentTranslateX >= maxDistance * 0.78) {
+      thumb.style.transform = `translateX(${maxDistance}px)`;
+      if (shimmer) shimmer.style.opacity = '0';
+      unlockToDashboard();
+    } else {
+      thumb.classList.add('snapping');
+      thumb.style.transform = 'translateX(0px)';
+      currentTranslateX = 0;
+      if (shimmer) shimmer.style.opacity = '1';
+      setTimeout(() => {
+        thumb.classList.remove('snapping');
+      }, 350);
+    }
+  }
+
+  // Touch Drag Listeners
+  thumb.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches[0]) {
+      onDragStart(e.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches && e.touches[0]) {
+      onDragMove(e.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', () => {
+    if (isDragging) onDragEnd();
+  }, { passive: true });
+
+  window.addEventListener('touchcancel', () => {
+    if (isDragging) onDragEnd();
+  }, { passive: true });
+
+  // Mouse Drag Listeners
+  thumb.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    onDragStart(e.clientX);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      e.preventDefault();
+      onDragMove(e.clientX);
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) onDragEnd();
+  });
+}
+
+function setupLockscreen() {
+  updateLockscreenClock();
+  setInterval(updateLockscreenClock, 1000);
+
+  // Lockscreen Connect Button
+  if (el.lockscreenConnectBtn) {
+    el.lockscreenConnectBtn.addEventListener('click', async () => {
+      if (activeClient && activeClient.isConnected) {
+        unlockToDashboard();
+      } else {
+        await handleConnectToggle({ showAll: true });
+      }
+    });
+  }
+
+  // Header Lock button
+  if (el.lockScreenBtn) {
+    el.lockScreenBtn.addEventListener('click', () => {
+      lockToLockscreen();
+    });
+  }
+
+  setupAnalyticsConsent();
+  setupSlideToUnlock();
+}
+
+// ==========================================================================
 // Event Listeners Binding
 // ==========================================================================
 
@@ -1341,6 +1629,7 @@ function attachEventListeners() {
   setupTabs();
   setupSvgInteraction();
   setupCurveActions();
+  setupLockscreen();
 
   // Connect Button
   el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
@@ -1616,7 +1905,7 @@ function bootstrap() {
         showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
       }
     }).catch((err) => {
-      console.log('[PuffStudio] Auto-connect check bypassed:', err);
+      console.log('[puffsn0w] Auto-connect check bypassed:', err);
     });
   }
 

@@ -1,7 +1,7 @@
 {
-  "name": "Puff Studio",
-  "short_name": "PuffStudio",
-  "description": "Web Bluetooth Controller & Dynamic Heat Curve Studio for Puff Peak Pro and Proxy devices.",
+  "name": "puffsn0w",
+  "short_name": "puffsn0w",
+  "description": "free your e-rig — jailbreak controller & dynamic heat curve studio for Peak Pro and Proxy devices.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#08090d",
@@ -9,10 +9,22 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "./icons/icon.svg",
+      "src": "./icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/puffsn0w-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

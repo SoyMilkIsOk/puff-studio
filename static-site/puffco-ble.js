@@ -1,5 +1,5 @@
 /**
- * Puff Studio — Standalone Web Bluetooth BLE Driver for Puffco Devices
+ * puffsn0w — Standalone Web Bluetooth BLE Driver for Puffco Devices
  * Directly communicates with Puffco Peak Pro and Proxy over Web Bluetooth (GATT).
  * Re-implements Lorax protocol, SHA-256 challenge-response handshake,
  * and VFS binary serialization in pure client-side JavaScript.
