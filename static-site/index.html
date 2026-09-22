@@ -3,25 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Puff Studio — Mobile Web Bluetooth Controller &amp; Heat Curve Studio</title>
-  <meta name="description" content="Standalone web controller, real-time Web Bluetooth Low Energy HUD, and dynamic heat curve studio for Puff Peak Pro and Proxy devices.">
+  <title>puffsn0w — free your e-rig</title>
+  <meta name="description" content="free your e-rig — jailbreak controller &amp; dynamic heat curve studio for Peak Pro and Proxy devices.">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-4HJF59E8YR"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-4HJF59E8YR');
+  </script>
 
   <!-- Mobile PWA & Apple Web App Meta -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Puff Studio">
+  <meta name="apple-mobile-web-app-title" content="puffsn0w">
   <meta name="theme-color" content="#08090d">
   <!-- Path Browser (iOS) Web Bluetooth permission trigger -->
   <meta name="path-bluetooth" content="true">
   <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
-  <link rel="apple-touch-icon" href="./icons/icon.svg">
+  <link rel="icon" type="image/x-icon" href="./icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png">
+  <link rel="icon" type="image/svg+xml" href="./icons/puffsn0w-icon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: JetBrains Mono, Outfit & Share Tech Mono for Jailbreak Terminal aesthetic -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=3.1">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=4.1">
 </head>
 <body class="theme-dark">
   <!-- Ambient background glow layers -->
@@ -45,18 +58,118 @@
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- puffsn0w Classic iPod Touch "Slide to Unlock" Lockscreen Home Page        -->
+  <!-- ========================================================================= -->
+  <section id="lockscreen" class="lockscreen-overlay" aria-label="puffsn0w Lock Screen">
+    <!-- Top Header Bar with dark grey transparent background & border -->
+    <div class="lockscreen-top-bar">
+      <!-- Top Status Bar -->
+      <div class="lockscreen-status-bar">
+        <div class="status-carrier">
+          <span class="carrier-dots">•••••</span>
+          <span class="carrier-name">puffsn0w</span>
+        </div>
+        <div class="status-icons">
+          <span id="lockscreen-bt-badge" class="lockscreen-bt-badge" title="Web Bluetooth Status">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+          </span>
+          <span id="lockscreen-battery-pill" class="lockscreen-battery-pill" title="Device Battery">
+            <span id="lockscreen-battery-val">--%</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="16" height="10" rx="2" ry="2"/><line x1="22" y1="11" x2="22" y2="13"/><rect id="lockscreen-battery-fill" x="4" y="9" width="0" height="6" rx="1" fill="currentColor"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <!-- iPod Touch Big Digital Clock & Date -->
+      <div class="lockscreen-clock-section">
+        <div id="lockscreen-clock" class="lockscreen-clock">9:41</div>
+        <div id="lockscreen-date" class="lockscreen-date">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Center Jailbreak & Connect Section (Disappears once connected) -->
+    <div id="lockscreen-center-section" class="lockscreen-center-section">
+      <div class="lockscreen-brand-box">
+        <div class="lockscreen-logo-halo"></div>
+        <div class="lockscreen-logo" aria-hidden="true">
+          <svg viewBox="0 0 378.51 565.57" width="46" height="46" fill="currentColor">
+            <path d="M346.42,288.44s-139.03-33.79-159.45-40.37l52.49,317.5c46.31-29.82,97.72-57.81,139.06-90.27-10.52-52.71-32.09-186.85-32.09-186.85Z"/>
+            <path d="M96.63,70.38c17.71-8.55,33.85-9.57,50.8-3.2,46.22,17.36,80.58,67.04,91.05,91.65l51.51-27.59c-.48-1.15-2.4-7.3-23.21-38-29.35-43.29-61.97-71.93-96.95-85.13-32.88-12.41-67.69-10.54-100.67,5.38C37.18,28.93,15.22,54.35,5.66,87-5.18,124.05-.43,169.85,19.79,223.13c6.79,17.9,14.21,33.58,20.2,45.24l-29.08,18.28-7.21,4.03,31.62,190.54c49.34,17.02,106.36,27.37,159.65,40.19l-52.49-317.5-48.86,30.72c-17.23-34.71-38.65-91.43-27.32-129.96,4.6-15.64,14.23-26.53,30.32-34.3Z"/>
+          </svg>
+        </div>
+        <h1 class="lockscreen-title terminal-brand">puff<span>sn0w</span></h1>
+        <p class="lockscreen-tagline">"free your e-rig"</p>
+      </div>
+
+      <!-- Connect Button & Actions Card -->
+      <div id="lockscreen-connect-card" class="lockscreen-connect-card">
+        <button id="lockscreen-connect-btn" class="lockscreen-btn-primary" title="Scan & Connect Puffco Device">
+          <svg class="btn-ble-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+          <span id="lockscreen-connect-label">Connect Device</span>
+        </button>
+      </div>
+
+      <!-- Unobtrusive Analytics Consent Modal (inobtrusive popup below connect button) -->
+      <div id="analytics-modal" class="analytics-popup">
+        <div class="analytics-popup-inner">
+          <div class="analytics-popup-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="analytics-popup-text">
+            <span class="analytics-title">Anonymous Compatibility Telemetry</span>
+            <span class="analytics-desc">puffsn0w uses anonymous analytics to verify device firmware compatibility and curve stability.</span>
+          </div>
+          <div class="analytics-popup-actions">
+            <button id="analytics-accept-btn" class="analytics-btn-accept">Accept</button>
+            <button id="analytics-dismiss-btn" class="analytics-btn-dismiss" aria-label="Dismiss analytics popup">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- iPod Touch Classic Slide to Unlock Slider Bottom Bar with dark grey transparent background -->
+    <div class="lockscreen-bottom-bar">
+      <div class="slider-container">
+        <div id="lockscreen-slider-track" class="slide-to-unlock-track slider-locked">
+          <!-- Locked hint overlay (blurred initially until device connects) -->
+          <div id="slider-locked-hint" class="slider-locked-hint">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span id="slider-locked-text">Connect device first to unlock</span>
+          </div>
+
+          <!-- Shimmering text (active once connected) -->
+          <div id="slide-shimmer-label" class="slide-shimmer-text">
+            <span>slide to unlock</span>
+          </div>
+
+          <!-- Skeuomorphic iPod Slider Thumb -->
+          <div id="lockscreen-slider-thumb" class="slide-thumb" role="slider" aria-label="Slide to unlock" tabindex="0">
+            <div class="thumb-inner-gloss"></div>
+            <svg class="thumb-chevron" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M5 13h9.17l-3.58 3.59L12 18l6-6-6-6-1.41 1.41L14.17 11H5v2z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- Main Application Dashboard Layout                                         -->
+  <!-- ========================================================================= -->
   <div class="app-layout">
     <!-- Header / Navbar -->
     <header class="app-header">
       <div class="brand-section">
         <div class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+          <svg viewBox="0 0 378.51 565.57" width="24" height="24" fill="currentColor">
+            <path d="M346.42,288.44s-139.03-33.79-159.45-40.37l52.49,317.5c46.31-29.82,97.72-57.81,139.06-90.27-10.52-52.71-32.09-186.85-32.09-186.85Z"/>
+            <path d="M96.63,70.38c17.71-8.55,33.85-9.57,50.8-3.2,46.22,17.36,80.58,67.04,91.05,91.65l51.51-27.59c-.48-1.15-2.4-7.3-23.21-38-29.35-43.29-61.97-71.93-96.95-85.13-32.88-12.41-67.69-10.54-100.67,5.38C37.18,28.93,15.22,54.35,5.66,87-5.18,124.05-.43,169.85,19.79,223.13c6.79,17.9,14.21,33.58,20.2,45.24l-29.08,18.28-7.21,4.03,31.62,190.54c49.34,17.02,106.36,27.37,159.65,40.19l-52.49-317.5-48.86,30.72c-17.23-34.71-38.65-91.43-27.32-129.96,4.6-15.64,14.23-26.53,30.32-34.3Z"/>
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">PUFF <span>STUDIO</span></h1>
-          <span class="brand-sub">Web Bluetooth &amp; Curve Engine</span>
+          <h1 class="brand-title terminal-brand">puff<span>sn0w</span></h1>
         </div>
       </div>
 
@@ -102,6 +215,9 @@
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
+          </button>
+          <button id="lock-screen-btn" class="btn-icon header-lock-btn" title="Lock Screen" aria-label="Return to Lock Screen">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </button>
         </div>
       </div>
@@ -810,16 +926,16 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <div>Puff Studio • Standalone Web BLE Controller &amp; Curve Engine</div>
+      <div>puffsn0w • e-rig jailbreak • free your e-rig</div>
       <div id="bt-indicator" class="ws-pill ws-connected">Web BLE Ready</div>
     </footer>
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=3.1"></script>
-  <script src="./puffco-ble.js?v=3.1"></script>
-  <script src="./simulator.js?v=3.1"></script>
-  <script src="./curve-governor.js?v=3.1"></script>
-  <script src="./app.js?v=3.1"></script>
+  <script src="./curves-data.js?v=4.0"></script>
+  <script src="./puffco-ble.js?v=4.0"></script>
+  <script src="./simulator.js?v=4.0"></script>
+  <script src="./curve-governor.js?v=4.0"></script>
+  <script src="./app.js?v=4.0"></script>
 </body>
 </html>

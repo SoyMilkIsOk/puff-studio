@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Puff Studio — Premium Dark Cyber Glassmorphism Design System
+   puffsn0w — Premium Dark Cyber Glassmorphism Design System
    ========================================================================== */
 
 :root {
@@ -143,24 +143,33 @@ body {
 }
 
 .brand-title {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: -0.01em;
   color: #fff;
   line-height: 1.1;
 }
 
-.brand-title span {
-  background: linear-gradient(90deg, #ff9900, #ff4500);
+.brand-title.terminal-brand,
+.terminal-brand {
+  font-family: 'Share Tech Mono', 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 16px rgba(0, 242, 254, 0.35);
+}
+
+.brand-title span,
+.terminal-brand span {
+  background: linear-gradient(90deg, #00f2fe 0%, #ff7a00 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-weight: 700;
 }
 
 .brand-sub {
   font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -294,22 +303,88 @@ body {
   font-size: 0.825rem;
   font-weight: 600;
   color: var(--text-secondary);
+  transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.battery-pill.charging {
-  border-color: rgba(16, 185, 129, 0.4);
+.battery-pill .battery-icon {
+  flex-shrink: 0;
+}
+
+#battery-fill-icon {
+  transition: width 0.35s ease;
+}
+
+.battery-pill.battery-full {
+  border-color: rgba(16, 185, 129, 0.35);
   color: var(--accent-green);
 }
 
+.battery-pill.battery-med {
+  border-color: rgba(234, 179, 8, 0.35);
+  color: #fbbf24;
+}
+
+.battery-pill.battery-low {
+  border-color: rgba(249, 115, 22, 0.4);
+  color: #fb923c;
+}
+
+.battery-pill.battery-critical {
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #f87171;
+  animation: batt-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes batt-pulse {
+  0%, 100% { opacity: 1; border-color: rgba(239, 68, 68, 0.55); }
+  50% { opacity: 0.6; border-color: rgba(239, 68, 68, 0.2); }
+}
+
+.battery-pill.charging {
+  border-color: rgba(16, 185, 129, 0.6);
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent-green);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
 .battery-pill .bolt {
-  color: #ffcc00;
-  font-size: 0.8rem;
+  color: #facc15;
+  font-size: 0.85rem;
+  animation: bolt-glow 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes bolt-glow {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 4px #facc15); }
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.header-info-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.header-info-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--accent-cyan);
+  border-color: rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
+  transform: translateY(-1px);
 }
 
 /* Demo Toggle */
@@ -492,6 +567,35 @@ body {
   background: rgba(100, 116, 139, 0.15);
   color: var(--text-muted);
   border-color: rgba(100, 116, 139, 0.25);
+}
+
+.state-syncing {
+  background: rgba(255, 122, 0, 0.16);
+  color: var(--accent-flame);
+  border-color: rgba(255, 122, 0, 0.45);
+  animation: pulse-sync 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-sync {
+  0% { opacity: 0.65; box-shadow: 0 0 0 rgba(255, 122, 0, 0); }
+  100% { opacity: 1; box-shadow: 0 0 14px rgba(255, 122, 0, 0.35); }
+}
+
+.telemetry-syncing {
+  animation: shimmer-text 1.4s ease-in-out infinite alternate;
+  color: var(--text-muted) !important;
+}
+
+@keyframes shimmer-text {
+  0% { opacity: 0.35; }
+  100% { opacity: 0.9; }
+}
+
+.battery-pill.syncing,
+.battery-widget.syncing {
+  opacity: 0.8;
+  border-color: rgba(255, 122, 0, 0.45);
+  animation: pulse-sync 1.8s ease-in-out infinite alternate;
 }
 
 .state-idle {
@@ -995,6 +1099,10 @@ body {
   font-weight: 600;
 }
 
+.profile-specs .p-dur {
+  color: var(--text-muted);
+}
+
 /* Temperature Fine Tuning Panel */
 .temp-tuning-panel {
   background: rgba(0, 0, 0, 0.25);
@@ -1194,6 +1302,314 @@ body {
 input:checked + .slider { background-color: var(--accent-amber); }
 input:checked + .slider-purple { background-color: var(--accent-purple); }
 input:checked + .slider:before { transform: translateX(20px); }
+
+/* Disabled / Greyed out state for controls when disconnected */
+.control-disabled,
+input[type="range"]:disabled,
+.switch input:disabled + .slider,
+.profile-card.disabled,
+.control-toggle-card.disabled,
+.temp-slider-wrap.disabled,
+.lantern-controls-panel.disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  filter: grayscale(0.6) !important;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+/* ==========================================================================
+   Lantern Mode Interactive Effects Panel
+   ========================================================================== */
+.lantern-controls-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(157, 78, 221, 0.25);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 25px -5px rgba(157, 78, 221, 0.15);
+  animation: lantern-expand 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
+}
+
+@keyframes lantern-expand {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lantern-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.lantern-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lantern-panel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-purple);
+  text-transform: uppercase;
+}
+
+.lantern-panel-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.lantern-aura-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.aura-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff7a00;
+  box-shadow: 0 0 10px #ff7a00;
+  transition: all 0.3s ease;
+}
+
+.aura-label {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+/* Dynamic Aura Effects */
+.lantern-aura-preview.effect-campfire .aura-orb {
+  background: #ff5500;
+  box-shadow: 0 0 12px #ff3300;
+  animation: aura-campfire 1.2s infinite alternate;
+}
+@keyframes aura-campfire {
+  0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 8px #ff2200; }
+  100% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 16px #ff7a00; }
+}
+
+.lantern-aura-preview.effect-flicker .aura-orb {
+  background: #ffc04d;
+  box-shadow: 0 0 10px #ffaa00;
+  animation: aura-flicker 0.4s infinite alternate;
+}
+@keyframes aura-flicker {
+  0% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.75; transform: scale(0.98); }
+}
+
+.lantern-aura-preview.effect-night_light .aura-orb {
+  background: #ffaa33;
+  box-shadow: 0 0 8px #ff8800;
+  animation: aura-breathe 3s ease-in-out infinite alternate;
+}
+@keyframes aura-breathe {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 0.9; transform: scale(1.15); }
+}
+
+.lantern-aura-preview.effect-rainbow .aura-orb {
+  background: conic-gradient(#ff0000, #ff7a00, #ffff00, #00ff00, #00f2fe, #7928ca, #ff0000);
+  box-shadow: 0 0 12px #00f2fe;
+  animation: spin 3s linear infinite;
+}
+
+.lantern-aura-preview.effect-waterfall .aura-orb {
+  background: #00f2fe;
+  box-shadow: 0 0 12px #0099ff;
+  animation: aura-breathe 1.8s ease-in-out infinite alternate;
+}
+
+.lantern-aura-preview.effect-disco .aura-orb {
+  background: #ff00aa;
+  box-shadow: 0 0 14px #00f2fe;
+  animation: aura-disco 0.3s linear infinite alternate;
+}
+@keyframes aura-disco {
+  0% { background: #ff0055; box-shadow: 0 0 10px #ff0055; }
+  50% { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+  100% { background: #00f2fe; box-shadow: 0 0 10px #00f2fe; }
+}
+
+.lantern-aura-preview.effect-breathing .aura-orb {
+  background: #9d4edd;
+  box-shadow: 0 0 12px #9d4edd;
+  animation: aura-breathe 2.4s ease-in-out infinite alternate;
+}
+
+.lantern-aura-preview.effect-aurora .aura-orb {
+  background: linear-gradient(135deg, #00ff88, #00f2fe, #9d4edd);
+  box-shadow: 0 0 12px #00ff88;
+  animation: aura-breathe 2.2s ease-in-out infinite alternate;
+}
+
+/* Effects Grid */
+.lantern-effects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 600px) {
+  .lantern-effects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lantern-fx-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.lantern-fx-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.lantern-fx-btn.active {
+  background: rgba(157, 78, 221, 0.16);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 16px -2px rgba(157, 78, 221, 0.4);
+  color: var(--text-primary);
+}
+
+.fx-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.fx-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.fx-hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.lantern-fx-btn.active .fx-hint {
+  color: #c77dff;
+}
+
+/* Controls Row: Swatches & Brightness */
+.lantern-controls-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.lantern-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lantern-sublabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.lantern-swatches-list {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.swatch-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--swatch-color);
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  outline: none;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 10px var(--swatch-color);
+}
+
+.swatch-btn.active {
+  transform: scale(1.2);
+  border-color: #ffffff;
+  box-shadow: 0 0 12px var(--swatch-color);
+}
+
+.lantern-brightness-group {
+  flex: 1;
+  min-width: 140px;
+}
+
+.brightness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lantern-val-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-purple);
+  font-weight: 600;
+}
 
 .power-buttons-row {
   display: flex;
@@ -1782,3 +2198,1335 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 .hidden { display: none !important; }
+
+/* ==========================================================================
+   Mobile-First Optimizations, Safe Area Insets & Compatibility Banner
+   ========================================================================== */
+
+/* Safe Area Insets for Mobile / iOS PWA */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Allow text selection in inputs and tables */
+input, textarea, table {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Browser Compatibility Notice Banner */
+.compat-banner {
+  background: linear-gradient(135deg, rgba(255, 122, 0, 0.15), rgba(121, 40, 202, 0.15));
+  border-bottom: 1px solid rgba(255, 122, 0, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: #f1f5f9;
+  z-index: 1000;
+  position: relative;
+}
+
+.compat-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.compat-banner-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.compat-banner-text {
+  line-height: 1.4;
+}
+
+.compat-banner-text strong {
+  color: var(--accent-flame);
+}
+
+.compat-banner-text a {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.compat-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.compat-btn-guide {
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  color: var(--accent-cyan);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.compat-btn-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+}
+
+.compat-btn-dismiss:hover {
+  color: #fff;
+}
+
+/* Touch Control on Heat Curve SVG */
+.curve-svg {
+  touch-action: none;
+}
+
+.curve-node {
+  cursor: grab;
+  touch-action: none;
+  transition: r 0.15s ease;
+}
+
+.curve-node:active, .curve-node.dragging {
+  cursor: grabbing;
+  r: 10;
+  stroke: var(--accent-cyan) !important;
+}
+
+/* Touch Friendly Mobile Adjustments (< 768px) */
+@media (max-width: 768px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .brand-section {
+    flex: 1;
+  }
+
+  .nav-tabs {
+    order: 3;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .nav-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+
+  .header-status-group {
+    order: 2;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .hero-card {
+    padding: 16px 14px;
+  }
+
+  /* Dial responsiveness on small screens */
+  .gauge-container {
+    max-width: 290px;
+    margin: 0 auto;
+  }
+
+  .session-actions-bar {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 8px;
+    margin: 16px 0;
+  }
+
+  .btn-sesh-start {
+    min-height: 52px;
+    font-size: 0.95rem;
+  }
+
+  .btn-sesh-boost, .btn-sesh-stop {
+    min-height: 52px;
+    font-size: 0.8rem;
+    padding: 8px 6px;
+  }
+
+  .profiles-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .profile-card {
+    padding: 10px 12px;
+  }
+
+  .profile-name {
+    font-size: 0.95rem;
+  }
+
+  .profile-specs {
+    font-size: 0.775rem;
+    gap: 8px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* ─── Curve Studio Mobile Fixes ─── */
+
+  /* Tighten presets bar padding */
+  .curve-presets-bar {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+
+  /* Stack preset header so title & action buttons don't overlap */
+  .presets-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .preset-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .preset-actions .btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  /* Let curve pills wrap cleanly */
+  .curve-pills-list {
+    gap: 8px;
+  }
+
+  .curve-pill {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  /* Canvas card */
+  .curve-canvas-card {
+    padding: 14px 10px;
+    gap: 16px;
+  }
+
+  /* Curve meta header — stack badges below title */
+  .curve-meta-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .curve-heading {
+    font-size: 1.1rem;
+  }
+
+  .curve-desc {
+    font-size: 0.8rem;
+    max-width: 100%;
+  }
+
+  /* Fix graph overflow: container height must match wrapper height.
+     Keep y-axis to the LEFT of the chart (row direction). */
+  .graph-wrapper {
+    height: 260px;
+  }
+
+  .graph-container {
+    height: 100%;
+    min-width: 0; /* prevent flex overflow */
+  }
+
+  .graph-y-axis {
+    width: 32px;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+  }
+
+  /* Adjust x-axis left padding to match y-axis width on mobile */
+  .graph-x-axis {
+    padding-left: 42px;
+    font-size: 0.65rem;
+  }
+
+  /* Graph hint — keep it readable and inside bounds */
+  .graph-hint {
+    font-size: 0.65rem;
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    gap: 5px;
+  }
+
+  /* Command bar — full-width stack */
+  .curve-command-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .curve-live-metrics {
+    justify-content: space-around;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .c-val {
+    font-size: 1.05rem;
+  }
+
+  .curve-cta-group {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 10px;
+  }
+
+  .btn-run-curve {
+    padding: 0 16px;
+    height: 48px;
+    font-size: 0.85rem;
+  }
+
+  /* Keyframe table — compact for mobile */
+  .kf-table th, .kf-table td {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+  }
+
+  .kf-input {
+    width: 65px;
+    padding: 6px;
+  }
+
+  /* Bottom spacing so mobile navigation doesn't cut off content */
+  .app-layout {
+    padding-bottom: 40px;
+  }
+}
+
+/* ──── Extra-Small Mobile (< 480px) ──── */
+@media (max-width: 480px) {
+  .app-layout {
+    padding: 10px 10px 40px;
+    gap: 14px;
+  }
+
+  /* Header — stack everything vertically */
+  .app-header {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .brand-title {
+    font-size: 1rem;
+  }
+
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-tab {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  .tab-badge {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+  }
+
+  .status-pill {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  .battery-pill {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  /* Dashboard gauge */
+  .gauge-container {
+    max-width: 240px;
+    max-height: 240px;
+  }
+
+  .live-temp-display {
+    font-size: 2.6rem;
+  }
+
+  .live-temp-display .unit {
+    font-size: 1.1rem;
+  }
+
+  .dial-scale-endpoints {
+    top: 200px;
+    width: 200px;
+  }
+
+  .session-actions-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .btn-sesh-start {
+    min-height: 48px;
+    font-size: 0.88rem;
+  }
+
+  .btn-sesh-boost, .btn-sesh-stop {
+    min-height: 44px;
+    font-size: 0.78rem;
+  }
+
+  .profiles-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ─── Curve Studio — Extra Small ─── */
+
+  .curve-presets-bar {
+    padding: 12px 10px;
+  }
+
+  .preset-actions .btn {
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  .curve-pill {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+  }
+
+  .curve-canvas-card {
+    padding: 12px 8px;
+    gap: 12px;
+  }
+
+  .curve-heading {
+    font-size: 1rem;
+  }
+
+  .curve-desc {
+    font-size: 0.75rem;
+  }
+
+  /* Even smaller graph on tiny screens */
+  .graph-wrapper {
+    height: 200px;
+  }
+
+  .graph-container {
+    height: 100%;
+  }
+
+  .graph-y-axis {
+    width: 28px;
+    font-size: 0.6rem;
+  }
+
+  .graph-x-axis {
+    padding-left: 36px;
+    font-size: 0.6rem;
+  }
+
+  /* Hide graph hint entirely on very small screens to save space */
+  .graph-hint {
+    display: none;
+  }
+
+  /* Command bar metrics */
+  .curve-live-metrics {
+    gap: 10px;
+  }
+
+  .c-label {
+    font-size: 0.6rem;
+  }
+
+  .c-val {
+    font-size: 0.92rem;
+  }
+
+  .curve-cta-group {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn-run-curve {
+    padding: 0 10px;
+    height: 44px;
+    font-size: 0.78rem;
+  }
+
+  #run-curve-btn-label {
+    font-size: 0.72rem;
+  }
+
+  /* Keyframe table — extra compact */
+  .kf-table th, .kf-table td {
+    padding: 6px 4px;
+    font-size: 0.72rem;
+  }
+
+  .kf-input {
+    width: 55px;
+    padding: 5px 4px;
+    font-size: 0.75rem;
+  }
+
+  .kf-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Compat banner — stack on tiny screens */
+  .compat-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 12px;
+    gap: 8px;
+    font-size: 0.75rem;
+  }
+
+  .compat-banner-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Modal — full width on small screens */
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-window {
+    max-width: 100%;
+  }
+
+  .modal-body {
+    max-height: 60vh;
+    padding: 16px;
+  }
+
+  /* Footer — stack */
+  .app-footer {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+}
+
+/* ──── Landscape-aware tweaks for short viewports ──── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .gauge-container {
+    max-width: 200px;
+    max-height: 200px;
+  }
+
+  .graph-container {
+    height: 180px;
+  }
+
+  .curve-command-bar {
+    padding: 10px 14px;
+  }
+
+  .modal-body {
+    max-height: 50vh;
+  }
+}
+
+/* ──── Connection Tutorial Modal ──── */
+.tutorial-modal-window {
+  max-width: 520px;
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 242, 254, 0.15);
+}
+
+.tutorial-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.tutorial-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.tutorial-step-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.tutorial-step-num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-cyan), #0077ff);
+  color: #0b0f17;
+  font-weight: 800;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 242, 254, 0.35);
+}
+
+.tutorial-step-content {
+  flex: 1;
+}
+
+.tutorial-step-content h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.tutorial-step-content p {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.tutorial-badge-row {
+  margin-top: 8px;
+}
+
+.tutorial-step-badge.blue-glow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 119, 255, 0.15);
+  border: 1px solid rgba(0, 119, 255, 0.4);
+  color: #60a5fa;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
+  animation: pulse-blue 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-blue {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 14px #60a5fa; }
+}
+
+.tutorial-tip-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 0.825rem;
+  color: #fef08a;
+  line-height: 1.4;
+}
+
+.tutorial-tip-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tutorial-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tutorial-action-connect {
+  min-width: 140px;
+}
+
+/* ==========================================================================
+   puffsn0w — iPod Touch Classic "Slide to Unlock" Lockscreen & Jailbreak Styles
+   ========================================================================== */
+
+/* Lockscreen Fullscreen Overlay */
+.lockscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background-color: #000000;
+  background-image: url('./earth-wallpaper.png');
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+  will-change: transform, opacity;
+}
+
+@media (max-width: 640px) {
+  .lockscreen-overlay {
+    background-size: min(880px, 220vw) auto;
+  }
+}
+
+.lockscreen-overlay.unlocked {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Top Header Bar with dark grey transparent background & bottom border */
+.lockscreen-top-bar {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(14, 14, 14, 0.74) 0%, rgba(28, 28, 28, 0.6) 70%, rgba(42, 42, 42, 0.48) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65);
+  padding: env(safe-area-inset-top, 8px) 16px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+/* Top Status Bar */
+.lockscreen-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  user-select: none;
+}
+
+.status-carrier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.carrier-dots {
+  letter-spacing: 2px;
+  font-size: 0.75rem;
+  color: #00f2fe;
+}
+
+.carrier-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lockscreen-bt-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.lockscreen-bt-badge.connected {
+  background: rgba(0, 242, 254, 0.2);
+  color: #00f2fe;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+}
+
+.lockscreen-battery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Digital Clock & Date */
+.lockscreen-clock-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  user-select: none;
+}
+
+.lockscreen-clock {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: clamp(3.8rem, 14vw, 5.6rem);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.75);
+}
+
+.lockscreen-date {
+  font-size: clamp(0.95rem, 3.4vw, 1.15rem);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.02em;
+  margin-top: 6px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Center Jailbreak & Connect Section */
+.lockscreen-center-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: auto 0;
+  width: 100%;
+  max-width: 440px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+
+.lockscreen-brand-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  width: 100%;
+  max-width: 310px;
+  padding: 22px 24px 18px 24px;
+  background: linear-gradient(180deg, rgba(28, 30, 38, 0.62) 0%, rgba(12, 14, 20, 0.74) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 26px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+}
+
+.lockscreen-logo-halo {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(0, 242, 254, 0.25) 0%, rgba(255, 122, 0, 0.15) 50%, transparent 70%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.lockscreen-logo {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #00f2fe 0%, #0066ff 40%, #ff5500 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 242, 254, 0.35), 0 0 35px rgba(255, 85, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  margin-bottom: 8px;
+}
+
+.lockscreen-title {
+  font-size: clamp(2rem, 6.5vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1.05;
+  margin: 2px 0 0 0;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.lockscreen-tagline {
+  font-size: 0.92rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.03em;
+  margin: 6px 0 0 0;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Connect Card & Button (iOS Glassmorphism) */
+.lockscreen-connect-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.45s ease, margin 0.45s ease;
+  max-height: 80px;
+}
+
+.lockscreen-connect-card.connected-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.9);
+  max-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.lockscreen-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 275px;
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.lockscreen-btn-primary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transform: translateY(-2px);
+}
+
+.lockscreen-btn-primary:active {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.lockscreen-btn-primary.connected {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.lockscreen-btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.lockscreen-sublinks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lockscreen-link-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.lockscreen-link-btn:hover {
+  color: #00f2fe;
+}
+
+.sublink-dot {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.75rem;
+}
+
+.lockscreen-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 2px;
+}
+
+.status-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffaa00;
+  box-shadow: 0 0 8px #ffaa00;
+  animation: lockscreenPulse 1.8s infinite;
+}
+
+.lockscreen-status-indicator.status-connected .status-pulse-dot {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+}
+
+@keyframes lockscreenPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+/* Unobtrusive Analytics Consent Popup */
+.analytics-popup {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(18, 22, 34, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.analytics-popup.hidden {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.analytics-popup-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-popup-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(0, 242, 254, 0.12);
+  color: #00f2fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.analytics-popup-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.analytics-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.analytics-desc {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.analytics-popup-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.analytics-btn-accept {
+  padding: 5px 12px;
+  border-radius: 10px;
+  background: rgba(0, 242, 254, 0.18);
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.analytics-btn-accept:hover {
+  background: rgba(0, 242, 254, 0.32);
+  color: #ffffff;
+}
+
+.analytics-btn-dismiss {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.analytics-btn-dismiss:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* iPod Touch Classic "Slide to Unlock" Slider Bottom Bar */
+.lockscreen-bottom-bar {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(48, 48, 48, 0.58) 0%, rgba(24, 24, 24, 0.72) 40%, rgba(10, 10, 10, 0.86) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 14px)) 20px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.slider-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.slide-to-unlock-track {
+  position: relative;
+  width: 100%;
+  height: 60px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  transition: filter 0.45s ease, opacity 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;
+}
+
+/* Locked & Blurred Initial State */
+.slide-to-unlock-track.slider-locked {
+  filter: blur(4px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.slide-to-unlock-track:not(.slider-locked) {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 0 16px rgba(255, 255, 255, 0.15);
+}
+
+.slider-locked-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 73px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.02em;
+  z-index: 8;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.slide-to-unlock-track:not(.slider-locked) .slider-locked-hint {
+  display: none;
+}
+
+/* Iconic Glowing Shimmer Text */
+.slide-shimmer-text {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 73px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, rgba(140, 146, 160, 0.3) 0%, rgba(255, 255, 255, 0.98) 50%, rgba(140, 146, 160, 0.3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: slideShimmer 2.2s infinite linear;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.slide-to-unlock-track.slider-locked .slide-shimmer-text {
+  animation: none;
+  opacity: 0.2;
+}
+
+@keyframes slideShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Skeuomorphic iPod Slider Thumb */
+.slide-thumb {
+  position: absolute;
+  left: 5px;
+  width: 68px;
+  height: 50px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8f9fa 0%, #d8dde6 48%, #aab2c0 52%, #c9d0dc 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), inset 0 1.5px 1px #ffffff, inset 0 -1.5px 2px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  z-index: 10;
+  touch-action: none;
+  will-change: transform;
+  transition: transform 0.05s linear;
+}
+
+.slide-thumb.dragging {
+  cursor: grabbing;
+  transition: none !important;
+}
+
+.slide-thumb.snapping {
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+.thumb-inner-gloss {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  right: 4px;
+  height: 44%;
+  border-radius: 11px 11px 4px 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.08) 100%);
+  pointer-events: none;
+}
+
+.thumb-chevron {
+  color: #334155;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
+  pointer-events: none;
+  margin-left: 2px;
+}
+
+.slide-to-unlock-track:not(.slider-locked) .slide-thumb {
+  border-color: rgba(0, 242, 254, 0.6);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), 0 0 16px rgba(0, 242, 254, 0.4), inset 0 1.5px 1px #ffffff;
+}
+
+/* Header Lock Button */
+.header-lock-btn {
+  color: var(--text-muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.header-lock-btn:hover {
+  color: #00f2fe;
+  transform: scale(1.05);
+}

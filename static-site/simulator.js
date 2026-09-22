@@ -1,5 +1,5 @@
 /**
- * Puff Studio — Offline Hardware Simulator & Demo Engine
+ * puffsn0w — Offline Hardware Simulator & Demo Engine
  * Emulates physical chamber thermal dynamics, PID heating loops,
  * and Puffco operating state machines with zero physical hardware.
  */
