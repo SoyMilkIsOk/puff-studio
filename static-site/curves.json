@@ -98,7 +98,7 @@
   {
     "id": "preset-boost-finish",
     "name": "Temp Burst",
-    "description": "Steady 480\u00b0F extraction with an aggressive 535\u00b0F boost for the final 15 seconds.",
+    "description": "Steady 480°F extraction with an aggressive 535°F boost for the final 15 seconds.",
     "duration_s": 55,
     "keyframes": [
       {

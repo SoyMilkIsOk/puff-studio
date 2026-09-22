@@ -6,55 +6,55 @@
 const DEFAULT_CURVE_PRESETS = [
   {
     id: "preset-step-3",
-    name: "Step 430 → 485 → 520",
-    description: "3-stage progression: initial low-temp terpene boil, steady extraction, high-temp cloud finish.",
-    duration_s: 50,
+    name: "Step Down",
+    description: "3-stage step down",
+    duration_s: 60,
     keyframes: [
-      { time_s: 0, temp_f: 430 },
-      { time_s: 15, temp_f: 430 },
+      { time_s: 0, temp_f: 535 },
+      { time_s: 15, temp_f: 535 },
       { time_s: 18, temp_f: 485 },
       { time_s: 35, temp_f: 485 },
-      { time_s: 38, temp_f: 520 },
-      { time_s: 50, temp_f: 520 },
+      { time_s: 45, temp_f: 430 },
+      { time_s: 60, temp_f: 430 },
     ],
   },
   {
     id: "preset-thermal-decay",
-    name: "Decay 535 → 465",
+    name: "Decay",
     description: "Traditional quartz banger emulation: hot start for thick vapor, descending as concentrate thins.",
-    duration_s: 50,
+    duration_s: 55,
     keyframes: [
       { time_s: 0, temp_f: 535 },
-      { time_s: 12, temp_f: 535 },
-      { time_s: 30, temp_f: 495 },
-      { time_s: 50, temp_f: 465 },
+      { time_s: 12, temp_f: 525 },
+      { time_s: 30, temp_f: 475 },
+      { time_s: 55, temp_f: 436 },
     ],
   },
   {
     id: "preset-linear-ramp",
-    name: "Linear 420 → 510",
-    description: "Continuous smooth thermal ramp (+1.5°F/s) across a 60s session.",
+    name: "Linear",
+    description: "Continuous smooth thermal ramp",
     duration_s: 60,
     keyframes: [
-      { time_s: 0, temp_f: 420 },
-      { time_s: 60, temp_f: 510 },
+      { time_s: 0, temp_f: 535 },
+      { time_s: 60, temp_f: 420 },
     ],
   },
   {
     id: "preset-low-dwell",
-    name: "Dwell 450",
-    description: "Extended low-temp plateau for solventless / live rosin with minimal thermal stress.",
+    name: "Dwell",
+    description: "Extended lower-temp plateau for solventless / live rosin with minimal thermal stress.",
     duration_s: 60,
     keyframes: [
-      { time_s: 0, temp_f: 445 },
-      { time_s: 20, temp_f: 445 },
+      { time_s: 0, temp_f: 490 },
+      { time_s: 20, temp_f: 490 },
       { time_s: 25, temp_f: 460 },
       { time_s: 60, temp_f: 460 },
     ],
   },
   {
     id: "preset-boost-finish",
-    name: "Peak Boost 480 → 535",
+    name: "Temp Burst",
     description: "Steady 480°F extraction with an aggressive 535°F boost for the final 15 seconds.",
     duration_s: 55,
     keyframes: [
@@ -66,7 +66,7 @@ const DEFAULT_CURVE_PRESETS = [
   },
 ];
 
-const STORAGE_KEY = "puff_studio_curves_v1";
+const STORAGE_KEY = "puff_studio_curves_v2";
 
 class CurveStorage {
   constructor() {
@@ -81,6 +81,17 @@ class CurveStorage {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
           this._curves = parsed;
+          return;
+        }
+      }
+      // Migrate custom curves from v1 if available
+      const oldRaw = localStorage.getItem("puff_studio_curves_v1");
+      if (oldRaw) {
+        const oldParsed = JSON.parse(oldRaw);
+        if (Array.isArray(oldParsed)) {
+          const customOnly = oldParsed.filter((c) => c.id && c.id.startsWith("custom-"));
+          this._curves = JSON.parse(JSON.stringify(DEFAULT_CURVE_PRESETS)).concat(customOnly);
+          this.save();
           return;
         }
       }

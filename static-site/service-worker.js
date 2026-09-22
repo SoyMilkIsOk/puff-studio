@@ -3,7 +3,7 @@
  * Network-first strategy with offline cache fallback.
  */
 
-const CACHE_NAME = 'puff-studio-v2.7';
+const CACHE_NAME = 'puff-studio-v2.8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
   './curve-governor.js',
   './simulator.js',
   './curves-data.js',
+  './curves.json',
   './manifest.json',
   './icons/icon.svg',
 ];
