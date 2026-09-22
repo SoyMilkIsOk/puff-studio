@@ -303,6 +303,7 @@ function handleTelemetryUpdate(data) {
   // Lockscreen Telemetry & Unlock Synchronization
   if (el.lockscreen) {
     if (connected) {
+      el.lockscreen.classList.remove('lockscreen-locked');
       if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.add('connected');
       if (el.lockscreenBatteryVal) {
         const batPct = isSyncing ? '--' : Math.max(0, Math.min(100, data.battery_pct || 0));
@@ -328,6 +329,7 @@ function handleTelemetryUpdate(data) {
         }
       }
     } else {
+      el.lockscreen.classList.add('lockscreen-locked');
       if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.remove('connected');
       if (el.lockscreenBatteryVal) el.lockscreenBatteryVal.textContent = '--%';
       if (el.lockscreenBatteryFill) el.lockscreenBatteryFill.setAttribute('width', '2');
@@ -1440,6 +1442,12 @@ function unlockToDashboard() {
 function lockToLockscreen() {
   if (el.lockscreen) {
     el.lockscreen.classList.remove('unlocked');
+    const isConn = (activeClient && activeClient.isConnected) || false;
+    if (isConn) {
+      el.lockscreen.classList.remove('lockscreen-locked');
+    } else {
+      el.lockscreen.classList.add('lockscreen-locked');
+    }
   }
   if (el.lockscreenSliderThumb) {
     el.lockscreenSliderThumb.style.transform = 'translateX(0px)';
