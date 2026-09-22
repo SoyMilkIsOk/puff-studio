@@ -8,6 +8,7 @@ of the puffco-py library (v0.1.3+) over Bluetooth LE.
 import asyncio
 import json
 import logging
+import math
 import os
 import struct
 import sys
@@ -463,8 +464,16 @@ class PuffcoDeviceManager:
         if slot is None:
             slot = self.client.telemetry.active_profile
 
-        # Hard safety clamp: Never permit target temperature to exceed 590°F
-        temp_f = min(590.0, max(350.0, float(temp_f)))
+        # Strict numeric sanitization & hard clamp [350°F, 590°F]
+        try:
+            val = float(temp_f)
+            if math.isnan(val) or math.isinf(val):
+                raise ValueError("Temperature must be a finite number")
+            temp_f = min(590.0, max(350.0, round(val, 1)))
+        except (TypeError, ValueError) as e:
+            logger.error(f"Invalid temperature setpoint rejected: {temp_f} ({e})")
+            return False
+
         c = f_to_c(temp_f)
         path = PATH_PROFILE_TEMP_PREFIX.format(slot=slot)
         is_proxy = "proxy" in (self.client.telemetry.device_name or "").lower() or getattr(self.client.telemetry, "chamber_type", None) == ChamberType.STANDARD
@@ -501,7 +510,19 @@ class PuffcoDeviceManager:
             return await self._demo_start_session()
         if not self.client or not self.client.is_connected:
             raise RuntimeError("Device not connected")
-        logger.info("Triggering heat session...")
+
+        # Hardware safety interlocks
+        live_temp = float(self._last_telemetry_dict.get("live_temp_f", 0.0))
+        if live_temp >= 600.0:
+            raise RuntimeError("Cannot start session: Chamber temperature is at or above 600°F safety limit")
+        op_state = self._last_telemetry_dict.get("operating_state", "")
+        if op_state in ("COOLDOWN", "ERROR", "OFF", "BOOTING", "SHUTDOWN"):
+            raise RuntimeError(f"Cannot start session: Device is in {op_state} state")
+        battery_soc = self._last_telemetry_dict.get("battery_pct")
+        if battery_soc is not None and battery_soc < 12:
+            raise RuntimeError(f"Cannot start session: Battery critically low ({battery_soc}%)")
+
+        logger.info("Triggering heat session with safety interlocks passed...")
         return await self.client.start_session()
 
     async def stop_session(self) -> bool:
@@ -510,8 +531,15 @@ class PuffcoDeviceManager:
             return await self._demo_stop_session()
         if not self.client or not self.client.is_connected:
             raise RuntimeError("Device not connected")
-        logger.info("Aborting session...")
-        return await self.client.stop_session()
+        logger.info("Aborting session with redundant stop burst...")
+        res = False
+        for _ in range(3):
+            try:
+                res = await self.client.stop_session()
+                await asyncio.sleep(0.04)
+            except Exception:
+                pass
+        return res
 
     async def boost(self) -> bool:
         if self.is_demo:

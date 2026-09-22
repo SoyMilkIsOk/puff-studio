@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=4.1">
+  <link rel="stylesheet" href="./styles.css?v=4.5">
 </head>
 <body class="theme-dark">
   <!-- Ambient background glow layers -->
@@ -212,6 +212,11 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
             Connect
           </button>
+          <button id="safety-settings-btn" class="btn-icon header-safety-btn" title="Thermal Safety & Hardware Policy" aria-label="Thermal Safety Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </button>
           <button id="info-tutorial-btn" class="btn-icon header-info-btn" title="How to Connect & Pair" aria-label="Connection Guide">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -305,12 +310,13 @@
 
           <!-- Session Command Bar (Touch-Optimized) -->
           <div class="session-actions-bar">
-            <button id="start-sesh-btn" class="btn btn-sesh-start" disabled>
+            <button id="start-sesh-btn" class="btn btn-sesh-start" disabled title="Press & hold to ignite heating element">
+              <div id="htf-progress-fill-sesh" class="htf-progress-fill"></div>
               <div class="btn-glow-ring"></div>
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="btn-fire-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
               </svg>
-              <span>START SESH</span>
+              <span id="start-sesh-btn-text">START SESH</span>
             </button>
 
             <button id="boost-sesh-btn" class="btn btn-sesh-boost" disabled title="Add +15s duration and +10°F heat boost during session">
@@ -759,10 +765,11 @@
             </div>
 
             <div class="curve-cta-group">
-              <button id="run-curve-btn" class="btn btn-sesh-start btn-run-curve">
+              <button id="run-curve-btn" class="btn btn-sesh-start btn-run-curve" disabled title="Press & hold to start curve">
+                <div id="htf-progress-fill-curve" class="htf-progress-fill"></div>
                 <div class="btn-glow-ring"></div>
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span id="run-curve-btn-label">EXECUTE HEAT CURVE</span>
+                <span id="run-curve-btn-label">START CURVE</span>
               </button>
               <button id="stop-curve-btn" class="btn btn-sesh-stop" disabled>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
@@ -942,6 +949,131 @@
       </div>
     </div>
 
+    <!-- Critical Disconnect Emergency Modal -->
+    <div id="critical-disconnect-modal" class="modal-overlay hidden" role="alertdialog" aria-modal="true">
+      <div class="modal-window critical-disconnect-window">
+        <div class="modal-header modal-header-critical">
+          <div class="critical-icon-pulse">⚠️</div>
+          <div>
+            <h3 class="modal-title" style="color: #fca5a5;">BLUETOOTH LOST DURING HEATING</h3>
+            <p class="modal-subtitle">Communication severed while heating element was energized</p>
+          </div>
+        </div>
+        <div class="modal-body">
+          <p style="color: #f87171; font-weight: 600; line-height: 1.4;">
+            The Bluetooth link to your device dropped during an active heating cycle. The app cannot send a remote shut-off command!
+          </p>
+          <div class="critical-action-box">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <div>
+              <strong style="color: #fff; font-size: 0.95rem;">REQUIRED PHYSICAL ACTION:</strong>
+              <p style="margin-top: 4px; font-size: 0.85rem; color: #fecaca; line-height: 1.4;">
+                Immediately press and hold the physical button on your Puffco base until all LEDs turn off to ensure the heating element is de-energized.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="dismiss-critical-disconnect-btn" class="btn btn-primary" style="width: 100%; background: #ef4444; border-color: #f87171;">I Have Physically Checked My Device</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Safety Policy & Hardware Controls Modal -->
+    <div id="safety-settings-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="safety-modal-title">
+      <div class="modal-window safety-modal-window">
+        <div class="modal-header">
+          <div>
+            <h3 id="safety-modal-title" class="modal-title">Thermal Safety & Hardware Policy</h3>
+            <p class="modal-subtitle">Real-world heating element protections and safeguards</p>
+          </div>
+          <button id="close-safety-modal" class="btn-icon" aria-label="Close safety settings">✕</button>
+        </div>
+        <div class="modal-body safety-modal-body">
+          <div class="safety-toggle-row">
+            <div class="safety-toggle-info">
+              <span class="safety-toggle-title">Hold-to-Fire (0.8s)</span>
+              <span class="safety-toggle-desc">Requires pressing &amp; holding Start Sesh or Start Curve buttons to prevent accidental pocket or table ignition.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safety-hold-to-fire-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="safety-toggle-row">
+            <div class="safety-toggle-info">
+              <span class="safety-toggle-title">Dedicated Curve Slot (Slot 4)</span>
+              <span class="safety-toggle-desc">Executes custom curves on profile Slot 4 (Easter Egg) so standard Profiles 1–3 are never overwritten.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safety-dedicated-slot-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="safety-toggle-row">
+            <div class="safety-toggle-info">
+              <span class="safety-toggle-title">Hot Chamber Guard (480°F)</span>
+              <span class="safety-toggle-desc">Prompts a warning before starting rapid back-to-back sessions on a hot chamber to protect base seals.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safety-hot-chamber-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="safety-toggle-row">
+            <div class="safety-toggle-info">
+              <span class="safety-toggle-title">Tab Unload Protection</span>
+              <span class="safety-toggle-desc">Displays a browser warning if closing or navigating away while heating is active.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safety-tab-unload-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="safety-toggle-row">
+            <div class="safety-toggle-info">
+              <span class="safety-toggle-title">Flash Memory Wear Throttling</span>
+              <span class="safety-toggle-desc">Filters curve micro-deltas to protect internal microcontroller flash memory endurance.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safety-flash-wear-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Profile Vault Section -->
+          <div class="safety-vault-card">
+            <div class="vault-header">
+              <span class="vault-title">Hardware Profile Vault</span>
+              <span id="vault-status-badge" class="badge badge-subtle">Ready</span>
+            </div>
+            <p class="vault-desc">Your original hardware profiles are automatically backed up to local storage on connection.</p>
+            <div class="vault-actions">
+              <button id="restore-vault-btn" class="btn btn-secondary btn-sm">Restore Profiles to Hardware</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="close-safety-modal-btn" class="btn btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Persistent Global Floating Emergency Stop Button -->
+    <button id="global-emergency-stop" class="btn btn-global-estop hidden" aria-label="Global Emergency Stop" title="GLOBAL EMERGENCY STOP (Abort Heat Immediately)">
+      <span class="estop-pulse-dot"></span>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+        <rect x="5" y="5" width="14" height="14" rx="2"/>
+      </svg>
+      <span>EMERGENCY STOP</span>
+    </button>
+
     <!-- Toast Notification Container -->
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
@@ -953,10 +1085,10 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=4.0"></script>
-  <script src="./puffco-ble.js?v=4.0"></script>
-  <script src="./simulator.js?v=4.0"></script>
-  <script src="./curve-governor.js?v=4.0"></script>
-  <script src="./app.js?v=4.0"></script>
+  <script src="./curves-data.js?v=4.3"></script>
+  <script src="./puffco-ble.js?v=4.3"></script>
+  <script src="./simulator.js?v=4.3"></script>
+  <script src="./curve-governor.js?v=4.3"></script>
+  <script src="./app.js?v=4.5"></script>
 </body>
 </html>

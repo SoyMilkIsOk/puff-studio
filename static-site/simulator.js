@@ -178,6 +178,13 @@ class PuffcoSimulator {
   }
 
   async startSession() {
+    if (this.telemetry.live_temp_f >= 600.0) {
+      throw new Error('Cannot start session: Chamber temperature is at or above 600°F safety limit');
+    }
+    const blockedStates = ['COOLDOWN', 'ERROR', 'OFF', 'BOOTING', 'SHUTDOWN'];
+    if (blockedStates.includes(this.telemetry.operating_state)) {
+      throw new Error(`Cannot start session: Device is in ${this.telemetry.state_name || this.telemetry.operating_state} state`);
+    }
     this.telemetry.operating_state = 'HEAT_PREHEAT';
     this.telemetry.state_name = 'Preheating';
     this.telemetry.is_heating = true;
@@ -185,7 +192,7 @@ class PuffcoSimulator {
     return true;
   }
 
-  async stopSession() {
+  async stopSession(isEmergency = false) {
     this.telemetry.operating_state = 'IDLE';
     this.telemetry.state_name = 'Standby / Idle';
     this.telemetry.time_remaining = 0;
@@ -197,7 +204,7 @@ class PuffcoSimulator {
   async boostSession() {
     if (this.telemetry.is_heating) {
       this.telemetry.time_remaining = Math.min(120, this.telemetry.time_remaining + 15);
-      this.telemetry.target_temp_f = Math.min(600, this.telemetry.target_temp_f + 10);
+      this.telemetry.target_temp_f = Math.min(590, this.telemetry.target_temp_f + 10);
       this._notifyListeners();
       return true;
     }
@@ -218,6 +225,7 @@ class PuffcoSimulator {
 
   async writeTemperature(tempF, slot = null) {
     if (slot === null) slot = this.telemetry.active_profile;
+    tempF = typeof window.validateTemperature === 'function' ? window.validateTemperature(tempF) : Math.min(590, Math.max(350, Number(tempF)));
     this.telemetry.target_temp_f = tempF;
     if (this.telemetry.profiles[slot]) {
       this.telemetry.profiles[slot].target_temp_f = tempF;
@@ -228,11 +236,28 @@ class PuffcoSimulator {
 
   async writeDuration(durS, slot = null) {
     if (slot === null) slot = this.telemetry.active_profile;
+    durS = typeof window.validateDuration === 'function' ? window.validateDuration(durS) : Math.min(120, Math.max(15, Number(durS)));
     this.telemetry.total_time = durS;
     if (this.telemetry.profiles[slot]) {
       this.telemetry.profiles[slot].duration_s = durS;
     }
     this._notifyListeners();
+    return true;
+  }
+
+  async restoreProfileVault() {
+    const raw = localStorage.getItem('puff_profile_vault');
+    if (!raw) throw new Error('No profile backup found in local storage vault');
+    const vault = JSON.parse(raw);
+    if (!vault.profiles || !Array.isArray(vault.profiles)) throw new Error('Corrupt profile vault data');
+
+    for (const p of vault.profiles) {
+      if (typeof p.slot === 'number') {
+        if (p.target_temp_f) await this.writeTemperature(p.target_temp_f, p.slot);
+        if (p.duration_s) await this.writeDuration(p.duration_s, p.slot);
+      }
+    }
+    await this.setProfile(this.telemetry.active_profile ?? 0);
     return true;
   }
 

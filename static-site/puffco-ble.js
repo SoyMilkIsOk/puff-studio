@@ -339,6 +339,25 @@ function packLoraxWriteShort(path, valBytes) {
 }
 
 /**
+ * Strict numeric sanitizers & hardware bounds enforcers
+ */
+function validateTemperature(tempF) {
+  const num = Number(tempF);
+  if (!Number.isFinite(num) || Number.isNaN(num)) {
+    throw new Error(`[PuffcoBLE] Invalid temperature setpoint: ${tempF}`);
+  }
+  return Math.min(590.0, Math.max(350.0, Math.round(num * 10) / 10));
+}
+
+function validateDuration(durationS) {
+  const num = Number(durationS);
+  if (!Number.isFinite(num) || Number.isNaN(num)) {
+    throw new Error(`[PuffcoBLE] Invalid duration: ${durationS}`);
+  }
+  return Math.min(120, Math.max(15, Math.round(num)));
+}
+
+/**
  * Temperature byte parser.
  * Handles IEEE 754 32-bit floats (Peak Pro) and integer tenths of °C (Proxy).
  */
@@ -451,6 +470,7 @@ class PuffcoBleClient {
 
     this._streaming = false;
     this._stopGuardUntil = 0;
+    this._lastTempTimestamp = null;
     this._wakeLock = null;
     this._cmdQueue = Promise.resolve();
 
@@ -1124,6 +1144,16 @@ class PuffcoBleClient {
     }
 
     this.telemetry.profiles = profiles;
+
+    // Snapshot profiles into local storage vault for safe emergency recovery
+    try {
+      localStorage.setItem('puff_profile_vault', JSON.stringify({
+        timestamp: Date.now(),
+        device_name: this.telemetry.device_name || 'Puffco Device',
+        profiles: profiles,
+      }));
+    } catch (e) {}
+
     // Only update target temp if not currently in a heat session or running a custom curve
     if (!this.telemetry.is_heating && !this.telemetry.active_curve_running && profiles[this.telemetry.active_profile]) {
       this.telemetry.target_temp_f = profiles[this.telemetry.active_profile].target_temp_f;
@@ -1161,21 +1191,33 @@ class PuffcoBleClient {
       this._releaseWakeLock();
     }
 
-    // 2. Chamber Temperature
+    // 2. Chamber Temperature & Watchdog
     const tempBytes = await this.readPath(PATH_CHAMBER_TEMP);
     if (tempBytes.length > 0) {
       const tF = parseTempBytes(tempBytes);
       if (tF > 0.0) {
         this.telemetry.live_temp_f = tF;
+        this._lastTempTimestamp = Date.now();
+
         // CRITICAL SAFETY CUTOFF: Auto shut off any session if chamber exceeds 600°F
         if (tF >= 600.0 && this.telemetry.is_heating) {
-          console.error(`[EMERGENCY SAFETY CUTOFF] Chamber temperature (${tF.toFixed(1)}°F) exceeded 600°F! Aborting session immediately!`);
+          console.error(`[EMERGENCY SAFETY CUTOFF] Chamber temperature (${tF.toFixed(1)}°F) reached/exceeded 600°F! Aborting session immediately!`);
           this.telemetry.active_curve_running = false;
-          this.stopSession().catch((err) => console.error('Emergency abort error:', err));
+          this.stopSession(true).catch((err) => console.error('Emergency abort error:', err));
           this._stateListeners.forEach((cb) => {
             try { cb('EMERGENCY_OVERHEAT'); } catch (e) {}
           });
         }
+      }
+    } else if (this.telemetry.is_heating) {
+      // Stale Telemetry Watchdog (Deadman Switch)
+      if (this._lastTempTimestamp && (Date.now() - this._lastTempTimestamp > 3500)) {
+        console.error('[PuffcoBLE] STALE TELEMETRY WATCHDOG: Chamber temperature telemetry lost for > 3.5s during active heat! Triggering safety abort.');
+        this.telemetry.active_curve_running = false;
+        this.stopSession(true).catch((err) => console.error('Stale telemetry abort error:', err));
+        this._stateListeners.forEach((cb) => {
+          try { cb('TELEMETRY_LOSS'); } catch (e) {}
+        });
       }
     }
 
@@ -1248,32 +1290,68 @@ class PuffcoBleClient {
     loop();
   }
 
-  // ---------------- Hardware Commands ----------------
+  // ---------------- Hardware Commands & Safety Interlocks ----------------
 
   async startSession() {
-    if (this.telemetry.live_temp_f >= 600.0) {
-      throw new Error('Cannot start session: Chamber temperature is above 600°F safety limit');
+    if (!this.isConnected) {
+      throw new Error('Device is not connected');
     }
+
+    // 1. Live Chamber Overtemp Gate
+    if (this.telemetry.live_temp_f >= 600.0) {
+      throw new Error('Cannot start session: Chamber temperature is at or above 600°F safety limit');
+    }
+
+    // 2. Hardware Operating State Interlocks
+    const blockedStates = ['COOLDOWN', 'ERROR', 'OFF', 'BOOTING', 'SHUTDOWN'];
+    if (blockedStates.includes(this.telemetry.operating_state)) {
+      throw new Error(`Cannot start session: Device is in ${this.telemetry.state_name || this.telemetry.operating_state} state`);
+    }
+
+    // 3. Low Battery Interlock (Prevents high current draw brownouts / cell stress)
+    if (this.telemetry.battery_pct !== null && this.telemetry.battery_pct < 12) {
+      throw new Error(`Cannot start session: Battery critically low (${this.telemetry.battery_pct}%). Charge device before heating.`);
+    }
+
+    // 4. Chamber Seating Check
+    if (this.telemetry.chamber_type === null && !this.telemetry.chamber_name) {
+      console.warn('[PuffcoBLE] Caution: Chamber may be unseated or unrecognized.');
+    }
+
     const success = await this.writePath(PATH_MODE_CONTROL, new Uint8Array([0x07]));
     if (success) {
       this.telemetry.operating_state = 'HEAT_PREHEAT';
       this.telemetry.state_name = 'Preheating';
       this.telemetry.is_heating = true;
+      this._lastTempTimestamp = Date.now();
       this._notifyListeners();
     }
     return success;
   }
 
-  async stopSession() {
+  async stopSession(isEmergency = false) {
     this._stopGuardUntil = Date.now() + 2500;
-    const success = await this.writePath(PATH_MODE_CONTROL, new Uint8Array([0x08]));
+    this.telemetry.active_curve_running = false;
+
+    // Redundant Burst Stop: Send up to 3 abort packets spaced 45ms apart
+    let anyOk = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const ok = await this.writePath(PATH_MODE_CONTROL, new Uint8Array([0x08]));
+        if (ok) anyOk = true;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 45));
+      } catch (err) {
+        console.warn(`[PuffcoBLE] Stop attempt ${attempt + 1} note:`, err);
+      }
+    }
+
     this.telemetry.operating_state = 'IDLE';
     this.telemetry.state_name = 'Standby / Idle';
     this.telemetry.is_heating = false;
     this.telemetry.time_remaining = 0;
-    this.telemetry.active_curve_running = false;
+    this._releaseWakeLock();
     this._notifyListeners();
-    return success;
+    return anyOk;
   }
 
   async boostSession() {
@@ -1295,8 +1373,9 @@ class PuffcoBleClient {
 
   async writeTemperature(tempF, slot = null) {
     if (slot === null) slot = this.telemetry.active_profile;
-    // Hard safety clamp: Never permit target setpoint to exceed 590°F
-    tempF = Math.min(590.0, Math.max(350.0, Number(tempF)));
+    // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
+    tempF = validateTemperature(tempF);
+
     const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
     const cVal = fToC(tempF);
 
@@ -1336,6 +1415,9 @@ class PuffcoBleClient {
 
   async writeDuration(durationS, slot = null) {
     if (slot === null) slot = this.telemetry.active_profile;
+    // Strict numeric sanitization & hard safety clamp [15s, 120s]
+    durationS = validateDuration(durationS);
+
     const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
 
     // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 80s -> 8000)
@@ -1369,6 +1451,22 @@ class PuffcoBleClient {
       console.error(`[PuffcoBLE] Failed to write duration ${durationS}s to slot ${slot}`);
     }
     return ok;
+  }
+
+  async restoreProfileVault() {
+    const raw = localStorage.getItem('puff_profile_vault');
+    if (!raw) throw new Error('No profile backup found in local storage vault');
+    const vault = JSON.parse(raw);
+    if (!vault.profiles || !Array.isArray(vault.profiles)) throw new Error('Corrupt profile vault data');
+
+    for (const p of vault.profiles) {
+      if (typeof p.slot === 'number') {
+        if (p.target_temp_f) await this.writeTemperature(p.target_temp_f, p.slot);
+        if (p.duration_s) await this.writeDuration(p.duration_s, p.slot);
+      }
+    }
+    await this.setProfile(this.telemetry.active_profile ?? 0);
+    return true;
   }
 
   async setStealthMode(enabled) {
@@ -1579,5 +1677,7 @@ class PuffcoBleClient {
   }
 }
 
-// Global export
+// Global exports
 window.PuffcoBleClient = PuffcoBleClient;
+window.validateTemperature = validateTemperature;
+window.validateDuration = validateDuration;
