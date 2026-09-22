@@ -118,6 +118,13 @@ const el = {
   sleepBtn: document.getElementById('sleep-btn'),
   powerOffBtn: document.getElementById('power-off-btn'),
 
+  // Lantern Controls Panel
+  lanternControlsPanel: document.getElementById('lantern-controls-panel'),
+  lanternAuraPreview: document.getElementById('lantern-aura-preview'),
+  lanternActiveEffectName: document.getElementById('lantern-active-effect-name'),
+  lanternBrightnessSlider: document.getElementById('lantern-brightness-slider'),
+  lanternBrightnessVal: document.getElementById('lantern-brightness-val'),
+
   // Curve Studio
   curvePillsContainer: document.getElementById('curve-pills-container'),
   newCurveBtn: document.getElementById('new-curve-btn'),
@@ -216,28 +223,42 @@ function handleTelemetryUpdate(data) {
   }
 
   // Chamber Pill
-  el.chamberPill.textContent = data.chamber_name || '3DXL';
-  el.statChamberName.textContent = (data.chamber_name || '3DXL') + ' Chamber';
+  const isSyncing = connected && (!!data.is_syncing || data.battery_pct === null);
+  const chamberStr = isSyncing ? 'Detecting...' : (data.chamber_name || (connected ? '3DXL' : 'Standard'));
+  el.chamberPill.textContent = isSyncing ? 'Detecting...' : (data.chamber_name || '3DXL');
+  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : ' Chamber');
 
   // Battery Widget
-  const batPct = Math.max(0, Math.min(100, data.battery_pct || 0));
-  el.batteryDisplay.textContent = connected ? `${batPct}%` : '--%';
-  el.batteryBolt.classList.toggle('hidden', !data.is_charging);
-
-  // Dynamic SVG Battery Fill Rect (inner width ranges from 0 to 12)
-  if (el.batteryFill) {
-    if (!connected || batPct <= 0) {
-      el.batteryFill.setAttribute('width', '0');
-    } else {
-      const fillW = Math.max(2, Math.round((batPct / 100) * 12));
-      el.batteryFill.setAttribute('width', String(fillW));
-    }
+  if (el.batteryWidget) {
+    el.batteryWidget.className = 'battery-pill';
   }
 
-  // Dynamic Battery States
-  if (el.batteryWidget) {
-    el.batteryWidget.classList.remove('charging', 'battery-full', 'battery-med', 'battery-low', 'battery-critical');
-    if (connected) {
+  if (isSyncing) {
+    el.batteryDisplay.textContent = '--%';
+    el.batteryDisplay.classList.add('telemetry-syncing');
+    el.batteryBolt.classList.add('hidden');
+    if (el.batteryFill) el.batteryFill.setAttribute('width', '4');
+    if (el.batteryWidget) {
+      el.batteryWidget.classList.add('syncing');
+    }
+  } else {
+    el.batteryDisplay.classList.remove('telemetry-syncing');
+    const batPct = Math.max(0, Math.min(100, data.battery_pct || 0));
+    el.batteryDisplay.textContent = connected ? `${batPct}%` : '--%';
+    el.batteryBolt.classList.toggle('hidden', !data.is_charging);
+
+    // Dynamic SVG Battery Fill Rect (inner width ranges from 0 to 12)
+    if (el.batteryFill) {
+      if (!connected || batPct <= 0) {
+        el.batteryFill.setAttribute('width', '0');
+      } else {
+        const fillW = Math.max(2, Math.round((batPct / 100) * 12));
+        el.batteryFill.setAttribute('width', String(fillW));
+      }
+    }
+
+    // Dynamic Battery States
+    if (el.batteryWidget && connected) {
       if (data.is_charging) {
         el.batteryWidget.classList.add('charging');
       } else if (batPct > 65) {
@@ -253,7 +274,7 @@ function handleTelemetryUpdate(data) {
   }
 
   // Operating State Badge
-  updateStateBadge(data.operating_state, data.state_name);
+  updateStateBadge(data.operating_state, data.state_name, isSyncing);
 
   // Temperature Readouts
   const liveTemp = Number(data.live_temp_f || 0);
@@ -285,18 +306,66 @@ function handleTelemetryUpdate(data) {
     }
   }
 
+  // User Controls Disabling / Greying Out
+  const controlsEnabled = connected && !isSyncing;
+
   // Sesh Control Buttons State
-  el.startSeshBtn.disabled = !connected || isHeating || isCurveRunning;
-  el.boostSeshBtn.disabled = !connected || !isHeating;
-  el.stopSeshBtn.disabled = !connected || !isHeating;
+  el.startSeshBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
+  el.boostSeshBtn.disabled = !controlsEnabled || !isHeating;
+  el.stopSeshBtn.disabled = !controlsEnabled || !isHeating;
+
+  // Run Curve Button State
+  if (el.runCurveBtn) {
+    el.runCurveBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
+  }
+
+  // Temperature Slider & Wrap
+  if (el.tempSlider) {
+    el.tempSlider.disabled = !controlsEnabled;
+    const wrap = el.tempSlider.closest('.temp-slider-wrap');
+    if (wrap) wrap.classList.toggle('disabled', !controlsEnabled);
+  }
+
+  // Quick Controls
+  if (el.stealthToggle) {
+    el.stealthToggle.disabled = !controlsEnabled;
+    el.stealthToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  }
+  if (el.lanternToggle) {
+    el.lanternToggle.disabled = !controlsEnabled;
+    el.lanternToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  }
+  if (el.sleepBtn) el.sleepBtn.disabled = !controlsEnabled;
+  if (el.powerOffBtn) el.powerOffBtn.disabled = !controlsEnabled;
+
+  // Lantern Controls Panel Visibility & States
+  if (el.lanternControlsPanel) {
+    el.lanternControlsPanel.classList.toggle('disabled', !controlsEnabled);
+    if (!data.lantern_active) {
+      el.lanternControlsPanel.classList.add('hidden');
+    } else {
+      el.lanternControlsPanel.classList.remove('hidden');
+      updateLanternPanelUI(data);
+    }
+  }
 
   // Profiles Matrix
-  renderProfiles(data.profiles || [], data.active_profile, connected);
+  renderProfiles(data.profiles || [], data.active_profile, controlsEnabled);
 
   // Hardware Diagnostics
-  el.statTotalDabs.textContent = connected ? Number(data.lifetime_dabs || 0).toLocaleString() : '--';
-  el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
-  el.statFirmwareVersion.textContent = connected && data.firmware_version ? data.firmware_version : (connected ? 'V1.3.8' : '--');
+  if (isSyncing) {
+    el.statTotalDabs.textContent = '--';
+    el.statTotalDabs.classList.add('telemetry-syncing');
+    el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
+    el.statFirmwareVersion.textContent = '--';
+    el.statFirmwareVersion.classList.add('telemetry-syncing');
+  } else {
+    el.statTotalDabs.classList.remove('telemetry-syncing');
+    el.statFirmwareVersion.classList.remove('telemetry-syncing');
+    el.statTotalDabs.textContent = connected ? Number(data.lifetime_dabs || 0).toLocaleString() : '--';
+    el.statMacAddress.textContent = connected && data.mac_address ? data.mac_address : '--';
+    el.statFirmwareVersion.textContent = connected && data.firmware_version ? data.firmware_version : (connected ? 'V1.3.8' : '--');
+  }
 
   // Stealth & Lantern toggles sync
   el.stealthToggle.checked = !!data.stealth_mode;
@@ -309,9 +378,53 @@ function handleTelemetryUpdate(data) {
   }
 }
 
-function updateStateBadge(state, stateName) {
+function updateLanternPanelUI(data) {
+  const effectName = data.lantern_effect || 'campfire';
+
+  // Update effect buttons active state
+  const fxBtns = document.querySelectorAll('.lantern-fx-btn');
+  fxBtns.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.effect === effectName);
+  });
+
+  // Update aura preview
+  if (el.lanternAuraPreview) {
+    el.lanternAuraPreview.className = `lantern-aura-preview effect-${effectName}`;
+    if (el.lanternActiveEffectName) {
+      const effectIcons = {
+        campfire: 'Campfire 🔥',
+        flicker: 'Candle Flicker 🕯️',
+        night_light: 'Night Light 🌙',
+        rainbow: 'Rainbow Spectrum 🌈',
+        waterfall: 'Waterfall Cascade 🌊',
+        breathing: 'Meditative Breath 🧘',
+        disco: 'Party Disco ⚡',
+        aurora: 'Aurora Borealis 🔮',
+      };
+      el.lanternActiveEffectName.textContent = effectIcons[effectName] || effectName;
+    }
+  }
+
+  // Update brightness slider
+  if (el.lanternBrightnessSlider && el.lanternBrightnessVal) {
+    const rawVal = data.lantern_brightness ?? 255;
+    const pct = Math.round((rawVal / 255) * 100);
+    if (document.activeElement !== el.lanternBrightnessSlider) {
+      el.lanternBrightnessSlider.value = pct;
+      el.lanternBrightnessVal.textContent = `${pct}%`;
+    }
+  }
+}
+
+function updateStateBadge(state, stateName, isSyncing = false) {
   const badge = el.stateBadge;
   badge.className = 'state-tag';
+
+  if (isSyncing) {
+    badge.classList.add('state-syncing');
+    badge.textContent = 'SYNCING DATA...';
+    return;
+  }
 
   switch (state) {
     case 'HEAT_PREHEAT':
@@ -508,6 +621,7 @@ function renderProfiles(profiles, activeSlot, connected) {
       const isActive = connected && slot === activeSlot;
       card.dataset.slot = slot;
       card.classList.toggle('active', isActive);
+      card.classList.toggle('disabled', !connected);
 
       const nameEl = card.querySelector('.profile-name');
       const tempEl = card.querySelector('.p-temp');
@@ -531,7 +645,7 @@ function renderProfiles(profiles, activeSlot, connected) {
     const card = document.createElement('div');
     const slot = p.slot ?? idx;
     const isActive = connected && slot === activeSlot;
-    card.className = `profile-card ${isActive ? 'active' : ''}`;
+    card.className = `profile-card ${isActive ? 'active' : ''} ${connected ? '' : 'disabled'}`;
     card.dataset.slot = slot;
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
@@ -563,7 +677,7 @@ function renderProfiles(profiles, activeSlot, connected) {
     card.appendChild(specsDiv);
 
     card.addEventListener('click', async () => {
-      if (!currentTelemetry?.connected) {
+      if (!currentTelemetry?.connected || currentTelemetry?.is_syncing) {
         showToast('Connect device to change heat profile', 'error');
         return;
       }
@@ -1360,9 +1474,87 @@ function attachEventListeners() {
   });
 
   el.lanternToggle.addEventListener('change', async (e) => {
-    await activeClient.setLanternMode(e.target.checked);
-    showToast(`Lantern mode ${e.target.checked ? 'started ✨' : 'stopped'}`, 'info');
+    const isChecked = e.target.checked;
+    if (el.lanternControlsPanel) {
+      if (isChecked) {
+        el.lanternControlsPanel.classList.remove('hidden');
+      } else {
+        el.lanternControlsPanel.classList.add('hidden');
+      }
+    }
+    await activeClient.setLanternMode(isChecked);
+    showToast(`Lantern mode ${isChecked ? 'started ✨' : 'stopped'}`, 'info');
   });
+
+  // Lantern Lighting Effect Buttons
+  const fxBtns = document.querySelectorAll('.lantern-fx-btn');
+  fxBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const effect = btn.dataset.effect;
+      if (!effect) return;
+
+      fxBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (activeClient && typeof activeClient.startLanternEffect === 'function') {
+        await activeClient.startLanternEffect(effect);
+      }
+
+      const effectTitles = {
+        campfire: 'Campfire 🔥',
+        flicker: 'Candle Flicker 🕯️',
+        night_light: 'Night Light 🌙',
+        rainbow: 'Rainbow Spectrum 🌈',
+        waterfall: 'Waterfall Cascade 🌊',
+        breathing: 'Meditative Breath 🧘',
+        disco: 'Party Disco ⚡',
+        aurora: 'Aurora Borealis 🔮',
+      };
+
+      if (el.lanternAuraPreview) {
+        el.lanternAuraPreview.className = `lantern-aura-preview effect-${effect}`;
+        if (el.lanternActiveEffectName) {
+          el.lanternActiveEffectName.textContent = effectTitles[effect] || effect;
+        }
+      }
+
+      showToast(`Lighting effect: ${effectTitles[effect] || effect}`, 'info', 2200);
+    });
+  });
+
+  // Lantern Color Swatches
+  const swatches = document.querySelectorAll('.swatch-btn');
+  swatches.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const colorStr = btn.dataset.color;
+      if (!colorStr) return;
+      const parts = colorStr.split(',').map((n) => parseInt(n.trim(), 10));
+      if (parts.length < 3) return;
+
+      swatches.forEach((s) => s.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (activeClient && typeof activeClient.setLanternColor === 'function') {
+        await activeClient.setLanternColor(parts[0], parts[1], parts[2]);
+      }
+      showToast('Color tint updated', 'info', 1800);
+    });
+  });
+
+  // Lantern Brightness Slider
+  if (el.lanternBrightnessSlider) {
+    el.lanternBrightnessSlider.addEventListener('input', (e) => {
+      if (el.lanternBrightnessVal) {
+        el.lanternBrightnessVal.textContent = `${e.target.value}%`;
+      }
+    });
+    el.lanternBrightnessSlider.addEventListener('change', async (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (activeClient && typeof activeClient.setLanternBrightness === 'function') {
+        await activeClient.setLanternBrightness(val);
+      }
+    });
+  }
 
   // Power controls
   el.sleepBtn.addEventListener('click', async () => {
@@ -1393,6 +1585,21 @@ function bootstrap() {
   bleClient.addTelemetryListener(handleTelemetryUpdate);
   simClient.addTelemetryListener(handleTelemetryUpdate);
   curveGovernor.addCurveListener(handleCurveTelemetry);
+
+  // Wire disconnect notification listener
+  bleClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+    console.warn('[App] BLE Disconnect notification received. Was connected:', wasConnected, 'Intentional:', isIntentional);
+    if (wasConnected && !isIntentional) {
+      showToast('Device connection lost. Reconnect to resume control.', 'error', 6500);
+    }
+    handleTelemetryUpdate(bleClient.telemetry);
+  });
+  simClient.addDisconnectListener(({ wasConnected, isIntentional }) => {
+    if (wasConnected && !isIntentional) {
+      showToast('Demo device disconnected.', 'info', 3000);
+    }
+    handleTelemetryUpdate(simClient.telemetry);
+  });
 
   attachEventListeners();
   checkBrowserCompatibility();

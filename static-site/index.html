@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=2.7">
+  <link rel="stylesheet" href="./styles.css?v=3.1">
 </head>
 <body class="theme-dark">
   <!-- Ambient background glow layers -->
@@ -395,6 +395,91 @@
               </div>
             </div>
 
+            <!-- Lantern Controls & Lighting Effects Panel (Spawned when Lantern Mode is active) -->
+            <div id="lantern-controls-panel" class="lantern-controls-panel hidden" aria-label="Lantern Mode Lighting Controls">
+              <div class="lantern-panel-header">
+                <div class="lantern-title-group">
+                  <div class="lantern-panel-badge">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    <span>LIGHTING MOOD</span>
+                  </div>
+                  <h3 class="lantern-panel-title">Lantern Mode Effects</h3>
+                </div>
+                <div id="lantern-aura-preview" class="lantern-aura-preview effect-campfire" title="Active light aura visualization">
+                  <span class="aura-orb"></span>
+                  <span id="lantern-active-effect-name" class="aura-label">Campfire</span>
+                </div>
+              </div>
+
+              <!-- Effect Buttons Grid -->
+              <div class="lantern-effects-grid">
+                <button type="button" class="lantern-fx-btn active" data-effect="campfire" title="Crackling embers & flame rhythm">
+                  <span class="fx-icon">🔥</span>
+                  <span class="fx-label">Campfire</span>
+                  <span class="fx-hint">Flame Embers</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="flicker" title="Organic candle flame intensity jitter">
+                  <span class="fx-icon">🕯️</span>
+                  <span class="fx-label">Flicker</span>
+                  <span class="fx-hint">Candle Glow</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="night_light" title="Ultra-dim calming ambient breath">
+                  <span class="fx-icon">🌙</span>
+                  <span class="fx-label">Night Light</span>
+                  <span class="fx-hint">Calm &amp; Dim</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="rainbow" title="Smooth full-spectrum spectral cycle">
+                  <span class="fx-icon">🌈</span>
+                  <span class="fx-label">Rainbow</span>
+                  <span class="fx-hint">Spectrum Flow</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="waterfall" title="Cascading cyan and deep ocean ripples">
+                  <span class="fx-icon">🌊</span>
+                  <span class="fx-label">Waterfall</span>
+                  <span class="fx-hint">Aqua Cascade</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="breathing" title="Gentle rhythmic inhale/exhale pulse">
+                  <span class="fx-icon">🧘</span>
+                  <span class="fx-label">Breathing</span>
+                  <span class="fx-hint">Slow Pulse</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="disco" title="Fast multi-color Lorax party pulse">
+                  <span class="fx-icon">⚡</span>
+                  <span class="fx-label">Disco</span>
+                  <span class="fx-hint">Party Strobe</span>
+                </button>
+                <button type="button" class="lantern-fx-btn" data-effect="aurora" title="Borealis emerald, teal, and violet blend">
+                  <span class="fx-icon">🔮</span>
+                  <span class="fx-label">Aurora</span>
+                  <span class="fx-hint">Northern Lights</span>
+                </button>
+              </div>
+
+              <!-- Color Tint & Palette Swatches -->
+              <div class="lantern-controls-row">
+                <div class="lantern-subgroup">
+                  <span class="lantern-sublabel">COLOR TINT</span>
+                  <div class="lantern-swatches-list">
+                    <button type="button" class="swatch-btn active" data-color="255,85,0" style="--swatch-color: #ff5500;" title="Amber Flame"></button>
+                    <button type="button" class="swatch-btn" data-color="255,0,68" style="--swatch-color: #ff0044;" title="Ruby Red"></button>
+                    <button type="button" class="swatch-btn" data-color="0,255,136" style="--swatch-color: #00ff88;" title="Emerald"></button>
+                    <button type="button" class="swatch-btn" data-color="0,242,254" style="--swatch-color: #00f2fe;" title="Electric Cyan"></button>
+                    <button type="button" class="swatch-btn" data-color="157,78,221" style="--swatch-color: #9d4edd;" title="Mystic Purple"></button>
+                    <button type="button" class="swatch-btn" data-color="255,255,255" style="--swatch-color: #ffffff;" title="Crisp White"></button>
+                  </div>
+                </div>
+
+                <!-- Brightness Slider -->
+                <div class="lantern-subgroup lantern-brightness-group">
+                  <div class="brightness-header">
+                    <span class="lantern-sublabel">BRIGHTNESS</span>
+                    <span id="lantern-brightness-val" class="lantern-val-tag">100%</span>
+                  </div>
+                  <input type="range" id="lantern-brightness-slider" min="10" max="100" value="100" class="styled-range">
+                </div>
+              </div>
+            </div>
+
             <div class="power-buttons-row">
               <button id="sleep-btn" class="btn btn-secondary" title="Enter low power sleep mode">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -731,10 +816,10 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=2.9"></script>
-  <script src="./puffco-ble.js?v=2.9"></script>
-  <script src="./simulator.js?v=2.9"></script>
-  <script src="./curve-governor.js?v=2.9"></script>
-  <script src="./app.js?v=2.9"></script>
+  <script src="./curves-data.js?v=3.1"></script>
+  <script src="./puffco-ble.js?v=3.1"></script>
+  <script src="./simulator.js?v=3.1"></script>
+  <script src="./curve-governor.js?v=3.1"></script>
+  <script src="./app.js?v=3.1"></script>
 </body>
 </html>

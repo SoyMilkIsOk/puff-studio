@@ -52,9 +52,22 @@ const PATH_ODOMETER_DABS = '/p/app/odom/0/nc';
 const PATH_DEVICE_NAME = '/u/sys/name';
 const PATH_STEALTH_MODE = '/u/app/ui/stlm';
 const PATH_LANTERN_CMD = '/p/app/ltrn/cmd';
+const PATH_LANTERN_COLOR = '/p/app/ltrn/colr';
+const PATH_LANTERN_TIME = '/p/app/ltrn/time';
+const PATH_LANTERN_BRIGHTNESS = '/u/app/ui/lbrt';
 const PATH_ACTIVE_PROFILE = '/p/app/hcs';
 const PATH_PROFILE_TEMP_PREFIX = '/u/app/hc/{slot}/temp';
 const PATH_PROFILE_TIME_PREFIX = '/u/app/hc/{slot}/time';
+
+// Hardware Lantern Animation Modes (Lorax VFS)
+const LanternMode = {
+  PRESERVE: 0x00,
+  STATIC: 0x01,
+  BREATHING: 0x05,
+  RISING: 0x06,
+  CIRCLING: 0x07,
+  CIRCLING_SLOW: 0x15,
+};
 const PATH_PROFILE_NAME_PREFIX = '/u/app/hc/{slot}/name';
 
 // Hardware Operating States (aligned 1:1 with puffco_py / Lorax firmware)
@@ -140,6 +153,38 @@ function decodeUtf8(bytes) {
     }
   }
   return new TextDecoder().decode(bytes.subarray(0, end));
+}
+
+function packLanternColor(r, g, b, mode = LanternMode.STATIC) {
+  const m = typeof mode === 'number' ? mode : 1;
+  return new Uint8Array([
+    Math.max(0, Math.min(255, Math.round(r))),
+    Math.max(0, Math.min(255, Math.round(g))),
+    Math.max(0, Math.min(255, Math.round(b))),
+    0,
+    m & 0xff,
+    0,
+    0,
+    0,
+  ]);
+}
+
+function hsvToRgb(h, s, v) {
+  let r = 0, g = 0, b = 0;
+  const i = Math.floor((h / 60) % 6);
+  const f = (h / 60) - Math.floor(h / 60);
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
 /**
@@ -400,6 +445,9 @@ class PuffcoBleClient {
     this._pendingReplies = new Map(); // seq -> { resolve, reject, timer }
     this._listeners = new Set();
     this._stateListeners = new Set();
+    this._disconnectListeners = new Set();
+    this._isIntentionalDisconnect = false;
+    this._effectTimer = null;
 
     this._streaming = false;
     this._stopGuardUntil = 0;
@@ -412,24 +460,28 @@ class PuffcoBleClient {
   _defaultTelemetry() {
     return {
       connected: false,
-      device_name: 'Puff Device',
+      is_syncing: false,
+      device_name: 'No Device',
       mac_address: '',
       serial_number: '',
       firmware_version: '',
       operating_state: 'DISCONNECTED',
       state_name: 'Disconnected',
-      live_temp_f: 0.0,
+      live_temp_f: null,
       target_temp_f: 485.0,
       time_remaining: 0,
       total_time: 45,
-      battery_pct: 0,
+      battery_pct: null,
       is_charging: false,
       is_heating: false,
-      chamber_type: 'STANDARD',
-      chamber_name: 'Standard',
-      lifetime_dabs: 0,
+      chamber_type: null,
+      chamber_name: null,
+      lifetime_dabs: null,
       stealth_mode: false,
       lantern_active: false,
+      lantern_effect: 'off',
+      lantern_brightness: 255,
+      lantern_color: [255, 122, 0],
       active_profile: 0,
       profiles: [
         { slot: 0, name: 'Low', target_temp_f: 480, duration_s: 50 },
@@ -460,6 +512,20 @@ class PuffcoBleClient {
 
   removeStateListener(cb) {
     this._stateListeners.delete(cb);
+  }
+
+  addDisconnectListener(cb) {
+    this._disconnectListeners.add(cb);
+  }
+
+  removeDisconnectListener(cb) {
+    this._disconnectListeners.delete(cb);
+  }
+
+  _notifyDisconnectListeners(info) {
+    this._disconnectListeners.forEach((cb) => {
+      try { cb(info); } catch (e) { console.error(e); }
+    });
   }
 
   _notifyListeners() {
@@ -523,6 +589,10 @@ class PuffcoBleClient {
       DEVINFO_SVC_UUID,
       PUFFCO_PUP_SVC_UUID,
       PUFFCO_SILABS_OTA_SVC_UUID,
+      '0000180f-0000-1000-8000-00805f9b34fb', // Standard Battery Service
+      '00001800-0000-1000-8000-00805f9b34fb', // Generic Access
+      '00001801-0000-1000-8000-00805f9b34fb', // Generic Attribute
+      'f9a98c15-c651-4f34-b656-d100bf580000', // Puffco base service
     ];
 
     console.log('[PuffcoBLE] Requesting Bluetooth Device (acceptAllDevices: true)...');
@@ -565,29 +635,47 @@ class PuffcoBleClient {
     }
 
     this.device.addEventListener('gattserverdisconnected', () => {
-      this._onDisconnected();
+      this._onDisconnected(false);
     });
 
     const devName = this.device.name || 'Puff Device';
     console.log(`[PuffcoBLE] Connecting to GATT server (${devName})...`);
     this.server = await this.device.gatt.connect();
 
-    // Discover Lorax Service
-    console.log('[PuffcoBLE] Discovering Lorax Service...');
-    try {
-      this.loraxService = await this.server.getPrimaryService(PUFFCO_LORAX_SVC_UUID);
-    } catch (e) {
-      console.warn('[PuffcoBLE] Direct Lorax lookup failed, scanning all primary services...', e);
+    // Resilient Lorax Service Discovery with Exponential Backoff
+    console.log(`[PuffcoBLE] Discovering Lorax Service (${PUFFCO_LORAX_SVC_UUID})...`);
+    let loraxService = null;
+
+    for (let attempt = 1; attempt <= 4; attempt++) {
       try {
-        const services = await this.server.getPrimaryServices();
-        for (const s of services) {
-          if (s.uuid.toLowerCase() === PUFFCO_LORAX_SVC_UUID.toLowerCase()) {
-            this.loraxService = s;
-            break;
+        if (!this.device.gatt.connected) {
+          console.log(`[PuffcoBLE] Re-establishing GATT connection (attempt ${attempt}/4)...`);
+          this.server = await this.device.gatt.connect();
+        }
+
+        // Settling delay allowing the OS BLE stack (CoreBluetooth / BlueZ) to finish service discovery on initial pair
+        await new Promise((r) => setTimeout(r, attempt === 1 ? 250 : 450 * attempt));
+
+        try {
+          loraxService = await this.server.getPrimaryService(PUFFCO_LORAX_SVC_UUID);
+        } catch (dirErr) {
+          console.log(`[PuffcoBLE] Direct getPrimaryService attempt ${attempt} note:`, dirErr.message || dirErr);
+          const services = await this.server.getPrimaryServices();
+          for (const s of services) {
+            if (s.uuid.toLowerCase() === PUFFCO_LORAX_SVC_UUID.toLowerCase()) {
+              loraxService = s;
+              break;
+            }
           }
         }
-      } catch (scanErr) {
-        console.warn('[PuffcoBLE] Error scanning primary services:', scanErr);
+
+        if (loraxService) {
+          this.loraxService = loraxService;
+          console.log(`[PuffcoBLE] Lorax Service discovered on attempt ${attempt}!`);
+          break;
+        }
+      } catch (err) {
+        console.warn(`[PuffcoBLE] Discovery cycle ${attempt} caught:`, err.message || err);
       }
     }
 
@@ -608,9 +696,17 @@ class PuffcoBleClient {
       }
     } catch (e) {}
 
-    // Get Command & Reply Characteristics
-    this.cmdChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_CMD);
-    this.replyChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_REPLY);
+    // Get Command & Reply Characteristics with retry
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        this.cmdChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_CMD);
+        this.replyChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_REPLY);
+        if (this.cmdChar && this.replyChar) break;
+      } catch (cErr) {
+        if (attempt === 3) throw cErr;
+        await new Promise((r) => setTimeout(r, 200 * attempt));
+      }
+    }
 
     // Setup Lorax reply notifications
     console.log('[PuffcoBLE] Subscribing to Lorax replies...');
@@ -623,13 +719,18 @@ class PuffcoBleClient {
     // Small delay to allow CCCD descriptor write to settle on peripheral
     await new Promise((r) => setTimeout(r, 120));
 
-    // CRITICAL: Immediately mark connected and notify listeners so the web UI updates instantly!
+    // CRITICAL: Immediately mark connected and notify listeners with clean syncing state
     this.isConnected = true;
     this.telemetry.connected = true;
+    this.telemetry.is_syncing = true;
     this.telemetry.device_name = devName;
     this.telemetry.mac_address = this.device.id ? this.device.id.slice(0, 17).toUpperCase() : 'BLE-CONNECTED';
     this.telemetry.operating_state = 'IDLE';
-    this.telemetry.state_name = 'Standby / Idle';
+    this.telemetry.state_name = 'Syncing...';
+    this.telemetry.battery_pct = null;
+    this.telemetry.lifetime_dabs = null;
+    this.telemetry.live_temp_f = null;
+    this.telemetry.chamber_name = null;
     this._notifyListeners();
 
     console.log(`[PuffcoBLE] Successfully connected to ${devName}! Initializing session in background...`);
@@ -700,6 +801,10 @@ class PuffcoBleClient {
 
     // 4. Poll slow diagnostics (VFS name, battery SOC, charging, chamber type, profiles, dabs)
     await this._pollSlowDiagnostics(true);
+    
+    // Telemetry initial sync is now complete!
+    this.telemetry.is_syncing = false;
+    this.telemetry.state_name = OperatingStateDisplayNames[this.telemetry.operating_state] || 'Standby / Idle';
     this._notifyListeners();
 
     // 5. Start background telemetry polling stream
@@ -708,6 +813,8 @@ class PuffcoBleClient {
   }
 
   async disconnect() {
+    this._isIntentionalDisconnect = true;
+    this.stopLanternEffect();
     this._streaming = false;
     await this._releaseWakeLock();
 
@@ -716,13 +823,15 @@ class PuffcoBleClient {
         this.device.gatt.disconnect();
       } catch (e) {}
     }
-    this._onDisconnected();
+    this._onDisconnected(true);
   }
 
-  _onDisconnected() {
-    console.warn('[PuffcoBLE] GATT disconnected.');
+  _onDisconnected(isIntentional = false) {
+    console.warn('[PuffcoBLE] GATT disconnected. Intentional:', isIntentional);
+    const wasConnected = this.isConnected;
     this.isConnected = false;
     this._streaming = false;
+    this.stopLanternEffect();
     this._releaseWakeLock();
 
     // Reject any pending replies
@@ -734,6 +843,9 @@ class PuffcoBleClient {
 
     this.telemetry = this._defaultTelemetry();
     this._notifyListeners();
+    this._notifyStateListeners('DISCONNECTED');
+    this._notifyDisconnectListeners({ wasConnected, isIntentional });
+    this._isIntentionalDisconnect = false;
   }
 
   async _authenticate() {
@@ -1269,12 +1381,193 @@ class PuffcoBleClient {
   }
 
   async setLanternMode(enabled) {
-    const ok = await this.writePath(PATH_LANTERN_CMD, new Uint8Array([enabled ? 1 : 0]));
-    if (ok) {
-      this.telemetry.lantern_active = !!enabled;
+    if (enabled) {
+      const ok = await this.writePath(PATH_LANTERN_CMD, new Uint8Array([1]));
+      if (ok) {
+        this.telemetry.lantern_active = true;
+        // Also set lantern time to 7200 seconds (2 hours) so it doesn't immediately time out
+        const timePayload = new Uint8Array(4);
+        new DataView(timePayload.buffer).setFloat32(0, 7200.0, true);
+        await this.writePath(PATH_LANTERN_TIME, timePayload).catch(() => {});
+
+        // If no active effect, start default campfire
+        if (!this.telemetry.lantern_effect || this.telemetry.lantern_effect === 'off') {
+          await this.startLanternEffect('campfire');
+        }
+        this._notifyListeners();
+      }
+      return ok;
+    } else {
+      this.stopLanternEffect();
+      const ok = await this.writePath(PATH_LANTERN_CMD, new Uint8Array([0]));
+      this.telemetry.lantern_active = false;
+      this.telemetry.lantern_effect = 'off';
       this._notifyListeners();
+      return ok;
     }
+  }
+
+  async setLanternColor(r, g, b, mode = LanternMode.STATIC) {
+    this.telemetry.lantern_color = [r, g, b];
+    const payload = packLanternColor(r, g, b, mode);
+    const ok = await this.writePath(PATH_LANTERN_COLOR, payload);
+    this._notifyListeners();
     return ok;
+  }
+
+  async setLanternBrightness(pctOrByte) {
+    let val = Math.round(Number(pctOrByte));
+    if (val <= 100 && val > 0 && pctOrByte <= 100) {
+      val = Math.round((val / 100) * 255);
+    }
+    val = Math.max(5, Math.min(255, val));
+    this.telemetry.lantern_brightness = val;
+    const ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, new Uint8Array([val]));
+    this._notifyListeners();
+    return ok;
+  }
+
+  _stopEffectTimer() {
+    if (this._effectTimer) {
+      clearTimeout(this._effectTimer);
+      clearInterval(this._effectTimer);
+      this._effectTimer = null;
+    }
+  }
+
+  async startLanternEffect(effectName, options = {}) {
+    this._stopEffectTimer();
+    this.telemetry.lantern_active = true;
+    this.telemetry.lantern_effect = effectName;
+
+    // Ensure lantern mode enabled
+    await this.writePath(PATH_LANTERN_CMD, new Uint8Array([1])).catch(() => {});
+
+    const baseColor = options.color || this.telemetry.lantern_color || [255, 122, 0];
+    let [r, g, b] = baseColor;
+
+    switch (effectName) {
+      case 'flicker': {
+        // Candle flicker: subtle micro-variations around a warm candle glow
+        let step = 0;
+        const tick = async () => {
+          if (!this.isConnected || !this.telemetry.lantern_active) return;
+          step++;
+          const jitter = (Math.random() - 0.5) * 40;
+          const curR = Math.max(180, Math.min(255, Math.round(255 + jitter)));
+          const curG = Math.max(60, Math.min(160, Math.round(130 + jitter * 0.8)));
+          const curB = Math.max(5, Math.min(40, Math.round(20 + jitter * 0.2)));
+          await this.writePath(PATH_LANTERN_COLOR, packLanternColor(curR, curG, curB, LanternMode.STATIC)).catch(() => {});
+          const nextInterval = 120 + Math.random() * 280;
+          this._effectTimer = setTimeout(tick, nextInterval);
+        };
+        await tick();
+        break;
+      }
+
+      case 'campfire': {
+        // Dynamic dancing flames: shifts between deep ember reds and bright golden orange
+        let phase = 0;
+        const tick = async () => {
+          if (!this.isConnected || !this.telemetry.lantern_active) return;
+          phase += 0.35 + Math.random() * 0.3;
+          const s = (Math.sin(phase) + 1) / 2; // 0 to 1
+          const curR = 255;
+          const curG = Math.round(40 + s * 95); // 40 (crimson red) to 135 (amber flame)
+          const curB = Math.round(s * 15);
+          await this.writePath(PATH_LANTERN_COLOR, packLanternColor(curR, curG, curB, LanternMode.RISING)).catch(() => {});
+          const nextInterval = 250 + Math.random() * 350;
+          this._effectTimer = setTimeout(tick, nextInterval);
+        };
+        await tick();
+        break;
+      }
+
+      case 'night_light': {
+        // Calm, soothing ultra-low glow with slow breathing
+        await this.setLanternBrightness(40);
+        await this.setLanternColor(255, 110, 30, LanternMode.BREATHING);
+        break;
+      }
+
+      case 'rainbow': {
+        // Full spectrum RGB hue rotation
+        let hue = 0;
+        const tick = async () => {
+          if (!this.isConnected || !this.telemetry.lantern_active) return;
+          hue = (hue + 18) % 360;
+          const [cr, cg, cb] = hsvToRgb(hue, 1, 1);
+          await this.writePath(PATH_LANTERN_COLOR, packLanternColor(cr, cg, cb, LanternMode.CIRCLING)).catch(() => {});
+          this._effectTimer = setTimeout(tick, 350);
+        };
+        await tick();
+        break;
+      }
+
+      case 'waterfall': {
+        // Cascading ocean waves: shifts through cyans, teals, and deep aquas
+        let wave = 0;
+        const tick = async () => {
+          if (!this.isConnected || !this.telemetry.lantern_active) return;
+          wave += 0.4;
+          const s = (Math.sin(wave) + 1) / 2;
+          const curR = 0;
+          const curG = Math.round(140 + s * 100);
+          const curB = Math.round(200 + s * 55);
+          await this.writePath(PATH_LANTERN_COLOR, packLanternColor(curR, curG, curB, LanternMode.RISING)).catch(() => {});
+          this._effectTimer = setTimeout(tick, 380);
+        };
+        await tick();
+        break;
+      }
+
+      case 'disco': {
+        // Lorax disco hardware mode
+        const discoPayload = new Uint8Array([0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
+        await this.writePath(PATH_LANTERN_COLOR, discoPayload);
+        break;
+      }
+
+      case 'breathing': {
+        // Slow meditative breath with chosen or current tint
+        await this.setLanternColor(r, g, b, LanternMode.BREATHING);
+        break;
+      }
+
+      case 'aurora': {
+        // Northern lights: shimmering emerald, aqua, and deep violet
+        let aPhase = 0;
+        const auroraPalette = [
+          [0, 255, 136],
+          [0, 230, 255],
+          [130, 60, 255],
+          [20, 240, 180],
+        ];
+        const tick = async () => {
+          if (!this.isConnected || !this.telemetry.lantern_active) return;
+          aPhase = (aPhase + 1) % auroraPalette.length;
+          const [ar, ag, ab] = auroraPalette[aPhase];
+          await this.writePath(PATH_LANTERN_COLOR, packLanternColor(ar, ag, ab, LanternMode.CIRCLING_SLOW)).catch(() => {});
+          this._effectTimer = setTimeout(tick, 600);
+        };
+        await tick();
+        break;
+      }
+
+      case 'static':
+      default: {
+        await this.setLanternColor(r, g, b, LanternMode.STATIC);
+        break;
+      }
+    }
+
+    this._notifyListeners();
+  }
+
+  stopLanternEffect() {
+    this._stopEffectTimer();
+    this.telemetry.lantern_effect = 'off';
+    this._notifyListeners();
   }
 
   async enterSleepMode() {

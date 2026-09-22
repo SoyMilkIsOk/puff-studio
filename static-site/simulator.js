@@ -33,6 +33,9 @@ class PuffcoSimulator {
       lifetime_dabs: 443,
       stealth_mode: false,
       lantern_active: false,
+      lantern_effect: 'off',
+      lantern_brightness: 255,
+      lantern_color: [255, 122, 0],
       active_profile: 1,
       profiles: [
         { slot: 0, name: 'Low', target_temp_f: 480, duration_s: 50 },
@@ -41,6 +44,7 @@ class PuffcoSimulator {
         { slot: 3, name: 'ROSIN', target_temp_f: 465, duration_s: 90 },
       ],
       is_demo: true,
+      is_syncing: false,
       active_curve_running: false,
     };
   }
@@ -63,6 +67,15 @@ class PuffcoSimulator {
 
   removeStateListener(cb) {
     this._stateListeners.delete(cb);
+  }
+
+  addDisconnectListener(cb) {
+    if (!this._disconnectListeners) this._disconnectListeners = new Set();
+    this._disconnectListeners.add(cb);
+  }
+
+  removeDisconnectListener(cb) {
+    if (this._disconnectListeners) this._disconnectListeners.delete(cb);
   }
 
   _notifyListeners() {
@@ -231,8 +244,44 @@ class PuffcoSimulator {
 
   async setLanternMode(enabled) {
     this.telemetry.lantern_active = !!enabled;
+    if (enabled && (!this.telemetry.lantern_effect || this.telemetry.lantern_effect === 'off')) {
+      this.telemetry.lantern_effect = 'campfire';
+    } else if (!enabled) {
+      this.telemetry.lantern_effect = 'off';
+    }
     this._notifyListeners();
     return true;
+  }
+
+  async setLanternColor(r, g, b) {
+    this.telemetry.lantern_color = [r, g, b];
+    this._notifyListeners();
+    return true;
+  }
+
+  async setLanternBrightness(pctOrByte) {
+    let val = Math.round(Number(pctOrByte));
+    if (val <= 100 && val > 0 && pctOrByte <= 100) {
+      val = Math.round((val / 100) * 255);
+    }
+    this.telemetry.lantern_brightness = Math.max(5, Math.min(255, val));
+    this._notifyListeners();
+    return true;
+  }
+
+  async startLanternEffect(effectName, options = {}) {
+    this.telemetry.lantern_active = true;
+    this.telemetry.lantern_effect = effectName;
+    if (options.color) {
+      this.telemetry.lantern_color = options.color;
+    }
+    this._notifyListeners();
+    return true;
+  }
+
+  stopLanternEffect() {
+    this.telemetry.lantern_effect = 'off';
+    this._notifyListeners();
   }
 
   async enterSleepMode() {

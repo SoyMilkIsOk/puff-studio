@@ -560,6 +560,35 @@ body {
   border-color: rgba(100, 116, 139, 0.25);
 }
 
+.state-syncing {
+  background: rgba(255, 122, 0, 0.16);
+  color: var(--accent-flame);
+  border-color: rgba(255, 122, 0, 0.45);
+  animation: pulse-sync 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-sync {
+  0% { opacity: 0.65; box-shadow: 0 0 0 rgba(255, 122, 0, 0); }
+  100% { opacity: 1; box-shadow: 0 0 14px rgba(255, 122, 0, 0.35); }
+}
+
+.telemetry-syncing {
+  animation: shimmer-text 1.4s ease-in-out infinite alternate;
+  color: var(--text-muted) !important;
+}
+
+@keyframes shimmer-text {
+  0% { opacity: 0.35; }
+  100% { opacity: 0.9; }
+}
+
+.battery-pill.syncing,
+.battery-widget.syncing {
+  opacity: 0.8;
+  border-color: rgba(255, 122, 0, 0.45);
+  animation: pulse-sync 1.8s ease-in-out infinite alternate;
+}
+
 .state-idle {
   background: rgba(0, 242, 254, 0.12);
   color: var(--accent-cyan);
@@ -1264,6 +1293,314 @@ body {
 input:checked + .slider { background-color: var(--accent-amber); }
 input:checked + .slider-purple { background-color: var(--accent-purple); }
 input:checked + .slider:before { transform: translateX(20px); }
+
+/* Disabled / Greyed out state for controls when disconnected */
+.control-disabled,
+input[type="range"]:disabled,
+.switch input:disabled + .slider,
+.profile-card.disabled,
+.control-toggle-card.disabled,
+.temp-slider-wrap.disabled,
+.lantern-controls-panel.disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  filter: grayscale(0.6) !important;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+/* ==========================================================================
+   Lantern Mode Interactive Effects Panel
+   ========================================================================== */
+.lantern-controls-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(157, 78, 221, 0.25);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 25px -5px rgba(157, 78, 221, 0.15);
+  animation: lantern-expand 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
+}
+
+@keyframes lantern-expand {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lantern-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.lantern-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lantern-panel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-purple);
+  text-transform: uppercase;
+}
+
+.lantern-panel-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.lantern-aura-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.aura-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff7a00;
+  box-shadow: 0 0 10px #ff7a00;
+  transition: all 0.3s ease;
+}
+
+.aura-label {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+/* Dynamic Aura Effects */
+.lantern-aura-preview.effect-campfire .aura-orb {
+  background: #ff5500;
+  box-shadow: 0 0 12px #ff3300;
+  animation: aura-campfire 1.2s infinite alternate;
+}
+@keyframes aura-campfire {
+  0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 8px #ff2200; }
+  100% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 16px #ff7a00; }
+}
+
+.lantern-aura-preview.effect-flicker .aura-orb {
+  background: #ffc04d;
+  box-shadow: 0 0 10px #ffaa00;
+  animation: aura-flicker 0.4s infinite alternate;
+}
+@keyframes aura-flicker {
+  0% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.75; transform: scale(0.98); }
+}
+
+.lantern-aura-preview.effect-night_light .aura-orb {
+  background: #ffaa33;
+  box-shadow: 0 0 8px #ff8800;
+  animation: aura-breathe 3s ease-in-out infinite alternate;
+}
+@keyframes aura-breathe {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 0.9; transform: scale(1.15); }
+}
+
+.lantern-aura-preview.effect-rainbow .aura-orb {
+  background: conic-gradient(#ff0000, #ff7a00, #ffff00, #00ff00, #00f2fe, #7928ca, #ff0000);
+  box-shadow: 0 0 12px #00f2fe;
+  animation: spin 3s linear infinite;
+}
+
+.lantern-aura-preview.effect-waterfall .aura-orb {
+  background: #00f2fe;
+  box-shadow: 0 0 12px #0099ff;
+  animation: aura-breathe 1.8s ease-in-out infinite alternate;
+}
+
+.lantern-aura-preview.effect-disco .aura-orb {
+  background: #ff00aa;
+  box-shadow: 0 0 14px #00f2fe;
+  animation: aura-disco 0.3s linear infinite alternate;
+}
+@keyframes aura-disco {
+  0% { background: #ff0055; box-shadow: 0 0 10px #ff0055; }
+  50% { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+  100% { background: #00f2fe; box-shadow: 0 0 10px #00f2fe; }
+}
+
+.lantern-aura-preview.effect-breathing .aura-orb {
+  background: #9d4edd;
+  box-shadow: 0 0 12px #9d4edd;
+  animation: aura-breathe 2.4s ease-in-out infinite alternate;
+}
+
+.lantern-aura-preview.effect-aurora .aura-orb {
+  background: linear-gradient(135deg, #00ff88, #00f2fe, #9d4edd);
+  box-shadow: 0 0 12px #00ff88;
+  animation: aura-breathe 2.2s ease-in-out infinite alternate;
+}
+
+/* Effects Grid */
+.lantern-effects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 600px) {
+  .lantern-effects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lantern-fx-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.lantern-fx-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.lantern-fx-btn.active {
+  background: rgba(157, 78, 221, 0.16);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 16px -2px rgba(157, 78, 221, 0.4);
+  color: var(--text-primary);
+}
+
+.fx-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.fx-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.fx-hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.lantern-fx-btn.active .fx-hint {
+  color: #c77dff;
+}
+
+/* Controls Row: Swatches & Brightness */
+.lantern-controls-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.lantern-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lantern-sublabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.lantern-swatches-list {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.swatch-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--swatch-color);
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  outline: none;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 10px var(--swatch-color);
+}
+
+.swatch-btn.active {
+  transform: scale(1.2);
+  border-color: #ffffff;
+  box-shadow: 0 0 12px var(--swatch-color);
+}
+
+.lantern-brightness-group {
+  flex: 1;
+  min-width: 140px;
+}
+
+.brightness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lantern-val-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-purple);
+  font-weight: 600;
+}
 
 .power-buttons-row {
   display: flex;
