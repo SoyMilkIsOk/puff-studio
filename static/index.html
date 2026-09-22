@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Puffco Studio — Live BLE Controller &amp; Heat Curve Studio</title>
-  <meta name="description" content="Local web dashboard, real-time Bluetooth LE controller, and custom heat curve studio for Puffco Peak Pro and Proxy devices.">
+  <title>Puff Studio — Live BLE Controller &amp; Heat Curve Studio</title>
+  <meta name="description" content="Local web dashboard, real-time Bluetooth LE controller, and custom heat curve studio for Puff Peak Pro and Proxy devices.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -28,7 +28,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">PUFFCO <span>STUDIO</span></h1>
+          <h1 class="brand-title">PUFF <span>STUDIO</span></h1>
           <span class="brand-sub">BLE Telemetry &amp; Heat Curve Engine</span>
         </div>
       </div>
@@ -42,7 +42,6 @@
         <button id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Heat Curve Studio
-          <span class="tab-badge">PRO</span>
         </button>
       </nav>
 
@@ -66,7 +65,7 @@
 
         <!-- Connection actions -->
         <div class="header-actions">
-          <button id="scan-modal-btn" class="btn btn-secondary" title="Search nearby Puffco BLE devices">
+          <button id="scan-modal-btn" class="btn btn-secondary" title="Search nearby Puff BLE devices">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4m2.8-11.2a10 10 0 0 1 0 14m-9.8-11.2a6 6 0 0 0 0 8.4m-2.8-11.2a10 10 0 0 0 0 14"/></svg>
             Scan
           </button>
@@ -574,7 +573,7 @@
       <div class="modal-window">
         <div class="modal-header">
           <div>
-            <h3 id="scan-modal-title" class="modal-title">Nearby Puffco Devices</h3>
+            <h3 id="scan-modal-title" class="modal-title">Nearby Puff Devices</h3>
             <p class="modal-subtitle">Ensure your Peak Pro or Proxy is awake and nearby</p>
           </div>
           <button id="close-scan-modal" class="btn-icon" aria-label="Close modal">✕</button>
@@ -605,7 +604,7 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <div>Puffco Studio • Companion Showcase for <a href="https://github.com/SoyMilkIsOk/puffco-py" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: underline;"><code>puffco-py</code></a></div>
+      <div>Puff Studio • Companion Showcase for <a href="https://github.com/SoyMilkIsOk/puffco-py" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: underline;"><code>puffco-py</code></a></div>
       <div id="ws-indicator" class="ws-pill ws-connected">WS Live</div>
     </footer>
   </div>

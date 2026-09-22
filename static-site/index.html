@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Puffco Studio — Mobile Web Bluetooth Controller &amp; Heat Curve Studio</title>
-  <meta name="description" content="Standalone web controller, real-time Web Bluetooth Low Energy HUD, and dynamic heat curve studio for Puffco Peak Pro and Proxy devices.">
+  <title>Puff Studio — Mobile Web Bluetooth Controller &amp; Heat Curve Studio</title>
+  <meta name="description" content="Standalone web controller, real-time Web Bluetooth Low Energy HUD, and dynamic heat curve studio for Puff Peak Pro and Proxy devices.">
 
   <!-- Mobile PWA & Apple Web App Meta -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -36,7 +36,7 @@
     <div class="compat-banner-content">
       <span class="compat-banner-icon">📱</span>
       <div class="compat-banner-text">
-        <span id="compat-banner-msg"><strong>iOS Notice:</strong> Mobile Safari does not support Bluetooth. Open in <strong>Path Browser</strong> or <strong>Bluefy</strong> to connect, or use <strong>Demo Mode</strong> below!</span>
+        <span id="compat-banner-msg"><strong>iOS Notice:</strong> Mobile Safari does not support Bluetooth. Open in <strong>Path Browser</strong> or <strong>Bluefy</strong> to connect directly via Web Bluetooth!</span>
       </div>
     </div>
     <div class="compat-banner-actions">
@@ -55,7 +55,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">PUFFCO <span>STUDIO</span></h1>
+          <h1 class="brand-title">PUFF <span>STUDIO</span></h1>
           <span class="brand-sub">Web Bluetooth &amp; Curve Engine</span>
         </div>
       </div>
@@ -69,7 +69,6 @@
         <button id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Heat Curve Studio
-          <span class="tab-badge">PRO</span>
         </button>
       </nav>
 
@@ -85,7 +84,7 @@
           <svg class="battery-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="7" width="16" height="10" rx="2" ry="2"/>
             <line x1="22" y1="11" x2="22" y2="13"/>
-            <path id="battery-fill-icon" d="M4 9h0v6h0z" fill="currentColor"/>
+            <rect id="battery-fill-icon" x="4" y="9" width="0" height="6" rx="1" fill="currentColor"/>
           </svg>
           <span id="battery-level-display">--%</span>
           <span id="battery-bolt" class="bolt hidden">⚡</span>
@@ -93,15 +92,17 @@
 
         <!-- Connection actions -->
         <div class="header-actions">
-          <button id="main-connect-btn" class="btn btn-primary" title="Scan & Connect to Puffco device via Web Bluetooth">
+          <button id="main-connect-btn" class="btn btn-primary" title="Scan & Connect to Puff device via Web Bluetooth">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
             Connect
           </button>
-          <label class="toggle-demo" title="Toggle offline simulation demo">
-            <input type="checkbox" id="demo-mode-toggle">
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            <span class="toggle-label">Demo</span>
-          </label>
+          <button id="info-tutorial-btn" class="btn-icon header-info-btn" title="How to Connect & Pair" aria-label="Connection Guide">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </button>
         </div>
       </div>
     </header>
@@ -634,9 +635,9 @@
           <h4 style="color: #fff; margin-bottom: 6px;">🍏 iPhone / iPad (iOS):</h4>
           <p style="margin-bottom: 12px;">Apple blocks Web Bluetooth in Mobile Safari and standard Chrome for iOS. To connect directly via Bluetooth:</p>
           <ol style="padding-left: 20px; margin-bottom: 16px;">
-            <li style="margin-bottom: 6px;">Download <strong style="color: var(--accent-cyan);">Path Browser</strong> (Puffco's official iOS utility) or <strong style="color: var(--accent-cyan);">Bluefy</strong> from the App Store.</li>
+            <li style="margin-bottom: 6px;">Download <strong style="color: var(--accent-cyan);">Path Browser</strong> (Puff's official iOS utility) or <strong style="color: var(--accent-cyan);">Bluefy</strong> from the App Store.</li>
             <li style="margin-bottom: 6px;">Open this website inside Path Browser or Bluefy.</li>
-            <li>Tap <strong>Connect</strong> and pick your Puffco from the Bluetooth prompt!</li>
+            <li>Tap <strong>Connect</strong> and pick your Puff from the Bluetooth prompt!</li>
           </ol>
 
           <h4 style="color: #fff; margin-bottom: 6px;">🤖 Android &amp; Desktop:</h4>
@@ -644,17 +645,77 @@
 
           <h4 style="color: #fff; margin-bottom: 6px;">⚠️ Can't Find Your Device?</h4>
           <ul style="padding-left: 20px; margin-bottom: 14px; font-size: 0.83rem;">
-            <li style="margin-bottom: 4px;"><strong>Close the official Puffco App:</strong> Puffco devices only support <em>one</em> Bluetooth connection at a time. If your phone or another app is connected, the Puffco stops broadcasting!</li>
-            <li style="margin-bottom: 4px;"><strong>Pairing Mode:</strong> Hold the Puffco power button for <strong>6 seconds</strong> until the lights glow <strong>pulsing blue</strong>.</li>
+            <li style="margin-bottom: 4px;"><strong>Close the official Puff App:</strong> Puff devices only support <em>one</em> Bluetooth connection at a time. If your phone or another app is connected, the Puff stops broadcasting!</li>
+            <li style="margin-bottom: 4px;"><strong>Pairing Mode:</strong> Hold the Puff power button for <strong>6 seconds</strong> until the lights glow <strong>pulsing blue</strong>.</li>
             <li style="margin-bottom: 4px;"><strong>Renamed Device:</strong> Tap <strong style="color: var(--accent-cyan);">Scan All</strong> in the top header to show all nearby Bluetooth devices without name filters.</li>
             <li style="margin-bottom: 4px;"><strong>Desktop Permissions:</strong> On macOS, ensure Chrome has Bluetooth access enabled in <em>System Settings &gt; Privacy &amp; Security &gt; Bluetooth</em>.</li>
           </ul>
 
-          <h4 style="color: #fff; margin-bottom: 6px;">✨ Try Demo Mode:</h4>
-          <p>You can toggle <strong>Demo</strong> in the top header at any time to test the dial HUD, live graphs, and thermal curve editor with realistic chamber physics.</p>
+          <h4 style="color: #fff; margin-bottom: 6px;">💡 Need Pairing Help?</h4>
+          <p>Tap the <strong>ℹ️ Information icon</strong> next to the Connect button at the top of the page for an interactive 3-step visual pairing guide.</p>
         </div>
         <div class="modal-footer">
           <button id="close-compat-modal-btn" class="btn btn-secondary">Got It</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Connection Tutorial Modal -->
+    <div id="connect-tutorial-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tutorial-modal-title">
+      <div class="modal-window tutorial-modal-window">
+        <div class="modal-header">
+          <div>
+            <h3 id="tutorial-modal-title" class="modal-title">How to Connect</h3>
+            <p class="modal-subtitle">Quick 3-step guide to pair your Puff via Bluetooth</p>
+          </div>
+          <button id="close-tutorial-modal" class="btn-icon" aria-label="Close tutorial">✕</button>
+        </div>
+        <div class="modal-body tutorial-modal-body">
+          <div class="tutorial-steps">
+            <!-- Step 1 -->
+            <div class="tutorial-step-card">
+              <div class="tutorial-step-num">1</div>
+              <div class="tutorial-step-content">
+                <h4>Put Puff in Pairing Mode</h4>
+                <p>Hold the power button on your Peak Pro or Proxy for <strong>6 seconds</strong> until the light ring turns <strong>pulsing blue</strong>.</p>
+                <div class="tutorial-badge-row">
+                  <span class="tutorial-step-badge blue-glow"><span class="pulse-dot"></span> Light Ring Turns Blue</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="tutorial-step-card">
+              <div class="tutorial-step-num">2</div>
+              <div class="tutorial-step-content">
+                <h4>Click Connect</h4>
+                <p>Click the <strong>Connect</strong> button below (or in the header). Your browser will pop up with a Bluetooth scan list.</p>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="tutorial-step-card">
+              <div class="tutorial-step-num">3</div>
+              <div class="tutorial-step-content">
+                <h4>Select Device &amp; Pair</h4>
+                <p>Find your device from the popup list (e.g. <em>Puff Peak Pro</em> or <em>Puff Proxy</em>) and click <strong>Pair</strong>.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tutorial-tip-box">
+            <div class="tutorial-tip-icon">💡</div>
+            <div class="tutorial-tip-text">
+              <strong>Tip:</strong> Make sure the official Puff phone app is completely closed. The Puff only allows <strong>one</strong> Bluetooth connection at a time.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer tutorial-modal-footer">
+          <button id="tutorial-dismiss-btn" class="btn btn-secondary">Got It</button>
+          <button id="tutorial-connect-btn" class="btn btn-primary tutorial-action-connect">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+            Connect Device
+          </button>
         </div>
       </div>
     </div>
@@ -670,10 +731,10 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=2.8"></script>
-  <script src="./puffco-ble.js?v=2.7"></script>
-  <script src="./simulator.js?v=2.7"></script>
-  <script src="./curve-governor.js?v=2.7"></script>
-  <script src="./app.js?v=2.7"></script>
+  <script src="./curves-data.js?v=2.9"></script>
+  <script src="./puffco-ble.js?v=2.9"></script>
+  <script src="./simulator.js?v=2.9"></script>
+  <script src="./curve-governor.js?v=2.9"></script>
+  <script src="./app.js?v=2.9"></script>
 </body>
 </html>

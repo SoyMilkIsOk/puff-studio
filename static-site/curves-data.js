@@ -68,6 +68,27 @@ const DEFAULT_CURVE_PRESETS = [
 
 const STORAGE_KEY = "puff_studio_curves_v2";
 
+const COOKIE_CUSTOM_CURVES_KEY = 'puff_custom_curves';
+
+function setCookie(name, value, days = 365) {
+  try {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  } catch (e) {
+    console.warn('Could not write cookie:', e);
+  }
+}
+
+function getCookie(name) {
+  try {
+    const match = document.cookie.match(new RegExp('(?:^|; )' + encodeURIComponent(name).replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch (e) {
+    console.warn('Could not read cookie:', e);
+    return null;
+  }
+}
+
 class CurveStorage {
   constructor() {
     this._curves = [];
@@ -75,39 +96,85 @@ class CurveStorage {
   }
 
   load() {
+    let loadedFromStorage = false;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
           this._curves = parsed;
-          return;
+          loadedFromStorage = true;
         }
       }
       // Migrate custom curves from v1 if available
-      const oldRaw = localStorage.getItem("puff_studio_curves_v1");
-      if (oldRaw) {
-        const oldParsed = JSON.parse(oldRaw);
-        if (Array.isArray(oldParsed)) {
-          const customOnly = oldParsed.filter((c) => c.id && c.id.startsWith("custom-"));
-          this._curves = JSON.parse(JSON.stringify(DEFAULT_CURVE_PRESETS)).concat(customOnly);
-          this.save();
-          return;
+      if (!loadedFromStorage) {
+        const oldRaw = localStorage.getItem("puff_studio_curves_v1");
+        if (oldRaw) {
+          const oldParsed = JSON.parse(oldRaw);
+          if (Array.isArray(oldParsed)) {
+            const customOnly = oldParsed.filter((c) => c.id && c.id.startsWith("custom-"));
+            this._curves = JSON.parse(JSON.stringify(DEFAULT_CURVE_PRESETS)).concat(customOnly);
+            loadedFromStorage = true;
+            this.save();
+          }
         }
       }
     } catch (e) {
       console.warn("Could not load curves from localStorage:", e);
     }
-    // Fallback to default presets
-    this._curves = JSON.parse(JSON.stringify(DEFAULT_CURVE_PRESETS));
+
+    if (!loadedFromStorage || this._curves.length === 0) {
+      // Fallback to default presets
+      this._curves = JSON.parse(JSON.stringify(DEFAULT_CURVE_PRESETS));
+    }
+
+    // Mobile Cookie Fallback / Restore
+    try {
+      const cookieRaw = getCookie(COOKIE_CUSTOM_CURVES_KEY);
+      if (cookieRaw) {
+        const cookieCustomCurves = JSON.parse(cookieRaw);
+        if (Array.isArray(cookieCustomCurves) && cookieCustomCurves.length > 0) {
+          // Merge custom curves that might have been cleared from localStorage
+          cookieCustomCurves.forEach((cc) => {
+            if (cc.id && !this._curves.some((existing) => existing.id === cc.id)) {
+              this._curves.push(cc);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Could not parse custom curves cookie:", e);
+    }
+
     this.save();
   }
 
   save() {
+    // 1. Persist to localStorage
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this._curves));
     } catch (e) {
-      console.error("Failed to persist curves to localStorage:", e);
+      console.warn("Failed to persist curves to localStorage:", e);
+    }
+
+    // 2. Persist custom curves to Cookie for mobile persistence across resets
+    try {
+      const customCurves = this._curves.filter((c) => c.id && c.id.startsWith("custom-"));
+      if (customCurves.length > 0) {
+        // Strip any unnecessary large metadata before writing cookie to stay well within 4KB cookie limit
+        const compactCustom = customCurves.map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description || "",
+          keyframes: c.keyframes,
+          color: c.color || "#ff6b35",
+        }));
+        setCookie(COOKIE_CUSTOM_CURVES_KEY, JSON.stringify(compactCustom), 365);
+      } else {
+        setCookie(COOKIE_CUSTOM_CURVES_KEY, "", -1);
+      }
+    } catch (e) {
+      console.warn("Failed to persist custom curves to cookie:", e);
     }
   }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Puffco Studio — Local Web Controller & Heat Curve Studio
+Puff Studio — Local Web Controller & Heat Curve Studio
 Companion / tagalong reference application demonstrating the full capabilities
 of the puffco-py library (v0.1.3+) over Bluetooth LE.
 """
@@ -253,7 +253,7 @@ class PuffcoDeviceManager:
     def _default_telemetry(self) -> Dict[str, Any]:
         return {
             "connected": False,
-            "device_name": "Puffco Device",
+            "device_name": "Puff Device",
             "mac_address": "",
             "serial_number": "",
             "firmware_version": "",
@@ -308,7 +308,7 @@ class PuffcoDeviceManager:
 
         return {
             "connected": bool(getattr(t, "connected", False)),
-            "device_name": str(getattr(t, "device_name", "Puffco Device")),
+            "device_name": str(getattr(t, "device_name", "Puff Device")),
             "mac_address": str(getattr(t, "mac_address", "")),
             "serial_number": str(getattr(t, "serial_number", "")),
             "firmware_version": str(getattr(t, "firmware_version", "")),
@@ -360,7 +360,7 @@ class PuffcoDeviceManager:
             results = []
             for d in discovered:
                 results.append({
-                    "name": d.name or "Puffco Device",
+                    "name": d.name or "Puff Device",
                     "address": d.address,
                     "rssi": d.rssi,
                     "is_lorax": getattr(d, "is_lorax", False),
@@ -985,7 +985,7 @@ async def handle_connect(request: web.Request) -> web.Response:
     success = await manager.connect(address=address)
     if success:
         return web.json_response({"status": "ok", "message": "Connected", "telemetry": manager._last_telemetry_dict})
-    return web.json_response({"status": "error", "message": "Failed to connect to Puffco device"}, status=400)
+    return web.json_response({"status": "error", "message": "Failed to connect to Puff device"}, status=400)
 
 
 async def handle_disconnect(request: web.Request) -> web.Response:
@@ -1235,7 +1235,7 @@ def create_app() -> web.Application:
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     host = os.environ.get("HOST", "127.0.0.1")
-    logger.info(f"Starting Puffco Studio on http://{host}:{port}")
+    logger.info(f"Starting Puff Studio on http://{host}:{port}")
     logger.info(f"Powered by puffco-py v{getattr(puffco_py, '__version__', 'unknown')}")
     app = create_app()
     web.run_app(app, host=host, port=port)

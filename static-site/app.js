@@ -44,10 +44,16 @@ const el = {
   deviceName: document.getElementById('device-name-display'),
   devicePill: document.getElementById('device-pill'),
   chamberPill: document.getElementById('chamber-pill'),
+  batteryWidget: document.getElementById('battery-widget'),
   batteryDisplay: document.getElementById('battery-level-display'),
   batteryBolt: document.getElementById('battery-bolt'),
+  batteryFill: document.getElementById('battery-fill-icon'),
   mainConnectBtn: document.getElementById('main-connect-btn'),
-  demoModeToggle: document.getElementById('demo-mode-toggle'),
+  infoTutorialBtn: document.getElementById('info-tutorial-btn'),
+  connectTutorialModal: document.getElementById('connect-tutorial-modal'),
+  closeTutorialModal: document.getElementById('close-tutorial-modal'),
+  tutorialDismissBtn: document.getElementById('tutorial-dismiss-btn'),
+  tutorialConnectBtn: document.getElementById('tutorial-connect-btn'),
   btIndicator: document.getElementById('bt-indicator'),
 
   // Compatibility Banner & Modal
@@ -193,7 +199,7 @@ function handleTelemetryUpdate(data) {
   // Device & Status Pill
   if (connected) {
     el.devicePill.className = 'status-pill status-connected';
-    el.deviceName.textContent = data.device_name || 'Puffco Device';
+    el.deviceName.textContent = data.device_name || 'Puff Device';
     el.mainConnectBtn.innerHTML = `
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       Disconnect
@@ -217,10 +223,33 @@ function handleTelemetryUpdate(data) {
   const batPct = Math.max(0, Math.min(100, data.battery_pct || 0));
   el.batteryDisplay.textContent = connected ? `${batPct}%` : '--%';
   el.batteryBolt.classList.toggle('hidden', !data.is_charging);
-  if (connected && data.is_charging) {
-    el.batteryDisplay.parentElement.classList.add('charging');
-  } else {
-    el.batteryDisplay.parentElement.classList.remove('charging');
+
+  // Dynamic SVG Battery Fill Rect (inner width ranges from 0 to 12)
+  if (el.batteryFill) {
+    if (!connected || batPct <= 0) {
+      el.batteryFill.setAttribute('width', '0');
+    } else {
+      const fillW = Math.max(2, Math.round((batPct / 100) * 12));
+      el.batteryFill.setAttribute('width', String(fillW));
+    }
+  }
+
+  // Dynamic Battery States
+  if (el.batteryWidget) {
+    el.batteryWidget.classList.remove('charging', 'battery-full', 'battery-med', 'battery-low', 'battery-critical');
+    if (connected) {
+      if (data.is_charging) {
+        el.batteryWidget.classList.add('charging');
+      } else if (batPct > 65) {
+        el.batteryWidget.classList.add('battery-full');
+      } else if (batPct > 25) {
+        el.batteryWidget.classList.add('battery-med');
+      } else if (batPct > 10) {
+        el.batteryWidget.classList.add('battery-low');
+      } else {
+        el.batteryWidget.classList.add('battery-critical');
+      }
+    }
   }
 
   // Operating State Badge
@@ -272,7 +301,6 @@ function handleTelemetryUpdate(data) {
   // Stealth & Lantern toggles sync
   el.stealthToggle.checked = !!data.stealth_mode;
   el.lanternToggle.checked = !!data.lantern_active;
-  el.demoModeToggle.checked = !!isDemoMode;
 
   // Sync slider if not actively dragging
   if (!document.activeElement || document.activeElement !== el.tempSlider) {
@@ -462,7 +490,6 @@ function renderLiveSessionTrail(totalDuration) {
 }
 
 function renderProfiles(profiles, activeSlot, connected) {
-  el.profilesContainer.innerHTML = '';
   const defaultProfiles = [
     { slot: 0, name: 'Low', target_temp_f: 480, duration_s: 50 },
     { slot: 1, name: 'Medium', target_temp_f: 485, duration_s: 60 },
@@ -471,31 +498,81 @@ function renderProfiles(profiles, activeSlot, connected) {
   ];
 
   const list = profiles && profiles.length === 4 ? profiles : defaultProfiles;
+  const existingCards = el.profilesContainer.querySelectorAll('.profile-card');
 
-  list.forEach((p) => {
+  // If cards already exist and match count, update in-place without rebuilding DOM tree
+  if (existingCards.length === list.length && existingCards.length > 0) {
+    list.forEach((p, idx) => {
+      const card = existingCards[idx];
+      const slot = p.slot ?? idx;
+      const isActive = connected && slot === activeSlot;
+      card.dataset.slot = slot;
+      card.classList.toggle('active', isActive);
+
+      const nameEl = card.querySelector('.profile-name');
+      const tempEl = card.querySelector('.p-temp');
+      const durEl = card.querySelector('.p-dur');
+
+      const nameText = p.name || `Profile ${idx + 1}`;
+      const tempText = `${p.target_temp_f}°F`;
+      const durText = `${p.duration_s || 50}s`;
+
+      if (nameEl && nameEl.textContent !== nameText) nameEl.textContent = nameText;
+      if (tempEl && tempEl.textContent !== tempText) tempEl.textContent = tempText;
+      if (durEl && durEl.textContent !== durText) durEl.textContent = durText;
+    });
+    return;
+  }
+
+  // Initial creation or card count mismatch
+  el.profilesContainer.innerHTML = '';
+
+  list.forEach((p, idx) => {
     const card = document.createElement('div');
-    const isActive = connected && p.slot === activeSlot;
+    const slot = p.slot ?? idx;
+    const isActive = connected && slot === activeSlot;
     card.className = `profile-card ${isActive ? 'active' : ''}`;
+    card.dataset.slot = slot;
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
 
-    card.innerHTML = `
-      <div class="profile-card-header">
-        <span class="profile-slot-tag">SLOT ${p.slot + 1}</span>
-        ${isActive ? '<span class="profile-active-indicator">ACTIVE</span>' : ''}
-      </div>
-      <div class="profile-card-name">${p.name}</div>
-      <div class="profile-card-temp">${p.target_temp_f}°F</div>
-      <div class="profile-card-dur">${p.duration_s}s Sesh</div>
-    `;
+    const slotBadge = document.createElement('div');
+    slotBadge.className = 'profile-slot-badge';
+    slotBadge.textContent = `SLOT ${slot + 1}`;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'profile-name';
+    nameDiv.textContent = p.name || `Profile ${idx + 1}`;
+
+    const specsDiv = document.createElement('div');
+    specsDiv.className = 'profile-specs';
+
+    const tempSpan = document.createElement('span');
+    tempSpan.className = 'p-temp';
+    tempSpan.textContent = `${p.target_temp_f}°F`;
+
+    const durSpan = document.createElement('span');
+    durSpan.className = 'p-dur';
+    durSpan.textContent = `${p.duration_s || 50}s`;
+
+    specsDiv.appendChild(tempSpan);
+    specsDiv.appendChild(durSpan);
+
+    card.appendChild(slotBadge);
+    card.appendChild(nameDiv);
+    card.appendChild(specsDiv);
 
     card.addEventListener('click', async () => {
       if (!currentTelemetry?.connected) {
-        showToast('Connect your Puffco to select hardware profile', 'error');
+        showToast('Connect device to change heat profile', 'error');
         return;
       }
-      await activeClient.setProfile(p.slot);
-      showToast(`Profile ${p.slot + 1} (${p.name}) activated`, 'info');
+      try {
+        await activeClient.setProfile(slot);
+        showToast(`Profile ${slot + 1} (${p.name || 'Slot ' + (slot + 1)}) activated`, 'info');
+      } catch (err) {
+        showToast(`Failed to set profile: ${err.message}`, 'error');
+      }
     });
 
     el.profilesContainer.appendChild(card);
@@ -894,7 +971,7 @@ function setupCurveActions() {
   el.runCurveBtn.addEventListener('click', async () => {
     if (isCurveRunning) return;
     if (!currentTelemetry?.connected) {
-      showToast('Connect your Puffco device to run this curve', 'error');
+      showToast('Connect your Puff device to run this curve', 'error');
       return;
     }
 
@@ -1083,7 +1160,7 @@ async function handleConnectToggle(options = {}) {
       el.mainConnectBtn.textContent = 'Connecting...';
 
       await activeClient.connect({ showAll: true, ...options });
-      showToast(`Connected to ${activeClient.telemetry.device_name || 'Puffco'}! 🌿`, 'success', 3500);
+      showToast(`Connected to ${activeClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
     } catch (err) {
       console.warn('[App] Connect error:', err);
       const isUserCancel =
@@ -1154,8 +1231,49 @@ function attachEventListeners() {
   // Connect Button
   el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
 
-  // Demo Toggle
-  el.demoModeToggle.addEventListener('change', (e) => handleDemoToggle(e.target.checked));
+  // Information / Connection Tutorial Modal
+  if (el.infoTutorialBtn) {
+    el.infoTutorialBtn.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.remove('hidden');
+    });
+  }
+
+  if (el.closeTutorialModal) {
+    el.closeTutorialModal.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  if (el.tutorialDismissBtn) {
+    el.tutorialDismissBtn.addEventListener('click', () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  if (el.tutorialConnectBtn) {
+    el.tutorialConnectBtn.addEventListener('click', async () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+      await handleConnectToggle({ showAll: true });
+    });
+  }
+
+  if (el.connectTutorialModal) {
+    el.connectTutorialModal.addEventListener('click', (e) => {
+      if (e.target === el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+    });
+  }
+
+  // Global Escape key to dismiss active modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (el.connectTutorialModal && !el.connectTutorialModal.classList.contains('hidden')) {
+        el.connectTutorialModal.classList.add('hidden');
+      }
+      if (el.compatModal && !el.compatModal.classList.contains('hidden')) {
+        el.compatModal.classList.add('hidden');
+      }
+    }
+  });
 
   // Compatibility Guide Banner & Modal
   el.compatGuideBtn.addEventListener('click', () => {
@@ -1248,13 +1366,13 @@ function attachEventListeners() {
 
   // Power controls
   el.sleepBtn.addEventListener('click', async () => {
-    if (!confirm('Put Puffco device into low-power sleep mode?')) return;
+    if (!confirm('Put Puff device into low-power sleep mode?')) return;
     await activeClient.enterSleepMode();
     showToast('Device entered sleep mode 💤', 'info');
   });
 
   el.powerOffBtn.addEventListener('click', async () => {
-    if (!confirm('Completely power off your Puffco device?')) return;
+    if (!confirm('Completely power off your Puff device?')) return;
     await activeClient.powerOff();
     showToast('Device powered down', 'info');
   });
@@ -1283,6 +1401,17 @@ function bootstrap() {
 
   // Initial UI state
   handleTelemetryUpdate(activeClient.telemetry);
+
+  // Auto-connect to previously paired Bluetooth device if permitted by browser
+  if (bleClient && bleClient.isWebBluetoothSupported() && typeof navigator.bluetooth?.getDevices === 'function') {
+    bleClient.autoConnect().then((connected) => {
+      if (connected) {
+        showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
+      }
+    }).catch((err) => {
+      console.log('[PuffStudio] Auto-connect check bypassed:', err);
+    });
+  }
 
   // Register Service Worker for offline PWA
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

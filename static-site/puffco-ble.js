@@ -329,14 +329,22 @@ function parseBatteryBytes(bytes) {
     return Math.max(0, Math.min(100, bytes[0]));
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length === 2) {
+    const iVal = view.getUint16(0, true);
+    if (iVal <= 100) return iVal;
+    if (iVal > 100 && iVal <= 10000) return Math.round(iVal / 100.0);
+  }
   if (bytes.length >= 4) {
     const iVal = view.getUint32(0, true);
     if (iVal <= 100) return iVal;
     if (iVal > 100 && iVal <= 10000) return Math.round(iVal / 100.0);
     try {
       const fVal = view.getFloat32(0, true);
-      if (fVal >= 1.0 && fVal <= 100.0) return Math.round(fVal);
+      if (fVal >= 1.0 && fVal <= 100.0 && !isNaN(fVal) && isFinite(fVal)) return Math.round(fVal);
     } catch (e) {}
+  }
+  if (bytes[0] >= 0 && bytes[0] <= 100) {
+    return bytes[0];
   }
   return 0;
 }
@@ -404,7 +412,7 @@ class PuffcoBleClient {
   _defaultTelemetry() {
     return {
       connected: false,
-      device_name: 'Puffco Device',
+      device_name: 'Puff Device',
       mac_address: '',
       serial_number: '',
       firmware_version: '',
@@ -519,8 +527,9 @@ class PuffcoBleClient {
 
     console.log('[PuffcoBLE] Requesting Bluetooth Device (acceptAllDevices: true)...');
 
+    let selectedDevice = null;
     try {
-      this.device = await navigator.bluetooth.requestDevice({
+      selectedDevice = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices,
       });
@@ -531,15 +540,35 @@ class PuffcoBleClient {
       throw err;
     }
 
-    if (!this.device) {
+    if (!selectedDevice) {
       throw new Error('No device selected.');
+    }
+
+    return await this.connectDevice(selectedDevice);
+  }
+
+  async connectDevice(device) {
+    if (!device) throw new Error('No BluetoothDevice specified.');
+    this.device = device;
+
+    // Persist last connected device ID for auto-reconnection
+    try {
+      if (this.device.id) {
+        localStorage.setItem('puff_last_device_id', this.device.id);
+        if (this.device.name) {
+          localStorage.setItem('puff_last_device_name', this.device.name);
+        }
+        document.cookie = `puff_last_device_id=${encodeURIComponent(this.device.id)}; path=/; max-age=31536000; SameSite=Lax`;
+      }
+    } catch (e) {
+      console.warn('[PuffcoBLE] Could not persist last device ID:', e);
     }
 
     this.device.addEventListener('gattserverdisconnected', () => {
       this._onDisconnected();
     });
 
-    const devName = this.device.name || 'Puffco Device';
+    const devName = this.device.name || 'Puff Device';
     console.log(`[PuffcoBLE] Connecting to GATT server (${devName})...`);
     this.server = await this.device.gatt.connect();
 
@@ -564,7 +593,7 @@ class PuffcoBleClient {
 
     if (!this.loraxService) {
       throw new Error(
-        `Selected device "${devName}" is not a Puffco device (Lorax service not found). Please ensure you select your Puffco Peak Pro or Proxy.`
+        `Selected device "${devName}" is not a Puff device (Lorax service not found). Please ensure you select your Puff Peak Pro or Proxy.`
       );
     }
 
@@ -611,6 +640,45 @@ class PuffcoBleClient {
     });
 
     return true;
+  }
+
+  /**
+   * Attempts automatic reconnection to the last paired device if permitted by browser.
+   */
+  async autoConnect() {
+    if (this.isConnected) return true;
+    if (typeof window !== 'undefined' && !window.isSecureContext) return false;
+    if (!this.isWebBluetoothSupported() || typeof navigator.bluetooth.getDevices !== 'function') return false;
+
+    try {
+      const devices = await navigator.bluetooth.getDevices();
+      if (!devices || devices.length === 0) return false;
+
+      let lastId = null;
+      try {
+        lastId = localStorage.getItem('puff_last_device_id');
+        if (!lastId) {
+          const match = document.cookie.match(/(?:^|; )puff_last_device_id=([^;]*)/);
+          if (match) lastId = decodeURIComponent(match[1]);
+        }
+      } catch (e) {}
+
+      let targetDevice = null;
+      if (lastId) {
+        targetDevice = devices.find((d) => d.id === lastId);
+      }
+      if (!targetDevice) {
+        targetDevice = devices.find((d) => d.name && /puffco|peak|proxy|puff/i.test(d.name)) || devices[0];
+      }
+
+      if (!targetDevice) return false;
+
+      console.log(`[PuffcoBLE] Found previously permitted device "${targetDevice.name || 'Puff'}" (${targetDevice.id}). Auto-connecting...`);
+      return await this.connectDevice(targetDevice);
+    } catch (err) {
+      console.log('[PuffcoBLE] Auto-connect attempt bypassed:', err.message || err);
+      return false;
+    }
   }
 
   async _initSession() {

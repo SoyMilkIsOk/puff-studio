@@ -1,5 +1,5 @@
 /**
- * Puffco Studio — Frontend Controller, Live Telemetry & Heat Curve Studio
+ * Puff Studio — Frontend Controller, Live Telemetry & Heat Curve Studio
  * Features:
  * - Real-time WebSockets telemetry & dual-trace graph
  * - Interactive SVG curve canvas with draggable keyframe nodes
@@ -216,7 +216,7 @@ function handleTelemetryUpdate(data) {
   // Device & Status Pill
   if (connected) {
     el.devicePill.className = 'status-pill status-connected';
-    el.deviceName.textContent = data.device_name || 'Puffco Device';
+    el.deviceName.textContent = data.device_name || 'Puff Device';
     el.mainConnectBtn.textContent = 'Disconnect';
     el.mainConnectBtn.className = 'btn btn-secondary';
   } else {
@@ -878,7 +878,7 @@ function setupCurveActions() {
   el.runCurveBtn.addEventListener('click', async () => {
     if (isCurveRunning) return;
     if (!currentTelemetry?.connected) {
-      showToast('Connect your Puffco device to run this curve', 'error');
+      showToast('Connect your Puff device to run this curve', 'error');
       return;
     }
 
@@ -1014,7 +1014,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 }
 
 async function connectDevice(address = null) {
-  showToast('Connecting to Puffco BLE device...', 'info');
+  showToast('Connecting to Puff BLE device...', 'info');
   el.mainConnectBtn.disabled = true;
   el.mainConnectBtn.textContent = 'Connecting...';
 
@@ -1102,12 +1102,12 @@ async function enterSleep() {
   if (!confirm('Put device into low-power sleep mode?')) return;
   const res = await apiRequest('/api/power/sleep', 'POST');
   if (res.ok) {
-    showToast('Puffco entered sleep mode 💤', 'info');
+    showToast('Puff entered sleep mode 💤', 'info');
   }
 }
 
 async function powerOff() {
-  if (!confirm('Completely power off your Puffco device?')) return;
+  if (!confirm('Completely power off your Puff device?')) return;
   const res = await apiRequest('/api/power/off', 'POST');
   if (res.ok) {
     showToast('Device powered down', 'info');
@@ -1141,7 +1141,7 @@ async function runDeviceScan() {
   } else {
     el.scannedDevicesList.innerHTML = `
       <div style="text-align:center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">
-        No Puffco devices found in range.<br>Ensure Bluetooth is enabled and device is awake.
+        No Puff devices found in range.<br>Ensure Bluetooth is enabled and device is awake.
       </div>
     `;
   }
@@ -1158,7 +1158,7 @@ function renderScannedDevices(devices) {
 
     const name = document.createElement('div');
     name.className = 'device-item-name';
-    name.textContent = d.name || 'Puffco Device';
+    name.textContent = d.name || 'Puff Device';
 
     const addr = document.createElement('div');
     addr.className = 'device-item-addr';
