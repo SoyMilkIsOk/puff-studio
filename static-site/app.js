@@ -21,6 +21,7 @@ let currentCurve = null;
 // Curve Dragging State
 let isDraggingNode = false;
 let draggingNodeIndex = -1;
+let justDragged = false;
 let actualTrailPoints = [];
 
 // Live Session Heat Curve State (dial graph)
@@ -110,6 +111,7 @@ const el = {
   lsgTargetLine: document.getElementById('lsg-target-line'),
   lsgTrailArea: document.getElementById('lsg-trail-area'),
   lsgTrailStroke: document.getElementById('lsg-trail-stroke'),
+  lsgLiveDotGroup: document.getElementById('lsg-live-dot-group'),
   lsgLiveDot: document.getElementById('lsg-live-dot'),
   lsgTimeStat: document.getElementById('lsg-time-stat'),
   lsgPeakStat: document.getElementById('lsg-peak-stat'),
@@ -166,7 +168,9 @@ const el = {
   curveStrokePath: document.getElementById('curve-stroke-path'),
   curveActualTrail: document.getElementById('curve-actual-trail'),
   curvePlayheadLine: document.getElementById('curve-playhead-line'),
+  curvePlayheadDotGroup: document.getElementById('curve-playhead-dot-group'),
   curvePlayheadDot: document.getElementById('curve-playhead-dot'),
+  curveDragTooltip: document.getElementById('curve-drag-tooltip'),
   curvePointsLayer: document.getElementById('curve-points-layer'),
   curveElapsedDisplay: document.getElementById('curve-elapsed-display'),
   curveSetpointDisplay: document.getElementById('curve-setpoint-display'),
@@ -586,6 +590,7 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
     sessionTempCount = 1;
     el.lsgTrailArea.setAttribute('d', '');
     el.lsgTrailStroke.setAttribute('d', '');
+    if (el.lsgLiveDotGroup) el.lsgLiveDotGroup.classList.remove('hidden');
     el.lsgLiveDot.classList.remove('hidden');
   }
 
@@ -624,6 +629,7 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
   } else if (!isHeating && wasHeating) {
     el.lsgPhasePill.className = 'badge badge-subtle';
     el.lsgPhasePill.textContent = 'COMPLETE';
+    if (el.lsgLiveDotGroup) el.lsgLiveDotGroup.classList.add('hidden');
     el.lsgLiveDot.classList.add('hidden');
   }
 
@@ -669,8 +675,18 @@ function renderLiveSessionTrail(totalDuration) {
   el.lsgTrailStroke.setAttribute('d', strokeD);
   el.lsgTrailArea.setAttribute('d', areaD);
 
-  el.lsgLiveDot.setAttribute('cx', lastPt.x);
-  el.lsgLiveDot.setAttribute('cy', lastPt.y);
+  if (el.lsgLiveDotGroup) {
+    const lsgRect = el.lsgSvg ? el.lsgSvg.getBoundingClientRect() : null;
+    const lsgKx = lsgRect && lsgRect.width > 0 ? 500 / lsgRect.width : 1;
+    const lsgKy = lsgRect && lsgRect.height > 0 ? 160 / lsgRect.height : 1;
+    el.lsgLiveDotGroup.dataset.x = lastPt.x;
+    el.lsgLiveDotGroup.dataset.y = lastPt.y;
+    el.lsgLiveDotGroup.setAttribute('transform', `translate(${lastPt.x}, ${lastPt.y}) scale(${lsgKx}, ${lsgKy})`);
+    el.lsgLiveDotGroup.classList.remove('hidden');
+  }
+  el.lsgLiveDot.setAttribute('cx', 0);
+  el.lsgLiveDot.setAttribute('cy', 0);
+  el.lsgLiveDot.classList.remove('hidden');
 
   // Scale x-axis ticks
   el.lsgT1.textContent = `${Math.round(maxT * 0.25)}s`;
@@ -826,46 +842,111 @@ function renderCurveGraph() {
   el.curveStrokePath.setAttribute('d', pathD);
   el.curveAreaPath.setAttribute('d', areaD);
 
-  // Render draggable control nodes
-  el.curvePointsLayer.innerHTML = '';
-  kfs.forEach((k, idx) => {
-    const x = timeToX(k.time_s);
-    const y = tempToY(k.temp_f);
+  // Render draggable control nodes inside counter-scaled groups (ensures perfect circles on any aspect ratio)
+  const rect = el.curveSvg.getBoundingClientRect();
+  const kx = rect.width > 0 ? GRAPH_WIDTH / rect.width : 1;
+  const ky = rect.height > 0 ? GRAPH_HEIGHT / rect.height : 1;
+  const isMobile = window.innerWidth <= 768;
+  const hitR = isMobile ? '32' : '20';
+  const nodeR = isMobile ? '14' : '9';
+  const innerR = isMobile ? '4.5' : '3';
 
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', x);
-    circle.setAttribute('cy', y);
-    circle.setAttribute('r', '8');
-    circle.setAttribute('fill', '#11141e');
-    circle.setAttribute('stroke', '#ff7a00');
-    circle.setAttribute('stroke-width', '3');
-    circle.setAttribute('class', 'curve-node');
-    circle.dataset.index = idx;
-
-    // Mouse drag
-    circle.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      isDraggingNode = true;
-      draggingNodeIndex = idx;
-      circle.classList.add('dragging');
+  const existingGroups = el.curvePointsLayer.querySelectorAll('.curve-node-group');
+  if (existingGroups.length === kfs.length) {
+    kfs.forEach((k, idx) => {
+      const x = timeToX(k.time_s);
+      const y = tempToY(k.temp_f);
+      const group = existingGroups[idx];
+      group.dataset.x = x;
+      group.dataset.y = y;
+      group.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
+      group.classList.toggle('dragging', isDraggingNode && draggingNodeIndex === idx);
     });
+  } else {
+    el.curvePointsLayer.innerHTML = '';
+    kfs.forEach((k, idx) => {
+      const x = timeToX(k.time_s);
+      const y = tempToY(k.temp_f);
 
-    // Touch drag on mobile
-    circle.addEventListener('touchstart', (e) => {
-      e.stopPropagation();
-      isDraggingNode = true;
-      draggingNodeIndex = idx;
-      circle.classList.add('dragging');
-    }, { passive: false });
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('class', `curve-node-group${isDraggingNode && draggingNodeIndex === idx ? ' dragging' : ''}`);
+      group.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
+      group.dataset.index = idx;
+      group.dataset.x = x;
+      group.dataset.y = y;
 
-    // Double-click / double-tap to delete
-    circle.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      deleteKeyframe(idx);
+      // Transparent hit target for effortless mobile/desktop grabbing
+      const hitCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      hitCircle.setAttribute('cx', '0');
+      hitCircle.setAttribute('cy', '0');
+      hitCircle.setAttribute('r', hitR);
+      hitCircle.setAttribute('class', 'curve-node-hit');
+
+      // Visual outer circular ring
+      const visualCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      visualCircle.setAttribute('cx', '0');
+      visualCircle.setAttribute('cy', '0');
+      visualCircle.setAttribute('r', nodeR);
+      visualCircle.setAttribute('class', 'curve-node');
+
+      // Visual inner reticle dot
+      const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      innerDot.setAttribute('cx', '0');
+      innerDot.setAttribute('cy', '0');
+      innerDot.setAttribute('r', innerR);
+      innerDot.setAttribute('class', 'curve-node-inner');
+
+      group.appendChild(hitCircle);
+      group.appendChild(visualCircle);
+      group.appendChild(innerDot);
+
+      // Mouse drag
+      group.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingNode = true;
+        draggingNodeIndex = idx;
+        justDragged = true;
+        group.classList.add('dragging');
+        const nodeX = timeToX(k.time_s);
+        const nodeY = tempToY(k.temp_f);
+        updateDragTooltip(nodeX, nodeY, k.time_s, k.temp_f);
+      });
+
+      // Touch drag on mobile
+      group.addEventListener('touchstart', (e) => {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        isDraggingNode = true;
+        draggingNodeIndex = idx;
+        justDragged = true;
+        group.classList.add('dragging');
+        const nodeX = timeToX(k.time_s);
+        const nodeY = tempToY(k.temp_f);
+        updateDragTooltip(nodeX, nodeY, k.time_s, k.temp_f);
+        if (navigator.vibrate) navigator.vibrate(10);
+      }, { passive: false });
+
+      // Double-click to delete
+      group.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        deleteKeyframe(idx);
+      });
+
+      // Double-tap on mobile to delete
+      let lastTapTime = 0;
+      group.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTapTime < 320 && now - lastTapTime > 0) {
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+          deleteKeyframe(idx);
+        }
+        lastTapTime = now;
+      });
+
+      el.curvePointsLayer.appendChild(group);
     });
-
-    el.curvePointsLayer.appendChild(circle);
-  });
+  }
 
   // Meta labels
   el.activeCurveTitle.textContent = currentCurve.name;
@@ -891,6 +972,7 @@ function renderKeyframeTable() {
     const inputTime = document.createElement('input');
     inputTime.type = 'number';
     inputTime.className = 'kf-input';
+    inputTime.step = '5';
     inputTime.value = k.time_s;
     inputTime.min = 0;
     inputTime.max = TIME_MAX;
@@ -904,6 +986,7 @@ function renderKeyframeTable() {
     const inputTemp = document.createElement('input');
     inputTemp.type = 'number';
     inputTemp.className = 'kf-input';
+    inputTemp.step = '5';
     inputTemp.value = k.temp_f;
     inputTemp.min = TEMP_MIN;
     inputTemp.max = TEMP_MAX;
@@ -948,17 +1031,137 @@ function deleteKeyframe(idx) {
 }
 
 function addKeyframe(time_s, temp_f) {
+  const snappedTime = Math.max(0, Math.min(TIME_MAX, Math.round(time_s / 5) * 5));
+  const snappedTemp = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Math.round(temp_f / 5) * 5));
   currentCurve.keyframes.push({
-    time_s: Math.max(0, Math.min(TIME_MAX, time_s)),
-    temp_f: Math.max(TEMP_MIN, Math.min(TEMP_MAX, temp_f)),
+    time_s: snappedTime,
+    temp_f: snappedTemp,
   });
   sortAndRefreshCurve();
-  showToast(`Added keyframe at ${time_s}s, ${temp_f}°F`, 'info');
+  showToast(`Added keyframe at ${snappedTime}s, ${snappedTemp}°F`, 'info');
 }
 
 // ==========================================================================
 // Touch & Mouse Dragging for Curve Canvas
 // ==========================================================================
+
+function updateDragTooltip(x, y, time_s, temp_f) {
+  if (!el.curveDragTooltip) return;
+  const rect = el.curveSvg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+
+  const kx = GRAPH_WIDTH / rect.width;
+  const ky = GRAPH_HEIGHT / rect.height;
+  const isMobile = window.innerWidth <= 768;
+
+  el.curveDragTooltip.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
+  el.curveDragTooltip.classList.remove('hidden');
+
+  const timeText = el.curveDragTooltip.querySelector('.drag-val-time');
+  const tempText = el.curveDragTooltip.querySelector('.drag-val-temp');
+  if (timeText) timeText.textContent = `${time_s}s`;
+  if (tempText) tempText.textContent = `${temp_f}°F`;
+
+  const isNearTop = y < 65;
+  const bg = el.curveDragTooltip.querySelector('.drag-tooltip-bg');
+  const arrowDown = el.curveDragTooltip.querySelector('.drag-tooltip-arrow');
+  const arrowUp = el.curveDragTooltip.querySelector('.drag-tooltip-arrow-flip');
+  const text = el.curveDragTooltip.querySelector('.drag-tooltip-text');
+
+  const yOffset = isMobile ? (isNearTop ? 28 : -52) : (isNearTop ? 22 : -44);
+  const textY = isMobile ? (isNearTop ? 44 : -36) : (isNearTop ? 37 : -29);
+  const arrowDownPoints = isMobile ? "-7,-22 7,-22 0,-14" : "-6,-18 6,-18 0,-11";
+  const arrowUpPoints = isMobile ? "-7,22 7,22 0,14" : "-6,18 6,18 0,11";
+
+  const screenX = (x / GRAPH_WIDTH) * rect.width;
+  let shiftX = 0;
+  if (screenX < 65) {
+    shiftX = (65 - screenX);
+  } else if (screenX > rect.width - 65) {
+    shiftX = -((screenX + 65) - rect.width);
+  }
+
+  if (bg) {
+    const w = isMobile ? 116 : 104;
+    const h = isMobile ? 34 : 28;
+    bg.setAttribute('x', (-w / 2) + shiftX);
+    bg.setAttribute('y', yOffset);
+    bg.setAttribute('width', w);
+    bg.setAttribute('height', h);
+  }
+
+  if (text) {
+    text.setAttribute('x', shiftX);
+    text.setAttribute('y', textY);
+  }
+
+  if (arrowDown && arrowUp) {
+    arrowDown.setAttribute('points', arrowDownPoints);
+    arrowUp.setAttribute('points', arrowUpPoints);
+    if (isNearTop) {
+      arrowDown.classList.add('hidden');
+      arrowUp.classList.remove('hidden');
+    } else {
+      arrowDown.classList.remove('hidden');
+      arrowUp.classList.add('hidden');
+    }
+  }
+}
+
+function hideDragTooltip() {
+  if (el.curveDragTooltip) {
+    el.curveDragTooltip.classList.add('hidden');
+  }
+}
+
+function updateNodeScales() {
+  if (!el.curveSvg) return;
+  const rect = el.curveSvg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const kx = GRAPH_WIDTH / rect.width;
+  const ky = GRAPH_HEIGHT / rect.height;
+  const isMobile = window.innerWidth <= 768;
+  const hitR = isMobile ? '32' : '20';
+  const nodeR = isMobile ? '14' : '9';
+  const innerR = isMobile ? '4.5' : '3';
+
+  const groups = el.curvePointsLayer ? el.curvePointsLayer.querySelectorAll('.curve-node-group') : [];
+  groups.forEach((g) => {
+    const x = g.dataset.x;
+    const y = g.dataset.y;
+    if (x !== undefined && y !== undefined) {
+      g.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
+    }
+    const hitCircle = g.querySelector('.curve-node-hit');
+    const visualCircle = g.querySelector('.curve-node');
+    const innerDot = g.querySelector('.curve-node-inner');
+    if (hitCircle) hitCircle.setAttribute('r', hitR);
+    if (visualCircle) visualCircle.setAttribute('r', nodeR);
+    if (innerDot) innerDot.setAttribute('r', innerR);
+  });
+
+  if (isDraggingNode && draggingNodeIndex >= 0 && currentCurve && currentCurve.keyframes[draggingNodeIndex]) {
+    const kf = currentCurve.keyframes[draggingNodeIndex];
+    updateDragTooltip(timeToX(kf.time_s), tempToY(kf.temp_f), kf.time_s, kf.temp_f);
+  }
+
+  if (el.curvePlayheadDotGroup && el.curvePlayheadDotGroup.dataset.x) {
+    const px = el.curvePlayheadDotGroup.dataset.x;
+    const py = el.curvePlayheadDotGroup.dataset.y;
+    el.curvePlayheadDotGroup.setAttribute('transform', `translate(${px}, ${py}) scale(${kx}, ${ky})`);
+  }
+
+  if (el.lsgSvg && el.lsgLiveDotGroup && el.lsgLiveDotGroup.dataset.x) {
+    const lsgRect = el.lsgSvg.getBoundingClientRect();
+    if (lsgRect.width > 0 && lsgRect.height > 0) {
+      const lsgKx = 500 / lsgRect.width;
+      const lsgKy = 160 / lsgRect.height;
+      const lx = el.lsgLiveDotGroup.dataset.x;
+      const ly = el.lsgLiveDotGroup.dataset.y;
+      el.lsgLiveDotGroup.setAttribute('transform', `translate(${lx}, ${ly}) scale(${lsgKx}, ${lsgKy})`);
+    }
+  }
+}
 
 function setupSvgInteraction() {
   const svg = el.curveSvg;
@@ -975,35 +1178,83 @@ function setupSvgInteraction() {
 
   // Click on canvas to add setpoint
   svg.addEventListener('click', (e) => {
-    if (isDraggingNode) return;
+    if (isDraggingNode || justDragged) return;
     const coords = getSvgCoords(e.clientX, e.clientY);
     const time = xToTime(coords.x);
     const temp = yToTemp(coords.y);
     addKeyframe(time, temp);
   });
 
+  // Touchstart proximity check on canvas to grab nearby node
+  svg.addEventListener('touchstart', (e) => {
+    if (isDraggingNode) return;
+    const touch = e.touches[0];
+    if (!touch || !currentCurve || !currentCurve.keyframes) return;
+    const coords = getSvgCoords(touch.clientX, touch.clientY);
+
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const kx = GRAPH_WIDTH / rect.width;
+    const ky = GRAPH_HEIGHT / rect.height;
+
+    let closestIdx = -1;
+    let closestDistPx = Infinity;
+
+    currentCurve.keyframes.forEach((kf, idx) => {
+      const kfX = timeToX(kf.time_s);
+      const kfY = tempToY(kf.temp_f);
+      const dxPx = (coords.x - kfX) / kx;
+      const dyPx = (coords.y - kfY) / ky;
+      const distPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+      if (distPx < closestDistPx) {
+        closestDistPx = distPx;
+        closestIdx = idx;
+      }
+    });
+
+    if (closestDistPx <= 38 && closestIdx >= 0) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      isDraggingNode = true;
+      draggingNodeIndex = closestIdx;
+      justDragged = true;
+      const groups = el.curvePointsLayer.querySelectorAll('.curve-node-group');
+      if (groups[closestIdx]) {
+        groups[closestIdx].classList.add('dragging');
+      }
+      const kf = currentCurve.keyframes[closestIdx];
+      if (kf) {
+        updateDragTooltip(timeToX(kf.time_s), tempToY(kf.temp_f), kf.time_s, kf.temp_f);
+      }
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+  }, { passive: false });
+
   // Mouse drag
   window.addEventListener('mousemove', (e) => {
     if (!isDraggingNode || draggingNodeIndex < 0) return;
     const coords = getSvgCoords(e.clientX, e.clientY);
-    applyNodeDrag(coords.x, coords.y);
+    applyNodeDrag(coords.x, coords.y, e.shiftKey);
   });
 
   window.addEventListener('mouseup', () => {
     if (isDraggingNode) {
       isDraggingNode = false;
       draggingNodeIndex = -1;
+      hideDragTooltip();
       sortAndRefreshCurve();
+      setTimeout(() => { justDragged = false; }, 120);
     }
   });
 
-  // Touch drag for mobile screens
+  // Touch drag for mobile screens — preventDefault stops window scrolling completely
   window.addEventListener('touchmove', (e) => {
     if (!isDraggingNode || draggingNodeIndex < 0) return;
+    if (e.cancelable) e.preventDefault();
     const touch = e.touches[0];
     if (touch) {
       const coords = getSvgCoords(touch.clientX, touch.clientY);
-      applyNodeDrag(coords.x, coords.y);
+      applyNodeDrag(coords.x, coords.y, false);
     }
   }, { passive: false });
 
@@ -1011,20 +1262,62 @@ function setupSvgInteraction() {
     if (isDraggingNode) {
       isDraggingNode = false;
       draggingNodeIndex = -1;
+      hideDragTooltip();
       sortAndRefreshCurve();
+      setTimeout(() => { justDragged = false; }, 120);
     }
   });
 
-  function applyNodeDrag(x, y) {
-    const time = xToTime(x);
-    const temp = yToTemp(y);
+  window.addEventListener('touchcancel', () => {
+    if (isDraggingNode) {
+      isDraggingNode = false;
+      draggingNodeIndex = -1;
+      hideDragTooltip();
+      sortAndRefreshCurve();
+      justDragged = false;
+    }
+  });
+
+  function applyNodeDrag(x, y, isFinePrecision = false) {
+    justDragged = true;
+    const rawTime = xToTime(x);
+    const rawTemp = yToTemp(y);
+
+    const stepTime = isFinePrecision ? 1 : 5;
+    const stepTemp = isFinePrecision ? 1 : 5;
+
+    const time = Math.max(0, Math.min(TIME_MAX, Math.round(rawTime / stepTime) * stepTime));
+    const temp = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Math.round(rawTemp / stepTemp) * stepTemp));
 
     const kf = currentCurve.keyframes[draggingNodeIndex];
     if (kf) {
+      const changed = (kf.time_s !== time || kf.temp_f !== temp);
       kf.time_s = time;
       kf.temp_f = temp;
       renderCurveGraph();
+
+      const nodeX = timeToX(time);
+      const nodeY = tempToY(temp);
+      updateDragTooltip(nodeX, nodeY, time, temp);
+
+      if (changed && navigator.vibrate) {
+        try { navigator.vibrate(6); } catch (_) {}
+      }
     }
+  }
+
+  // Window resize & orientation change to keep circles perfectly round
+  window.addEventListener('resize', updateNodeScales);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(updateNodeScales, 150);
+  });
+
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      updateNodeScales();
+    });
+    if (el.curveSvg) ro.observe(el.curveSvg);
+    if (el.lsgSvg) ro.observe(el.lsgSvg);
   }
 
   el.addKeyframeBtn.addEventListener('click', () => {
@@ -1180,6 +1473,7 @@ function setupCurveActions() {
       el.curveStatusBadge.className = 'state-tag state-heating';
       el.curveStatusBadge.textContent = 'HEATING CURVE';
       el.curvePlayheadLine.classList.remove('hidden');
+      if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.remove('hidden');
       el.curvePlayheadDot.classList.remove('hidden');
 
       showToast(`Executing curve "${currentCurve.name}"! 🔥`, 'success');
@@ -1229,6 +1523,7 @@ function handleCurveTelemetry(data) {
     el.curveStatusBadge.textContent = 'OVERHEAT CUTOFF';
     showToast(`🚨 EMERGENCY SAFETY CUTOFF: Chamber reached ${Number(data.live_temp_f || 600).toFixed(1)}°F! Heating auto-aborted to prevent damage.`, 'error');
     el.curvePlayheadLine.classList.add('hidden');
+    if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.add('hidden');
     el.curvePlayheadDot.classList.add('hidden');
     return;
   }
@@ -1246,6 +1541,7 @@ function handleCurveTelemetry(data) {
     setTimeout(() => {
       if (!isCurveRunning) {
         el.curvePlayheadLine.classList.add('hidden');
+        if (el.curvePlayheadDotGroup) el.curvePlayheadDotGroup.classList.add('hidden');
         el.curvePlayheadDot.classList.add('hidden');
       }
     }, 4000);
@@ -1273,9 +1569,19 @@ function handleCurveTelemetry(data) {
     const playheadY = tempToY(target);
     el.curvePlayheadLine.setAttribute('x1', playheadX);
     el.curvePlayheadLine.setAttribute('x2', playheadX);
-    el.curvePlayheadDot.setAttribute('cx', playheadX);
-    el.curvePlayheadDot.setAttribute('cy', playheadY);
     el.curvePlayheadLine.classList.remove('hidden');
+
+    if (el.curvePlayheadDotGroup) {
+      const rect = el.curveSvg.getBoundingClientRect();
+      const kx = rect.width > 0 ? GRAPH_WIDTH / rect.width : 1;
+      const ky = rect.height > 0 ? GRAPH_HEIGHT / rect.height : 1;
+      el.curvePlayheadDotGroup.dataset.x = playheadX;
+      el.curvePlayheadDotGroup.dataset.y = playheadY;
+      el.curvePlayheadDotGroup.setAttribute('transform', `translate(${playheadX}, ${playheadY}) scale(${kx}, ${ky})`);
+      el.curvePlayheadDotGroup.classList.remove('hidden');
+    }
+    el.curvePlayheadDot.setAttribute('cx', 0);
+    el.curvePlayheadDot.setAttribute('cy', 0);
     el.curvePlayheadDot.classList.remove('hidden');
   } else {
     el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
@@ -1290,9 +1596,19 @@ function handleCurveTelemetry(data) {
     const playheadY = tempToY(target);
     el.curvePlayheadLine.setAttribute('x1', playheadX);
     el.curvePlayheadLine.setAttribute('x2', playheadX);
-    el.curvePlayheadDot.setAttribute('cx', playheadX);
-    el.curvePlayheadDot.setAttribute('cy', playheadY);
     el.curvePlayheadLine.classList.remove('hidden');
+
+    if (el.curvePlayheadDotGroup) {
+      const rect = el.curveSvg.getBoundingClientRect();
+      const kx = rect.width > 0 ? GRAPH_WIDTH / rect.width : 1;
+      const ky = rect.height > 0 ? GRAPH_HEIGHT / rect.height : 1;
+      el.curvePlayheadDotGroup.dataset.x = playheadX;
+      el.curvePlayheadDotGroup.dataset.y = playheadY;
+      el.curvePlayheadDotGroup.setAttribute('transform', `translate(${playheadX}, ${playheadY}) scale(${kx}, ${ky})`);
+      el.curvePlayheadDotGroup.classList.remove('hidden');
+    }
+    el.curvePlayheadDot.setAttribute('cx', 0);
+    el.curvePlayheadDot.setAttribute('cy', 0);
     el.curvePlayheadDot.classList.remove('hidden');
 
     const liveY = tempToY(live);

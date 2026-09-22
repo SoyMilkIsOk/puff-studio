@@ -369,7 +369,9 @@
                   <path id="lsg-trail-stroke" class="lsg-trail-stroke" d="" />
 
                   <!-- Live Playhead Dot -->
-                  <circle id="lsg-live-dot" class="lsg-live-dot hidden" cx="0" cy="0" r="5" />
+                  <g id="lsg-live-dot-group" class="hidden">
+                    <circle id="lsg-live-dot" class="lsg-live-dot" cx="0" cy="0" r="5" />
+                  </g>
                 </svg>
               </div>
             </div>
@@ -700,16 +702,32 @@
 
                 <!-- Playhead Indicator (Scrub Line) -->
                 <line id="curve-playhead-line" class="playhead-line hidden" x1="0" y1="0" x2="0" y2="360" />
-                <circle id="curve-playhead-dot" class="playhead-dot hidden" cx="0" cy="0" r="7" />
+                <g id="curve-playhead-dot-group" class="hidden">
+                  <circle id="curve-playhead-dot" class="playhead-dot" cx="0" cy="0" r="7" />
+                </g>
 
                 <!-- Keyframe Control Nodes Container -->
                 <g id="curve-points-layer"></g>
+
+                <!-- Live Drag Floating HUD Tooltip -->
+                <g id="curve-drag-tooltip" class="curve-drag-tooltip hidden" pointer-events="none">
+                  <g class="drag-tooltip-bubble">
+                    <rect class="drag-tooltip-bg" x="-52" y="-46" width="104" height="30" rx="8" />
+                    <polygon class="drag-tooltip-arrow" points="-6,-18 6,-18 0,-11" />
+                    <polygon class="drag-tooltip-arrow-flip hidden" points="-6,18 6,18 0,11" />
+                    <text class="drag-tooltip-text" x="0" y="-28" text-anchor="middle">
+                      <tspan class="drag-val-time">0s</tspan>
+                      <tspan class="drag-val-sep"> • </tspan>
+                      <tspan class="drag-val-temp">0°F</tspan>
+                    </text>
+                  </g>
+                </g>
               </svg>
 
               <div class="graph-hint">
-                <span class="hint-bullet">•</span> Tap / Click to add setpoints
-                <span class="hint-bullet">•</span> Drag nodes to adjust time &amp; temp
-                <span class="hint-bullet">•</span> Double-tap node to delete
+                <span class="hint-bullet">•</span> Snaps to 5s &amp; 5°
+                <span class="hint-bullet">•</span> Tap to add
+                <span class="hint-bullet">•</span> Double-tap to delete
               </div>
             </div>
           </div>

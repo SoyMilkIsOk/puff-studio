@@ -1748,6 +1748,7 @@ input[type="range"]:disabled,
   position: relative;
   overflow: hidden;
   box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.7);
+  touch-action: none;
 }
 
 .curve-svg {
@@ -1755,6 +1756,7 @@ input[type="range"]:disabled,
   height: 100%;
   cursor: crosshair;
   display: block;
+  touch-action: none;
 }
 
 .graph-grid-line {
@@ -1788,26 +1790,78 @@ input[type="range"]:disabled,
   pointer-events: none;
 }
 
-/* Draggable Nodes */
-.curve-node {
+/* Draggable Nodes & Counter-Scaled Interactive Reticles */
+.curve-node-group {
   cursor: grab;
-  transition: r 0.15s ease, stroke-width 0.15s ease;
+  touch-action: none;
+  user-select: none;
 }
 
-.curve-node:hover {
-  r: 9;
-  stroke-width: 4;
-  filter: drop-shadow(0 0 8px #ff7a00);
+.curve-node-group:hover {
+  cursor: grab;
 }
 
-.curve-node.dragging {
+.curve-node-group:active,
+.curve-node-group.dragging {
   cursor: grabbing;
-  r: 10;
-  stroke-width: 5;
-  fill: #fff;
 }
 
-/* Playhead Needle */
+/* Generous transparent hit target — ensures easy touch capture on mobile */
+.curve-node-hit {
+  cursor: grab;
+  touch-action: none;
+  fill: transparent;
+  pointer-events: all;
+}
+
+.curve-node-group:active .curve-node-hit,
+.curve-node-group.dragging .curve-node-hit {
+  cursor: grabbing;
+}
+
+/* Visual circular node ring */
+.curve-node {
+  fill: #11141e;
+  stroke: #ff7a00;
+  stroke-width: 3;
+  pointer-events: none;
+  transition: r 0.15s ease, stroke-width 0.15s ease, stroke 0.15s ease, fill 0.15s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 5px rgba(255, 122, 0, 0.5));
+}
+
+/* Center reticle dot */
+.curve-node-inner {
+  fill: #ff7a00;
+  pointer-events: none;
+  transition: fill 0.15s ease, r 0.15s ease;
+}
+
+/* Hover effect */
+.curve-node-group:hover .curve-node {
+  stroke: #ffa033;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 10px rgba(255, 122, 0, 0.9));
+}
+
+.curve-node-group:hover .curve-node-inner {
+  fill: #ffffff;
+}
+
+/* Active / Dragging state */
+.curve-node-group:active .curve-node,
+.curve-node-group.dragging .curve-node {
+  stroke: var(--accent-cyan, #00f2fe) !important;
+  stroke-width: 4;
+  fill: #0c1626;
+  filter: drop-shadow(0 0 12px rgba(0, 242, 254, 0.9));
+}
+
+.curve-node-group:active .curve-node-inner,
+.curve-node-group.dragging .curve-node-inner {
+  fill: var(--accent-cyan, #00f2fe) !important;
+}
+
+/* Playhead Needle & Reticle */
 .playhead-line {
   stroke: #ff9900;
   stroke-width: 2;
@@ -1822,6 +1876,58 @@ input[type="range"]:disabled,
   stroke-width: 2.5;
   filter: drop-shadow(0 0 10px #ff9900);
   pointer-events: none;
+}
+
+/* Live Drag Floating Tooltip HUD */
+.curve-drag-tooltip {
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+}
+
+.curve-drag-tooltip.hidden {
+  display: none;
+}
+
+.drag-tooltip-bg {
+  fill: #0c1524;
+  stroke: var(--accent-cyan, #00f2fe);
+  stroke-width: 1.8;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 10px rgba(0, 242, 254, 0.65));
+}
+
+.drag-tooltip-arrow,
+.drag-tooltip-arrow-flip {
+  fill: var(--accent-cyan, #00f2fe);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.drag-tooltip-arrow-flip.hidden,
+.drag-tooltip-arrow.hidden {
+  display: none;
+}
+
+.drag-tooltip-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  alignment-baseline: central;
+  dominant-baseline: central;
+  user-select: none;
+}
+
+.drag-val-time {
+  fill: #00f2fe;
+}
+
+.drag-val-sep {
+  fill: rgba(255, 255, 255, 0.4);
+}
+
+.drag-val-temp {
+  fill: #ff9900;
 }
 
 .graph-hint {
@@ -2303,21 +2409,11 @@ input, textarea, table {
   color: #fff;
 }
 
-/* Touch Control on Heat Curve SVG */
+/* Touch Control on Heat Curve SVG & Graph Container */
+.graph-wrapper,
+.graph-container,
 .curve-svg {
   touch-action: none;
-}
-
-.curve-node {
-  cursor: grab;
-  touch-action: none;
-  transition: r 0.15s ease;
-}
-
-.curve-node:active, .curve-node.dragging {
-  cursor: grabbing;
-  r: 10;
-  stroke: var(--accent-cyan) !important;
 }
 
 /* Touch Friendly Mobile Adjustments (< 768px) */
@@ -2487,6 +2583,29 @@ input, textarea, table {
   .graph-x-axis {
     padding-left: 42px;
     font-size: 0.65rem;
+  }
+
+  /* Mobile Heat Curve Drag Points: larger and easier to drag without accidental scrolling */
+  .curve-node {
+    stroke-width: 3.5;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 8px rgba(255, 122, 0, 0.7));
+  }
+
+  .curve-node-group:active .curve-node,
+  .curve-node-group.dragging .curve-node {
+    stroke-width: 4.5;
+    filter: drop-shadow(0 0 14px rgba(0, 242, 254, 1));
+  }
+
+  /* Mobile Live Drag Tooltip HUD */
+  .drag-tooltip-bg {
+    stroke-width: 2.2;
+    filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 14px rgba(0, 242, 254, 0.85));
+  }
+
+  .drag-tooltip-text {
+    font-size: 14px;
+    font-weight: 800;
   }
 
   /* Graph hint — keep it readable and inside bounds */
