@@ -690,6 +690,14 @@
               <span>400°</span>
             </div>
             <div class="graph-container" id="curve-graph-container">
+              <!-- Live Locked Indicator Badge -->
+              <div id="curve-locked-badge" class="curve-locked-badge hidden">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>CURVE LOCKED</span>
+              </div>
               <svg id="curve-svg" class="curve-svg" viewBox="0 0 800 360" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="curveFillGrad" x1="0%" y1="0%" x2="0%" y2="100%">

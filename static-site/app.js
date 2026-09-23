@@ -164,6 +164,9 @@ const el = {
   activeCurveDesc: document.getElementById('active-curve-desc'),
   curveDurationBadge: document.getElementById('curve-duration-badge'),
   curveStatusBadge: document.getElementById('curve-status-badge'),
+  curveGraphContainer: document.getElementById('curve-graph-container'),
+  curveLockedBadge: document.getElementById('curve-locked-badge'),
+  keyframeEditorSection: document.querySelector('.keyframe-editor-section'),
   curveSvg: document.getElementById('curve-svg'),
   curveAreaPath: document.getElementById('curve-area-path'),
   curveStrokePath: document.getElementById('curve-stroke-path'),
@@ -918,7 +921,7 @@ function renderCurveGraph() {
       group.dataset.x = x;
       group.dataset.y = y;
       group.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
-      group.classList.toggle('dragging', isDraggingNode && draggingNodeIndex === idx);
+      group.classList.toggle('dragging', !isCurveRunning && isDraggingNode && draggingNodeIndex === idx);
     });
   } else {
     el.curvePointsLayer.innerHTML = '';
@@ -927,7 +930,7 @@ function renderCurveGraph() {
       const y = tempToY(k.temp_f);
 
       const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      group.setAttribute('class', `curve-node-group${isDraggingNode && draggingNodeIndex === idx ? ' dragging' : ''}`);
+      group.setAttribute('class', `curve-node-group${!isCurveRunning && isDraggingNode && draggingNodeIndex === idx ? ' dragging' : ''}`);
       group.setAttribute('transform', `translate(${x}, ${y}) scale(${kx}, ${ky})`);
       group.dataset.index = idx;
       group.dataset.x = x;
@@ -960,6 +963,7 @@ function renderCurveGraph() {
 
       // Mouse drag
       group.addEventListener('mousedown', (e) => {
+        if (isCurveRunning) return;
         e.stopPropagation();
         isDraggingNode = true;
         draggingNodeIndex = idx;
@@ -972,6 +976,7 @@ function renderCurveGraph() {
 
       // Touch drag on mobile
       group.addEventListener('touchstart', (e) => {
+        if (isCurveRunning) return;
         if (e.cancelable) e.preventDefault();
         e.stopPropagation();
         isDraggingNode = true;
@@ -986,6 +991,7 @@ function renderCurveGraph() {
 
       // Double-click to delete
       group.addEventListener('dblclick', (e) => {
+        if (isCurveRunning) return;
         e.stopPropagation();
         deleteKeyframe(idx);
       });
@@ -993,6 +999,7 @@ function renderCurveGraph() {
       // Double-tap on mobile to delete
       let lastTapTime = 0;
       group.addEventListener('touchend', (e) => {
+        if (isCurveRunning) return;
         const now = Date.now();
         if (now - lastTapTime < 320 && now - lastTapTime > 0) {
           if (e.cancelable) e.preventDefault();
@@ -1034,7 +1041,9 @@ function renderKeyframeTable() {
     inputTime.value = k.time_s;
     inputTime.min = 0;
     inputTime.max = TIME_MAX;
+    inputTime.disabled = isCurveRunning;
     inputTime.addEventListener('change', (e) => {
+      if (isCurveRunning) return;
       const val = Number(e.target.value);
       k.time_s = Math.max(0, Math.min(TIME_MAX, Number.isFinite(val) ? val : k.time_s));
       sortAndRefreshCurve();
@@ -1049,7 +1058,9 @@ function renderKeyframeTable() {
     inputTemp.value = k.temp_f;
     inputTemp.min = TEMP_MIN;
     inputTemp.max = TEMP_MAX;
+    inputTemp.disabled = isCurveRunning;
     inputTemp.addEventListener('change', (e) => {
+      if (isCurveRunning) return;
       const val = Number(e.target.value);
       k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number.isFinite(val) ? val : k.temp_f));
       renderCurveGraph();
@@ -1061,7 +1072,11 @@ function renderKeyframeTable() {
     btnDel.className = 'btn-delete-node';
     btnDel.textContent = '✕';
     btnDel.title = 'Remove keyframe';
-    btnDel.addEventListener('click', () => deleteKeyframe(idx));
+    btnDel.disabled = isCurveRunning;
+    btnDel.addEventListener('click', () => {
+      if (isCurveRunning) return;
+      deleteKeyframe(idx);
+    });
     tdAction.appendChild(btnDel);
 
     tr.appendChild(tdIdx);
@@ -1074,6 +1089,7 @@ function renderKeyframeTable() {
 }
 
 function sortAndRefreshCurve() {
+  if (isCurveRunning) return;
   currentCurve.keyframes.sort((a, b) => a.time_s - b.time_s);
   const lastKf = currentCurve.keyframes[currentCurve.keyframes.length - 1];
   currentCurve.duration_s = lastKf ? lastKf.time_s : 50;
@@ -1081,6 +1097,10 @@ function sortAndRefreshCurve() {
 }
 
 function deleteKeyframe(idx) {
+  if (isCurveRunning) {
+    showToast('Cannot modify keyframes while heat curve is executing', 'warning');
+    return;
+  }
   if (currentCurve.keyframes.length <= 2) {
     showToast('Curves require at least 2 keyframes (start and finish)', 'error');
     return;
@@ -1091,6 +1111,10 @@ function deleteKeyframe(idx) {
 }
 
 function addKeyframe(time_s, temp_f) {
+  if (isCurveRunning) {
+    showToast('Cannot add keyframes while heat curve is executing', 'warning');
+    return;
+  }
   const snappedTime = Math.max(0, Math.min(TIME_MAX, Math.round(time_s / 5) * 5));
   const snappedTemp = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Math.round(temp_f / 5) * 5));
   currentCurve.keyframes.push({
@@ -1223,6 +1247,46 @@ function updateNodeScales() {
   }
 }
 
+function setCurveLocked(locked) {
+  if (locked) {
+    if (isDraggingNode) {
+      isDraggingNode = false;
+      draggingNodeIndex = -1;
+      justDragged = false;
+      hideDragTooltip();
+    }
+    if (el.curveGraphContainer) el.curveGraphContainer.classList.add('locked');
+    if (el.curveSvg) el.curveSvg.classList.add('locked');
+    if (el.curvePointsLayer) el.curvePointsLayer.classList.add('locked');
+    if (el.curveLockedBadge) el.curveLockedBadge.classList.remove('hidden');
+    if (el.curvePillsContainer) el.curvePillsContainer.classList.add('locked');
+    if (el.keyframeEditorSection) el.keyframeEditorSection.classList.add('locked');
+    if (el.addKeyframeBtn) el.addKeyframeBtn.disabled = true;
+    if (el.newCurveBtn) el.newCurveBtn.disabled = true;
+    if (el.saveCurveBtn) el.saveCurveBtn.disabled = true;
+    if (el.keyframeTableBody) {
+      el.keyframeTableBody.querySelectorAll('input, button').forEach((elem) => {
+        elem.disabled = true;
+      });
+    }
+  } else {
+    if (el.curveGraphContainer) el.curveGraphContainer.classList.remove('locked');
+    if (el.curveSvg) el.curveSvg.classList.remove('locked');
+    if (el.curvePointsLayer) el.curvePointsLayer.classList.remove('locked');
+    if (el.curveLockedBadge) el.curveLockedBadge.classList.add('hidden');
+    if (el.curvePillsContainer) el.curvePillsContainer.classList.remove('locked');
+    if (el.keyframeEditorSection) el.keyframeEditorSection.classList.remove('locked');
+    if (el.addKeyframeBtn) el.addKeyframeBtn.disabled = false;
+    if (el.newCurveBtn) el.newCurveBtn.disabled = false;
+    if (el.saveCurveBtn) el.saveCurveBtn.disabled = false;
+    if (el.keyframeTableBody) {
+      el.keyframeTableBody.querySelectorAll('input, button').forEach((elem) => {
+        elem.disabled = false;
+      });
+    }
+  }
+}
+
 function setupSvgInteraction() {
   const svg = el.curveSvg;
   if (!svg) return;
@@ -1239,7 +1303,7 @@ function setupSvgInteraction() {
 
   // Click on canvas to add setpoint
   svg.addEventListener('click', (e) => {
-    if (isDraggingNode || justDragged) return;
+    if (isCurveRunning || isDraggingNode || justDragged) return;
     const coords = getSvgCoords(e.clientX, e.clientY);
     const time = xToTime(coords.x);
     const temp = yToTemp(coords.y);
@@ -1248,7 +1312,7 @@ function setupSvgInteraction() {
 
   // Touchstart proximity check on canvas to grab nearby node
   svg.addEventListener('touchstart', (e) => {
-    if (isDraggingNode) return;
+    if (isCurveRunning || isDraggingNode) return;
     const touch = e.touches[0];
     if (!touch || !currentCurve || !currentCurve.keyframes) return;
     const coords = getSvgCoords(touch.clientX, touch.clientY);
@@ -1293,7 +1357,7 @@ function setupSvgInteraction() {
 
   // Mouse drag
   window.addEventListener('mousemove', (e) => {
-    if (!isDraggingNode || draggingNodeIndex < 0) return;
+    if (isCurveRunning || !isDraggingNode || draggingNodeIndex < 0) return;
     const coords = getSvgCoords(e.clientX, e.clientY);
     applyNodeDrag(coords.x, coords.y, e.shiftKey);
   });
@@ -1303,14 +1367,14 @@ function setupSvgInteraction() {
       isDraggingNode = false;
       draggingNodeIndex = -1;
       hideDragTooltip();
-      sortAndRefreshCurve();
+      if (!isCurveRunning) sortAndRefreshCurve();
       setTimeout(() => { justDragged = false; }, 120);
     }
   });
 
   // Touch drag for mobile screens — preventDefault stops window scrolling completely
   window.addEventListener('touchmove', (e) => {
-    if (!isDraggingNode || draggingNodeIndex < 0) return;
+    if (isCurveRunning || !isDraggingNode || draggingNodeIndex < 0) return;
     if (e.cancelable) e.preventDefault();
     const touch = e.touches[0];
     if (touch) {
@@ -1324,7 +1388,7 @@ function setupSvgInteraction() {
       isDraggingNode = false;
       draggingNodeIndex = -1;
       hideDragTooltip();
-      sortAndRefreshCurve();
+      if (!isCurveRunning) sortAndRefreshCurve();
       setTimeout(() => { justDragged = false; }, 120);
     }
   });
@@ -1334,12 +1398,13 @@ function setupSvgInteraction() {
       isDraggingNode = false;
       draggingNodeIndex = -1;
       hideDragTooltip();
-      sortAndRefreshCurve();
+      if (!isCurveRunning) sortAndRefreshCurve();
       justDragged = false;
     }
   });
 
   function applyNodeDrag(x, y, isFinePrecision = false) {
+    if (isCurveRunning || !isDraggingNode || draggingNodeIndex < 0 || !currentCurve) return;
     justDragged = true;
     const rawTime = xToTime(x);
     const rawTemp = yToTemp(y);
@@ -1382,6 +1447,10 @@ function setupSvgInteraction() {
   }
 
   el.addKeyframeBtn.addEventListener('click', () => {
+    if (isCurveRunning) {
+      showToast('Cannot add keyframes while heat curve is executing', 'warning');
+      return;
+    }
     const last = currentCurve.keyframes[currentCurve.keyframes.length - 1];
     const newTime = last ? Math.min(TIME_MAX, last.time_s + 10) : 30;
     addKeyframe(newTime, 485);
@@ -1435,6 +1504,10 @@ function renderCurvePills() {
 }
 
 function selectCurve(curve) {
+  if (isCurveRunning) {
+    showToast('Curve is actively executing. Stop before switching curves.', 'warning');
+    return;
+  }
   currentCurve = JSON.parse(JSON.stringify(curve));
   const pills = el.curvePillsContainer.querySelectorAll('.curve-pill');
   if (pills.length === curvesList.length && pills.length > 0) {
@@ -1544,6 +1617,10 @@ function setupCurveActions() {
   // New Curve
   if (el.newCurveBtn) {
     el.newCurveBtn.addEventListener('click', () => {
+      if (isCurveRunning) {
+        showToast('Cannot create a new curve while a curve is running', 'warning');
+        return;
+      }
       currentCurve = {
         id: `custom-${Date.now().toString(36)}`,
         name: 'Custom Curve',
@@ -1564,6 +1641,10 @@ function setupCurveActions() {
   // Save Curve Modal
   if (el.saveCurveBtn) {
     el.saveCurveBtn.addEventListener('click', () => {
+      if (isCurveRunning) {
+        showToast('Cannot modify or save curves while a curve is running', 'warning');
+        return;
+      }
       if (el.saveCurveNameInput) el.saveCurveNameInput.value = currentCurve.name;
       if (el.saveCurveDescInput) el.saveCurveDescInput.value = currentCurve.description || '';
       if (el.saveCurveModal) el.saveCurveModal.classList.remove('hidden');
@@ -1647,6 +1728,7 @@ function setupCurveActions() {
     try {
       curveGovernor.client = activeClient;
       isCurveRunning = true;
+      setCurveLocked(true);
       if (el.runCurveBtn) el.runCurveBtn.disabled = false;
       if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
       if (el.stopCurveBtn) el.stopCurveBtn.disabled = false;
@@ -1664,6 +1746,7 @@ function setupCurveActions() {
       showToast(err.message || 'Failed to start curve', 'error');
     } finally {
       isCurveRunning = false;
+      setCurveLocked(false);
       if (el.runCurveBtn) el.runCurveBtn.disabled = false;
       if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
       if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
@@ -1697,6 +1780,7 @@ function setupCurveActions() {
         console.warn('Error stopping curve:', e);
       } finally {
         isCurveRunning = false;
+        setCurveLocked(false);
         if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
         if (el.runCurveBtn) el.runCurveBtn.disabled = false;
         el.stopCurveBtn.disabled = true;
@@ -1712,6 +1796,7 @@ function setupCurveActions() {
 function handleCurveTelemetry(data) {
   if (data.status === 'emergency_cutoff') {
     isCurveRunning = false;
+    setCurveLocked(false);
     if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
     if (el.runCurveBtn) el.runCurveBtn.disabled = false;
     if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
@@ -1728,6 +1813,7 @@ function handleCurveTelemetry(data) {
 
   if (data.status === 'connection_lost') {
     isCurveRunning = false;
+    setCurveLocked(false);
     if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
     if (el.runCurveBtn) el.runCurveBtn.disabled = false;
     if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
@@ -1743,6 +1829,7 @@ function handleCurveTelemetry(data) {
 
   if (data.status === 'stopped' || data.status === 'completed' || data.status === 'ended_early' || !data.is_active) {
     isCurveRunning = false;
+    setCurveLocked(false);
     if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'START CURVE';
     if (el.runCurveBtn) el.runCurveBtn.disabled = false;
     if (el.stopCurveBtn) el.stopCurveBtn.disabled = true;
@@ -1764,6 +1851,7 @@ function handleCurveTelemetry(data) {
   }
 
   isCurveRunning = true;
+  setCurveLocked(true);
   el.stopCurveBtn.disabled = false;
 
   const elapsed = Number(data.elapsed_s || 0);
@@ -2721,10 +2809,16 @@ function bootstrap() {
         }
         if (isCurveRunning) {
           curveGovernor.stop().catch(() => {});
+          isCurveRunning = false;
+          setCurveLocked(false);
         }
       } else {
         showToast('Device connection lost. Reconnect to resume control.', 'error', 6500);
       }
+    } else if (isCurveRunning) {
+      curveGovernor.stop().catch(() => {});
+      isCurveRunning = false;
+      setCurveLocked(false);
     }
     handleTelemetryUpdate(bleClient.telemetry);
   });
@@ -2736,6 +2830,11 @@ function bootstrap() {
       } else {
         showToast('Demo device disconnected.', 'info', 3000);
       }
+    }
+    if (isCurveRunning) {
+      curveGovernor.stop().catch(() => {});
+      isCurveRunning = false;
+      setCurveLocked(false);
     }
     handleTelemetryUpdate(simClient.telemetry);
   });

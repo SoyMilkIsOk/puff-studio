@@ -1861,6 +1861,129 @@ input[type="range"]:disabled,
   fill: var(--accent-cyan, #00f2fe) !important;
 }
 
+/* ==========================================================================
+   Curve Locked State (Active Curve Execution)
+   ========================================================================== */
+
+.graph-container.locked,
+.curve-svg.locked {
+  cursor: default !important;
+}
+
+.graph-container.locked {
+  border-color: rgba(255, 122, 0, 0.4);
+  box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.75), 0 0 16px rgba(255, 122, 0, 0.15);
+}
+
+.graph-container.locked .curve-svg {
+  cursor: default !important;
+}
+
+.graph-container.locked .curve-node-group,
+.curve-svg.locked .curve-node-group,
+.curve-points-layer.locked .curve-node-group {
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+.graph-container.locked .curve-node-hit,
+.curve-svg.locked .curve-node-hit,
+.curve-points-layer.locked .curve-node-hit {
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+.graph-container.locked .curve-node,
+.curve-svg.locked .curve-node,
+.curve-points-layer.locked .curve-node {
+  stroke: #ff9900;
+  stroke-width: 2.5;
+  fill: #121622;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 4px rgba(255, 153, 0, 0.4));
+  opacity: 0.9;
+  pointer-events: none !important;
+}
+
+.graph-container.locked .curve-node-inner,
+.curve-svg.locked .curve-node-inner,
+.curve-points-layer.locked .curve-node-inner {
+  fill: #ff9900;
+  opacity: 0.9;
+  pointer-events: none !important;
+}
+
+.graph-container.locked .curve-node-group:hover .curve-node,
+.curve-points-layer.locked .curve-node-group:hover .curve-node {
+  stroke: #ff9900 !important;
+  stroke-width: 2.5 !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 4px rgba(255, 153, 0, 0.4)) !important;
+}
+
+.graph-container.locked .curve-node-group:hover .curve-node-inner,
+.curve-points-layer.locked .curve-node-group:hover .curve-node-inner {
+  fill: #ff9900 !important;
+}
+
+.graph-container.locked .curve-stroke {
+  filter: drop-shadow(0 0 12px rgba(255, 122, 0, 0.8));
+}
+
+/* Locked Indicator Badge on Chart */
+.curve-locked-badge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(20, 24, 36, 0.85);
+  border: 1px solid rgba(255, 153, 0, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-full);
+  color: #ff9900;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 15;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 0 10px rgba(255, 153, 0, 0.25);
+  user-select: none;
+  animation: pulse-locked 2.2s infinite ease-in-out;
+}
+
+.curve-locked-badge.hidden {
+  display: none !important;
+}
+
+@keyframes pulse-locked {
+  0%, 100% {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 0 8px rgba(255, 153, 0, 0.2);
+    border-color: rgba(255, 153, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 153, 0, 0.45);
+    border-color: rgba(255, 153, 0, 0.7);
+  }
+}
+
+.curve-pills-list.locked .curve-pill:not(.active) {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.keyframe-editor-section.locked .kf-input,
+.keyframe-editor-section.locked .btn-delete-node,
+.keyframe-editor-section.locked #add-keyframe-btn {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 /* Playhead Needle & Reticle */
 .playhead-line {
   stroke: #ff9900;
