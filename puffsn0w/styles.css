@@ -3129,7 +3129,7 @@ input, textarea, table {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 20px;
+  padding: 16px 20px 22px 20px;
 }
 
 .tutorial-steps {
@@ -3229,6 +3229,7 @@ input, textarea, table {
   font-size: 0.825rem;
   color: #fef08a;
   line-height: 1.4;
+  margin-bottom: 8px;
 }
 
 .tutorial-tip-icon {
@@ -4172,7 +4173,7 @@ body.lockscreen-active .btn-global-estop {
 
 /* Modal Body */
 .lockscreen-info-body {
-  padding: 16px 20px;
+  padding: 16px 20px 20px 20px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;
@@ -4290,6 +4291,7 @@ body.lockscreen-active .btn-global-estop {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: 14px;
   animation: panelFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -4493,6 +4495,7 @@ body.lockscreen-active .btn-global-estop {
 .instruction-tip-card {
   position: relative;
   margin-top: 10px;
+  margin-bottom: 6px;
   padding: 11px 14px;
   background: rgba(0, 242, 254, 0.05);
   border: 1px solid rgba(0, 242, 254, 0.24);
@@ -4583,7 +4586,7 @@ body.lockscreen-active .btn-global-estop {
     padding: 14px 16px;
   }
   .lockscreen-info-body {
-    padding: 12px 14px;
+    padding: 12px 14px 18px 14px;
     gap: 12px;
   }
   .lockscreen-info-footer {
