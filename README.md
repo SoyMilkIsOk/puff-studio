@@ -199,10 +199,15 @@ test-puff/
 ├── requirements.txt   # Pinned dependencies (puffco-py>=0.1.3, aiohttp, bleak)
 ├── curves.json        # Persistent JSON database for heat curve presets and user curves
 ├── README.md          # Project documentation & puffco-py integration guide
-└── static/
-    ├── index.html     # Semantic HTML5 layout (Controller HUD & Heat Curve Studio)
-    ├── styles.css     # Dark cyber glassmorphic design system
-    └── app.js         # Reactive client logic, WebSocket handler, and interactive SVG canvas
+├── static/            # Full-stack companion interface served by server.py
+│   ├── index.html     # Semantic HTML5 layout (Controller HUD & Heat Curve Studio)
+│   ├── styles.css     # Dark cyber glassmorphic design system
+│   └── app.js         # Reactive client logic, WebSocket handler, and interactive SVG canvas
+└── puffsn0w/          # Standalone client-side PWA (Puffco Jailbreak & Web Bluetooth Studio)
+    ├── index.html     # SEO-optimized PWA layout & Web Bluetooth controller
+    ├── manifest.json  # Web App Manifest for standalone install
+    ├── puffco-ble.js  # Pure client-side Web Bluetooth GATT driver
+    └── demo/          # Interactive browser demo simulator
 ```
 
 ---

@@ -3,7 +3,7 @@
  * Network-first strategy with offline cache fallback.
  */
 
-const CACHE_NAME = 'puffsn0w-cache-v4.9';
+const CACHE_NAME = 'puffsn0w-cache-v5.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const ASSETS_TO_CACHE = [
   './curves-data.js',
   './curves.json',
   './manifest.json',
+  './icons/site.webmanifest',
   './icons/favicon.ico',
   './icons/favicon-32x32.png',
   './icons/favicon-16x16.png',

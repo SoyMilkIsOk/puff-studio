@@ -1,12 +1,27 @@
 {
-  "name": "puffsn0w",
+  "id": "/?source=pwa",
+  "name": "puffsn0w — Puffco Jailbreak & Heat Curve Studio",
   "short_name": "puffsn0w",
-  "description": "free your e-rig — jailbreak controller & dynamic heat curve studio for Peak Pro and Proxy devices.",
+  "description": "The open-source Puffco jailbreak web app for Peak Pro, 3DXL & Proxy. Real-time dynamic heat curves, precision Web Bluetooth telemetry, and profile management with zero app lock-in.",
+  "lang": "en-US",
+  "dir": "ltr",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
   "background_color": "#08090d",
   "theme_color": "#08090d",
-  "orientation": "portrait",
+  "categories": [
+    "utilities",
+    "lifestyle",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "./icons/android-chrome-192x192.png",
@@ -15,16 +30,84 @@
       "purpose": "any"
     },
     {
+      "src": "./icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "./icons/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "./icons/puffsn0w-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "./icons/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Connect Puffco",
+      "short_name": "Connect",
+      "description": "Scan and pair Peak Pro or Proxy via Web Bluetooth",
+      "url": "./index.html?action=connect",
+      "icons": [
+        {
+          "src": "./icons/android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Heat Curve Studio",
+      "short_name": "Curves",
+      "description": "Interactive dynamic heat curve designer and PID governor",
+      "url": "./index.html?tab=curves",
+      "icons": [
+        {
+          "src": "./icons/android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Demo Simulator",
+      "short_name": "Demo",
+      "description": "Test custom heat curves with a simulated Peak Pro 3DXL",
+      "url": "./demo/index.html",
+      "icons": [
+        {
+          "src": "./icons/android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
