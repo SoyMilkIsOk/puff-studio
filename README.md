@@ -77,7 +77,7 @@ If you are a developer looking to integrate Puffco devices into **Home Assistant
 ### 2. Live Chamber Dynamics & Telemetry HUD
 - **Thermal Dial Gauge**: Circular SVG gauge displaying real-time bowl temperature vs setpoint with ambient state-reactive glow, calibrated 400°F–600°F scale ticks, and live needles.
 - **Live Session Heat Curve**: Plots the actual chamber temperature trail starting from $t=0$, tracking preheat climb, plateau stability, and cooling ramp.
-- **Tactile Session Controls**: One-click **START SESH**, real-time **BOOST (+15s / +10°F)**, and emergency **STOP** abort.
+- **Tactile Session Controls**: One-click **START SESH**, real-time **BOOST (+15s / +10°F)**, and floating **E-STOP** abort.
 - **Hardware Diagnostics**: Live battery percentage, charging indicator, chamber detection (`3DXL`, regular, or missing), lifetime dab odometer, and BLE MAC/UUID.
 - **Peripherals & Power Management**: Direct control over Stealth Mode (instant LED blackout), Lantern glow, low-power Sleep Mode, and complete Power Off.
 

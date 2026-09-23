@@ -440,7 +440,7 @@ function handleTelemetryUpdate(data) {
   // User Controls Disabling / Greying Out
   const controlsEnabled = connected && !isSyncing;
 
-  // Global Emergency Stop Button Visibility (Always visible across all tabs when heating)
+  // Global E-Stop Button Visibility (Always visible across all tabs when heating)
   if (el.globalEmergencyStop) {
     if (connected && (isHeating || isCurveRunning)) {
       el.globalEmergencyStop.classList.remove('hidden');
@@ -1729,6 +1729,10 @@ function setupCurveActions() {
       curveGovernor.client = activeClient;
       isCurveRunning = true;
       setCurveLocked(true);
+      if (el.globalEmergencyStop) {
+        el.globalEmergencyStop.classList.remove('hidden');
+        if (el.toastContainer) el.toastContainer.classList.add('estop-shift');
+      }
       if (el.runCurveBtn) el.runCurveBtn.disabled = false;
       if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'RUNNING CURVE...';
       if (el.stopCurveBtn) el.stopCurveBtn.disabled = false;
@@ -1753,6 +1757,10 @@ function setupCurveActions() {
       if (el.curveStatusBadge) {
         el.curveStatusBadge.className = 'state-tag state-idle';
         el.curveStatusBadge.textContent = 'READY';
+      }
+      if (el.globalEmergencyStop && !activeClient?.telemetry?.is_heating) {
+        el.globalEmergencyStop.classList.add('hidden');
+        if (el.toastContainer) el.toastContainer.classList.remove('estop-shift');
       }
     }
   }
@@ -1928,27 +1936,72 @@ function handleCurveTelemetry(data) {
 }
 
 // ==========================================================================
-// Tab Switching
+// Tab Switching & In-App Navigation Routing
 // ==========================================================================
+
+function switchTab(tabId, updateHistory = true) {
+  if (tabId === 'tab-curves') {
+    if (el.tabCurvesBtn) el.tabCurvesBtn.classList.add('active');
+    if (el.tabControllerBtn) el.tabControllerBtn.classList.remove('active');
+    if (el.tabCurves) el.tabCurves.classList.remove('hidden');
+    if (el.tabController) el.tabController.classList.add('hidden');
+    renderCurveGraph();
+    if (updateHistory) {
+      const currentHash = window.location.hash;
+      if (currentHash !== '#curves' && !currentHash.startsWith('#curve=')) {
+        try {
+          history.pushState({ tab: 'tab-curves' }, '', '#curves');
+        } catch (e) {}
+      }
+    }
+  } else {
+    // Default to tab-controller (Chamber & Profiles telemetry)
+    if (el.tabControllerBtn) el.tabControllerBtn.classList.add('active');
+    if (el.tabCurvesBtn) el.tabCurvesBtn.classList.remove('active');
+    if (el.tabController) el.tabController.classList.remove('hidden');
+    if (el.tabCurves) el.tabCurves.classList.add('hidden');
+    if (updateHistory) {
+      const currentHash = window.location.hash;
+      if (currentHash === '#curves' || currentHash === '') {
+        try {
+          history.pushState({ tab: 'tab-controller' }, '', '#telemetry');
+        } catch (e) {}
+      }
+    }
+  }
+}
 
 function setupTabs() {
   if (el.tabControllerBtn) {
-    el.tabControllerBtn.addEventListener('click', () => {
-      el.tabControllerBtn.classList.add('active');
-      if (el.tabCurvesBtn) el.tabCurvesBtn.classList.remove('active');
-      if (el.tabController) el.tabController.classList.remove('hidden');
-      if (el.tabCurves) el.tabCurves.classList.add('hidden');
+    el.tabControllerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      switchTab('tab-controller', true);
     });
   }
 
   if (el.tabCurvesBtn) {
-    el.tabCurvesBtn.addEventListener('click', () => {
-      el.tabCurvesBtn.classList.add('active');
-      if (el.tabControllerBtn) el.tabControllerBtn.classList.remove('active');
-      if (el.tabCurves) el.tabCurves.classList.remove('hidden');
-      if (el.tabController) el.tabController.classList.add('hidden');
-      renderCurveGraph();
+    el.tabCurvesBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      switchTab('tab-curves', true);
     });
+  }
+
+  // Handle browser back/forward buttons and touch edge swipes cleanly in-app
+  window.addEventListener('popstate', (e) => {
+    if (e.state && e.state.tab) {
+      switchTab(e.state.tab, false);
+    } else if (window.location.hash === '#curves' || window.location.hash.startsWith('#curve=')) {
+      switchTab('tab-curves', false);
+    } else {
+      switchTab('tab-controller', false);
+    }
+  });
+
+  // Check initial hash on load
+  if (window.location.hash === '#curves' || window.location.hash.startsWith('#curve=')) {
+    switchTab('tab-curves', false);
   }
 }
 
@@ -2468,10 +2521,18 @@ function attachEventListeners() {
     el.startSeshBtn.disabled = true;
     try {
       showToast('Heating session initiated! 🔥', 'success');
+      if (el.globalEmergencyStop) {
+        el.globalEmergencyStop.classList.remove('hidden');
+        if (el.toastContainer) el.toastContainer.classList.add('estop-shift');
+      }
       await activeClient.startSession();
     } catch (err) {
       showToast(err.message || 'Failed to start session', 'error', 4500);
       el.startSeshBtn.disabled = false;
+      if (el.globalEmergencyStop && !isCurveRunning) {
+        el.globalEmergencyStop.classList.add('hidden');
+        if (el.toastContainer) el.toastContainer.classList.remove('estop-shift');
+      }
     }
   }
 
@@ -2498,10 +2559,10 @@ function attachEventListeners() {
     await activeClient.stopSession();
   });
 
-  // Global Floating Emergency Stop Button
+  // Global Floating E-Stop Button
   if (el.globalEmergencyStop) {
     el.globalEmergencyStop.addEventListener('click', async () => {
-      showToast('🚨 GLOBAL EMERGENCY STOP ACTIVATED!', 'error', 4000);
+      showToast('🚨 E-STOP ACTIVATED!', 'error', 4000);
       if (typeof navigator.vibrate === 'function') {
         navigator.vibrate([100, 50, 100, 50, 150]);
       }

@@ -148,7 +148,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=4.8">
+  <link rel="stylesheet" href="./styles.css?v=5.1">
 </head>
 <body class="theme-dark lockscreen-active">
   <!-- Ambient background glow layers -->
@@ -302,11 +302,11 @@
 
       <!-- Navigation Tabs -->
       <nav class="nav-tabs" aria-label="Studio Mode Tabs">
-        <button id="tab-controller-btn" class="nav-tab active" data-tab="tab-controller">
+        <button type="button" id="tab-controller-btn" class="nav-tab active" data-tab="tab-controller">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Chamber &amp; Profiles
         </button>
-        <button id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
+        <button type="button" id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Heat Curve Studio
         </button>
@@ -1197,13 +1197,13 @@
       </div>
     </div>
 
-    <!-- Persistent Global Floating Emergency Stop Button -->
-    <button id="global-emergency-stop" class="btn btn-global-estop hidden" aria-label="Global Emergency Stop" title="GLOBAL EMERGENCY STOP (Abort Heat Immediately)">
+    <!-- Persistent Global Floating E-Stop Button -->
+    <button type="button" id="global-emergency-stop" class="btn btn-global-estop hidden" aria-label="Global E-Stop" title="GLOBAL E-STOP (Abort Heat Immediately)">
       <span class="estop-pulse-dot"></span>
       <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
         <rect x="5" y="5" width="14" height="14" rx="2"/>
       </svg>
-      <span>EMERGENCY STOP</span>
+      <span>E-Stop</span>
     </button>
 
     <!-- Toast Notification Container (Dashboard layer, behind lockscreen) -->
@@ -1217,10 +1217,10 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=4.8"></script>
-  <script src="./puffco-ble.js?v=4.8"></script>
-  <script src="./simulator.js?v=4.8"></script>
-  <script src="./curve-governor.js?v=4.8"></script>
-  <script src="./app.js?v=4.8"></script>
+  <script src="./curves-data.js?v=5.1"></script>
+  <script src="./puffco-ble.js?v=5.1"></script>
+  <script src="./simulator.js?v=5.1"></script>
+  <script src="./curve-governor.js?v=5.1"></script>
+  <script src="./app.js?v=5.1"></script>
 </body>
 </html>

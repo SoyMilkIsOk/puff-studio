@@ -42,6 +42,11 @@
   padding: 0;
 }
 
+html {
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+}
+
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
@@ -50,6 +55,8 @@ body {
   overflow-x: hidden;
   position: relative;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
 }
 
 /* Ambient Radial Glow Layers */
@@ -105,6 +112,7 @@ body {
   flex-direction: column;
   min-height: 100vh;
   gap: 20px;
+  overscroll-behavior: none;
 }
 
 /* Header */

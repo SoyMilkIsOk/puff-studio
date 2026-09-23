@@ -200,11 +200,11 @@
 
       <!-- Navigation Tabs -->
       <nav class="nav-tabs" aria-label="Studio Mode Tabs">
-        <button id="tab-controller-btn" class="nav-tab active" data-tab="tab-controller">
+        <button type="button" id="tab-controller-btn" class="nav-tab active" data-tab="tab-controller">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Chamber &amp; Profiles
         </button>
-        <button id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
+        <button type="button" id="tab-curves-btn" class="nav-tab" data-tab="tab-curves">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Heat Curve Studio
         </button>
@@ -1095,13 +1095,13 @@
       </div>
     </div>
 
-    <!-- Persistent Global Floating Emergency Stop Button -->
-    <button id="global-emergency-stop" class="btn btn-global-estop hidden" aria-label="Global Emergency Stop" title="GLOBAL EMERGENCY STOP (Abort Heat Immediately)">
+    <!-- Persistent Global Floating E-Stop Button -->
+    <button type="button" id="global-emergency-stop" class="btn btn-global-estop hidden" aria-label="Global E-Stop" title="GLOBAL E-STOP (Abort Heat Immediately)">
       <span class="estop-pulse-dot"></span>
       <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
         <rect x="5" y="5" width="14" height="14" rx="2"/>
       </svg>
-      <span>EMERGENCY STOP</span>
+      <span>E-Stop</span>
     </button>
 
     <!-- Toast Notification Container (Dashboard layer, behind lockscreen) -->

@@ -199,6 +199,7 @@ const el = {
   copyShareLinkBtn: document.getElementById('copy-share-link-btn'),
 
   toastContainer: document.getElementById('toast-container'),
+  globalEmergencyStop: document.getElementById('global-emergency-stop'),
 };
 
 // ==========================================================================
@@ -393,6 +394,17 @@ function handleTelemetryUpdate(data) {
 
   // User Controls Disabling / Greying Out
   const controlsEnabled = connected && !isSyncing;
+
+  // Global E-Stop Button Visibility (Always visible across all tabs when heating)
+  if (el.globalEmergencyStop) {
+    if (connected && (isHeating || isCurveRunning)) {
+      el.globalEmergencyStop.classList.remove('hidden');
+      if (el.toastContainer) el.toastContainer.classList.add('estop-shift');
+    } else {
+      el.globalEmergencyStop.classList.add('hidden');
+      if (el.toastContainer) el.toastContainer.classList.remove('estop-shift');
+    }
+  }
 
   // Sesh Control Buttons State
   el.startSeshBtn.disabled = !controlsEnabled || isHeating || isCurveRunning;
@@ -1713,24 +1725,73 @@ function handleCurveTelemetry(data) {
 }
 
 // ==========================================================================
-// Tab Switching
+// Tab Switching & In-App Navigation Routing
 // ==========================================================================
 
+function switchTab(tabId, updateHistory = true) {
+  if (tabId === 'tab-curves') {
+    if (el.tabCurvesBtn) el.tabCurvesBtn.classList.add('active');
+    if (el.tabControllerBtn) el.tabControllerBtn.classList.remove('active');
+    if (el.tabCurves) el.tabCurves.classList.remove('hidden');
+    if (el.tabController) el.tabController.classList.add('hidden');
+    renderCurveGraph();
+    if (updateHistory) {
+      const currentHash = window.location.hash;
+      if (currentHash !== '#curves' && !currentHash.startsWith('#curve=')) {
+        try {
+          history.pushState({ tab: 'tab-curves' }, '', '#curves');
+        } catch (e) {}
+      }
+    }
+  } else {
+    // Default to tab-controller (Chamber & Profiles telemetry)
+    if (el.tabControllerBtn) el.tabControllerBtn.classList.add('active');
+    if (el.tabCurvesBtn) el.tabCurvesBtn.classList.remove('active');
+    if (el.tabController) el.tabController.classList.remove('hidden');
+    if (el.tabCurves) el.tabCurves.classList.add('hidden');
+    if (updateHistory) {
+      const currentHash = window.location.hash;
+      if (currentHash === '#curves' || currentHash === '') {
+        try {
+          history.pushState({ tab: 'tab-controller' }, '', '#telemetry');
+        } catch (e) {}
+      }
+    }
+  }
+}
+
 function setupTabs() {
-  el.tabControllerBtn.addEventListener('click', () => {
-    el.tabControllerBtn.classList.add('active');
-    el.tabCurvesBtn.classList.remove('active');
-    el.tabController.classList.remove('hidden');
-    el.tabCurves.classList.add('hidden');
+  if (el.tabControllerBtn) {
+    el.tabControllerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      switchTab('tab-controller', true);
+    });
+  }
+
+  if (el.tabCurvesBtn) {
+    el.tabCurvesBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      switchTab('tab-curves', true);
+    });
+  }
+
+  // Handle browser back/forward buttons and touch edge swipes cleanly in-app
+  window.addEventListener('popstate', (e) => {
+    if (e.state && e.state.tab) {
+      switchTab(e.state.tab, false);
+    } else if (window.location.hash === '#curves' || window.location.hash.startsWith('#curve=')) {
+      switchTab('tab-curves', false);
+    } else {
+      switchTab('tab-controller', false);
+    }
   });
 
-  el.tabCurvesBtn.addEventListener('click', () => {
-    el.tabCurvesBtn.classList.add('active');
-    el.tabControllerBtn.classList.remove('active');
-    el.tabCurves.classList.remove('hidden');
-    el.tabController.classList.add('hidden');
-    renderCurveGraph();
-  });
+  // Check initial hash on load
+  if (window.location.hash === '#curves' || window.location.hash.startsWith('#curve=')) {
+    switchTab('tab-curves', false);
+  }
 }
 
 // ==========================================================================
@@ -2203,6 +2264,20 @@ function attachEventListeners() {
     showToast('Session cancelled / cooling down', 'info');
     await activeClient.stopSession();
   });
+
+  // Global Floating E-Stop Button
+  if (el.globalEmergencyStop) {
+    el.globalEmergencyStop.addEventListener('click', async () => {
+      showToast('🚨 E-STOP ACTIVATED!', 'error', 4000);
+      if (typeof navigator.vibrate === 'function') {
+        navigator.vibrate([100, 50, 100, 50, 150]);
+      }
+      if (isCurveRunning) {
+        await curveGovernor.stop();
+      }
+      await activeClient.stopSession(true);
+    });
+  }
 
   // Temperature Controls
   el.tempSlider.addEventListener('input', (e) => {
