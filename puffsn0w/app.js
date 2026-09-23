@@ -55,6 +55,11 @@ const el = {
   lockscreenBatteryFill: document.getElementById('lockscreen-battery-fill'),
   lockscreenConnectBtn: document.getElementById('lockscreen-connect-btn'),
   lockscreenConnectLabel: document.getElementById('lockscreen-connect-label'),
+  lockscreenInfoBtn: document.getElementById('lockscreen-info-btn'),
+  lockscreenInfoModal: document.getElementById('lockscreen-info-modal'),
+  closeLockscreenInfoModal: document.getElementById('close-lockscreen-info-modal'),
+  closeLockscreenInfoBtn: document.getElementById('close-lockscreen-info-btn'),
+  lockscreenInfoConnectBtn: document.getElementById('lockscreen-info-connect-btn'),
   lockscreenGuideBtn: document.getElementById('lockscreen-guide-btn'),
   lockscreenDemoBtn: document.getElementById('lockscreen-demo-btn'),
   lockscreenStatusIndicator: document.getElementById('lockscreen-status-indicator'),
@@ -263,7 +268,7 @@ function checkBrowserCompatibility() {
     if (!isDismissed) {
       el.compatBanner.classList.remove('hidden');
       if (isIOS) {
-        el.compatBannerMsg.innerHTML = `<strong>iOS Notice:</strong> Safari does not support Bluetooth. Open in <strong>Path Browser</strong> or <strong>Bluefy</strong> to connect, or use <strong>Demo Mode</strong>!`;
+        el.compatBannerMsg.innerHTML = `<strong>iOS Notice:</strong> Safari does not support Bluetooth. Open in <a href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: underline;"><strong>Bluefy</strong></a> to connect, or use <strong>Demo Mode</strong>!`;
       } else {
         el.compatBannerMsg.innerHTML = `<strong>Browser Notice:</strong> Web Bluetooth is not available in this browser. Use <strong>Google Chrome</strong> or <strong>Edge</strong>, or toggle <strong>Demo Mode</strong>!`;
       }
@@ -373,6 +378,12 @@ function handleTelemetryUpdate(data) {
       if (el.lockscreenConnectCard) {
         el.lockscreenConnectCard.classList.add('connected-hidden');
       }
+      if (el.lockscreenInfoBtn) {
+        el.lockscreenInfoBtn.classList.add('connected-hidden');
+      }
+      if (el.lockscreenInfoModal) {
+        el.lockscreenInfoModal.classList.add('hidden');
+      }
       if (!wasDeviceConnected) {
         showToast(`${data.device_name || 'Device'} Connected! Slide to unlock 🔓`, 'success', 3500);
       }
@@ -392,6 +403,9 @@ function handleTelemetryUpdate(data) {
       }
       if (el.lockscreenConnectCard) {
         el.lockscreenConnectCard.classList.remove('connected-hidden');
+      }
+      if (el.lockscreenInfoBtn) {
+        el.lockscreenInfoBtn.classList.remove('connected-hidden');
       }
       if (el.lockscreenConnectBtn) {
         el.lockscreenConnectBtn.classList.remove('connected');
@@ -2177,8 +2191,11 @@ function lockToLockscreen() {
     const isConn = (activeClient && activeClient.isConnected) || false;
     if (isConn) {
       el.lockscreen.classList.remove('lockscreen-locked');
+      if (el.lockscreenInfoBtn) el.lockscreenInfoBtn.classList.add('connected-hidden');
+      if (el.lockscreenInfoModal) el.lockscreenInfoModal.classList.add('hidden');
     } else {
       el.lockscreen.classList.add('lockscreen-locked');
+      if (el.lockscreenInfoBtn) el.lockscreenInfoBtn.classList.remove('connected-hidden');
     }
   }
 
@@ -2353,6 +2370,183 @@ function setupSlideToUnlock() {
   });
 }
 
+function setupLockscreenInfoModal() {
+  if (!el.lockscreenInfoBtn || !el.lockscreenInfoModal) return;
+
+  // Tri-Toggle Platform Switcher
+  const tabBtns = el.lockscreenInfoModal.querySelectorAll('.platform-tab-btn');
+  const panels = el.lockscreenInfoModal.querySelectorAll('.platform-panel');
+  let userManuallySelected = false;
+
+  function selectPlatform(platform) {
+    const validPlatforms = ['ios', 'android', 'desktop'];
+    const targetPlatform = validPlatforms.includes(platform) ? platform : 'ios';
+
+    tabBtns.forEach((btn) => {
+      const isSelected = btn.getAttribute('data-platform') === targetPlatform;
+      btn.classList.toggle('active', isSelected);
+      btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+    });
+
+    panels.forEach((panel) => {
+      if (panel.id === `platform-panel-${targetPlatform}`) {
+        panel.classList.add('active');
+        panel.removeAttribute('hidden');
+      } else {
+        panel.classList.remove('active');
+        panel.setAttribute('hidden', '');
+      }
+    });
+  }
+
+  /**
+   * Silently detects user platform ('ios' | 'android' | 'desktop') in the background.
+   * If platform cannot be reliably detected, defaults to 'ios' (1st option).
+   */
+  function detectUserPlatform() {
+    try {
+      const nav = typeof navigator !== 'undefined' ? navigator : null;
+      if (!nav) return 'ios';
+
+      const ua = (nav.userAgent || '').toLowerCase();
+      const platform = (nav.platform || '').toLowerCase();
+      const clientPlatform = (nav.userAgentData?.platform || '').toLowerCase();
+      const maxTouchPoints = Number(nav.maxTouchPoints) || 0;
+
+      // 1. iOS detection (iPhone, iPad, iPod, Bluefy, iPadOS 13+ desktop-mode Safari)
+      const isIOSDevice = /iphone|ipad|ipod/.test(ua) || /iphone|ipad|ipod/.test(platform);
+      const isIPadOS = (platform.includes('macintel') || ua.includes('macintosh')) && maxTouchPoints > 1;
+      const isIOSClientHint = clientPlatform === 'ios' || clientPlatform === 'ipados';
+      const isBluefy = ua.includes('bluefy');
+
+      if (isIOSDevice || isIPadOS || isIOSClientHint || isBluefy) {
+        return 'ios';
+      }
+
+      // 2. Android detection
+      const isAndroid = ua.includes('android') || platform.includes('android') || clientPlatform === 'android';
+      if (isAndroid) {
+        return 'android';
+      }
+
+      // 3. Desktop detection (Windows, macOS Desktop, Linux Desktop, ChromeOS)
+      const isWindows = ua.includes('windows') || platform.includes('win') || clientPlatform.includes('windows');
+      const isMacDesktop = (ua.includes('macintosh') || platform.includes('mac')) && maxTouchPoints <= 1;
+      const isLinuxDesktop = (platform.includes('linux') || ua.includes('linux')) && !isAndroid;
+      const isChromeOS = ua.includes('cros') || clientPlatform === 'chrome os' || clientPlatform === 'chromium os';
+
+      if (isWindows || isMacDesktop || isLinuxDesktop || isChromeOS) {
+        return 'desktop';
+      }
+
+      // Fallback: If platform cannot be reliably detected, default to iOS (1st option)
+      return 'ios';
+    } catch {
+      // In case of error/restrictions, silently fallback to iOS
+      return 'ios';
+    }
+  }
+
+  // Pre-select detected platform (or iOS fallback) silently on initialization
+  selectPlatform(detectUserPlatform());
+
+  function openModal() {
+    if (el.lockscreenInfoModal) {
+      if (!userManuallySelected) {
+        selectPlatform(detectUserPlatform());
+      }
+      el.lockscreenInfoModal.classList.remove('hidden');
+    }
+  }
+
+  function closeModal() {
+    if (el.lockscreenInfoModal) {
+      el.lockscreenInfoModal.classList.add('hidden');
+    }
+  }
+
+  // Open info modal
+  el.lockscreenInfoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openModal();
+  });
+
+  // Close via top-right 'X' button
+  if (el.closeLockscreenInfoModal) {
+    el.closeLockscreenInfoModal.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal();
+    });
+  }
+
+  // Close via 'Got It' button
+  if (el.closeLockscreenInfoBtn) {
+    el.closeLockscreenInfoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal();
+    });
+  }
+
+  // Backdrop click to dismiss
+  el.lockscreenInfoModal.addEventListener('click', (e) => {
+    if (e.target === el.lockscreenInfoModal) {
+      closeModal();
+    }
+  });
+
+  // Modal Connect Device button
+  if (el.lockscreenInfoConnectBtn) {
+    el.lockscreenInfoConnectBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      closeModal();
+      await handleConnectToggle({ showAll: true });
+    });
+  }
+
+  // Tri-Toggle switcher click listeners
+  tabBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      userManuallySelected = true;
+      const platform = btn.getAttribute('data-platform');
+      if (platform) selectPlatform(platform);
+    });
+  });
+
+  // Copy URL button handler
+  const copyBtn = el.lockscreenInfoModal.querySelector('#copy-url-btn');
+  const copyInput = el.lockscreenInfoModal.querySelector('#ios-puffsn0w-url');
+  if (copyBtn && copyInput) {
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const textToCopy = copyInput.value || 'puffsn0w.terpscoops.com';
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(textToCopy);
+        } else {
+          copyInput.select();
+          document.execCommand('copy');
+        }
+      } catch (err) {
+        copyInput.select();
+        document.execCommand('copy');
+      }
+
+      copyBtn.classList.add('copied');
+      const copyTextEl = copyBtn.querySelector('.copy-text');
+      if (copyTextEl) copyTextEl.textContent = 'Copied!';
+      setTimeout(() => {
+        copyBtn.classList.remove('copied');
+        if (copyTextEl) copyTextEl.textContent = 'Copy';
+      }, 2000);
+    });
+
+    copyInput.addEventListener('click', () => {
+      copyInput.select();
+    });
+  }
+}
+
 function setupLockscreen() {
   try {
     updateLockscreenClock();
@@ -2391,16 +2585,24 @@ function setupLockscreen() {
     console.warn('[App] Slide to unlock setup error:', e);
   }
 
-  // Prevent any wheel or touch scrolling while on the lockscreen
+  try {
+    setupLockscreenInfoModal();
+  } catch (e) {
+    console.warn('[App] Lockscreen info modal setup error:', e);
+  }
+
+  // Prevent any wheel or touch scrolling while on the lockscreen (except inside modal)
   if (el.lockscreen) {
     el.lockscreen.addEventListener('wheel', (e) => {
       if (!el.lockscreen.classList.contains('unlocked')) {
+        if (e.target.closest('#lockscreen-info-modal')) return;
         e.preventDefault();
       }
     }, { passive: false });
 
     el.lockscreen.addEventListener('touchmove', (e) => {
       if (!el.lockscreen.classList.contains('unlocked') && !e.target.closest('.slide-thumb')) {
+        if (e.target.closest('#lockscreen-info-modal')) return;
         if (e.cancelable) e.preventDefault();
       }
     }, { passive: false });
@@ -2477,6 +2679,9 @@ function attachEventListeners() {
   // Global Escape key to dismiss active modals
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (el.lockscreenInfoModal && !el.lockscreenInfoModal.classList.contains('hidden')) {
+        el.lockscreenInfoModal.classList.add('hidden');
+      }
       if (el.connectTutorialModal && !el.connectTutorialModal.classList.contains('hidden')) {
         el.connectTutorialModal.classList.add('hidden');
       }

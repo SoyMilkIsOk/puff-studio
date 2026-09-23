@@ -4017,6 +4017,585 @@ body.lockscreen-active .btn-global-estop {
 }
 
 /* ==========================================================================
+   puffsn0w Lockscreen Info Icon & Tri-Toggle Platform Modal Styles
+   ========================================================================== */
+
+/* Top Right Lockscreen Info Icon Button (iOS frosted glass aesthetic) */
+.lockscreen-info-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 10px) + 12px);
+  right: calc(env(safe-area-inset-right, 10px) + 16px);
+  z-index: 25;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 24, 32, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.lockscreen-info-btn:hover {
+  background: rgba(30, 36, 52, 0.88);
+  border-color: rgba(0, 242, 254, 0.75);
+  color: #00f2fe;
+  box-shadow: 0 0 22px rgba(0, 242, 254, 0.45), 0 6px 26px rgba(0, 0, 0, 0.65);
+  transform: scale(1.08);
+}
+
+.lockscreen-info-btn:active {
+  transform: scale(0.92);
+}
+
+.lockscreen-info-btn:focus-visible {
+  border-color: #00f2fe;
+  box-shadow: 0 0 0 3px rgba(0, 242, 254, 0.4);
+}
+
+/* Disappear on connection along with wallpaper blur & connect button */
+.lockscreen-overlay:not(.lockscreen-locked) .lockscreen-info-btn,
+.lockscreen-info-btn.connected-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transform: scale(0.7) translateY(-8px) !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Lockscreen Info & Setup Guide Modal Overlay */
+.lockscreen-info-modal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+}
+
+.lockscreen-info-modal-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Modal Window Glassmorphism */
+.lockscreen-info-modal-window {
+  width: 100%;
+  max-width: 500px;
+  max-height: 88vh;
+  max-height: 88dvh;
+  background: linear-gradient(180deg, #131722 0%, #0d1017 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 1px 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(0) scale(1);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.lockscreen-info-modal-overlay.hidden .lockscreen-info-modal-window {
+  transform: translateY(20px) scale(0.96);
+}
+
+/* Modal Header */
+.lockscreen-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lockscreen-info-pill-badge {
+  display: inline-block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: #00f2fe;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.lockscreen-info-title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.lockscreen-info-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.lockscreen-info-close-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Modal Body */
+.lockscreen-info-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+}
+
+/* 1-Sentence Quick Rundown Card */
+.lockscreen-rundown-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 242, 254, 0.06);
+  border: 1px solid rgba(0, 242, 254, 0.22);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.rundown-icon {
+  color: #00f2fe;
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rundown-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+.rundown-text strong {
+  color: #ffffff;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+/* Tri-Toggle Segmented Switcher */
+.platform-switcher-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.platform-switcher-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.platform-switcher {
+  display: flex;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.platform-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.platform-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.platform-tab-btn.active {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.22) 0%, rgba(79, 172, 254, 0.18) 100%);
+  border: 1px solid rgba(0, 242, 254, 0.45);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 242, 254, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+
+.platform-tab-btn svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.platform-tab-btn.active svg {
+  transform: scale(1.1);
+  color: #00f2fe;
+}
+
+/* Platform Panels */
+.platform-panels-container {
+  min-height: 220px;
+}
+
+.platform-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: panelFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.platform-panel[hidden] {
+  display: none;
+}
+
+@keyframes panelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-header-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.badge-tag {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.apple-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.android-tag {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.desktop-tag {
+  background: rgba(147, 197, 253, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+}
+
+.badge-status {
+  font-size: 0.73rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+}
+
+/* Instructional Steps */
+.instruction-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.instruction-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.instruction-step:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  color: #00f2fe;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.step-details h4 {
+  margin: 0 0 3px 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.step-details p {
+  margin: 0;
+  font-size: 0.81rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.text-cyan {
+  color: #00f2fe;
+}
+
+.link-cyan {
+  color: #00f2fe;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.link-cyan:hover {
+  color: #38bdf8;
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.45);
+}
+
+/* Copy URL Box (Step 2) */
+.copy-url-container {
+  margin-top: 8px;
+}
+
+.copy-url-box {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  padding: 3px 4px 3px 10px;
+  gap: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.copy-url-box:focus-within {
+  border-color: rgba(0, 242, 254, 0.5);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+}
+
+.copy-url-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.77rem;
+  color: #00f2fe;
+  padding: 4px 0;
+  width: 100%;
+  min-width: 0;
+  user-select: all;
+  letter-spacing: 0.02em;
+}
+
+.btn-copy-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  border-radius: 6px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-url:hover {
+  background: rgba(0, 242, 254, 0.24);
+  border-color: #00f2fe;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+}
+
+.btn-copy-url.copied {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #34d399;
+}
+
+/* Tooltip Style Tip Callout Step */
+.instruction-tip-card {
+  position: relative;
+  margin-top: 10px;
+  padding: 11px 14px;
+  background: rgba(0, 242, 254, 0.05);
+  border: 1px solid rgba(0, 242, 254, 0.24);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Tooltip pointer notch pointing up towards the steps */
+.instruction-tip-card::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 22px;
+  width: 8px;
+  height: 8px;
+  background: #111a26;
+  border-left: 1px solid rgba(0, 242, 254, 0.24);
+  border-top: 1px solid rgba(0, 242, 254, 0.24);
+  transform: rotate(45deg);
+}
+
+.tip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #00f2fe;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.tip-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  letter-spacing: -0.01em;
+}
+
+.tip-body {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.tip-body strong {
+  color: #ffffff;
+}
+
+.tip-body em {
+  color: #00f2fe;
+  font-style: normal;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.76rem;
+}
+
+/* Modal Footer */
+.lockscreen-info-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@media (max-width: 480px) {
+  .lockscreen-info-modal-window {
+    max-height: 92vh;
+    border-radius: 16px;
+  }
+  .lockscreen-info-header {
+    padding: 14px 16px;
+  }
+  .lockscreen-info-body {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+  .lockscreen-info-footer {
+    padding: 12px 16px;
+  }
+  .platform-tab-btn {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+  }
+}
+
+/* ==========================================================================
    Thermal Safety & Hardware Protection Styles
    ========================================================================== */
 
