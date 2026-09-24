@@ -1478,6 +1478,9 @@ class PuffcoBleClient {
   }
 
   async setStealthMode(enabled) {
+    if (enabled && this.telemetry.lantern_active) {
+      await this.setLanternMode(false);
+    }
     const ok = await this.writePath(PATH_STEALTH_MODE, new Uint8Array([enabled ? 1 : 0]));
     if (ok) {
       this.telemetry.stealth_mode = !!enabled;
@@ -1487,6 +1490,9 @@ class PuffcoBleClient {
   }
 
   async setLanternMode(enabled) {
+    if (enabled && this.telemetry.stealth_mode) {
+      await this.setStealthMode(false);
+    }
     if (enabled) {
       const ok = await this.writePath(PATH_LANTERN_CMD, new Uint8Array([1]));
       if (ok) {

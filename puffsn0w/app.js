@@ -147,9 +147,11 @@ const el = {
   statMacAddress: document.getElementById('stat-mac-address'),
   statFirmwareVersion: document.getElementById('stat-firmware-version'),
 
-  // Toggles & Power
-  stealthToggle: document.getElementById('stealth-mode-toggle'),
-  lanternToggle: document.getElementById('lantern-mode-toggle'),
+  // Toggles & Modes
+  stealthBtn: document.getElementById('stealth-mode-btn') || document.getElementById('stealth-mode-toggle'),
+  lanternBtn: document.getElementById('lantern-mode-btn') || document.getElementById('lantern-mode-toggle'),
+  stealthToggle: document.getElementById('stealth-mode-btn') || document.getElementById('stealth-mode-toggle'),
+  lanternToggle: document.getElementById('lantern-mode-btn') || document.getElementById('lantern-mode-toggle'),
   sleepBtn: document.getElementById('sleep-btn'),
   powerOffBtn: document.getElementById('power-off-btn'),
 
@@ -483,13 +485,17 @@ function handleTelemetryUpdate(data) {
   }
 
   // Quick Controls
-  if (el.stealthToggle) {
-    el.stealthToggle.disabled = !controlsEnabled;
-    el.stealthToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  const sBtn = el.stealthBtn || el.stealthToggle;
+  if (sBtn) {
+    sBtn.disabled = !controlsEnabled;
+    sBtn.classList.toggle('disabled', !controlsEnabled);
+    sBtn.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
   }
-  if (el.lanternToggle) {
-    el.lanternToggle.disabled = !controlsEnabled;
-    el.lanternToggle.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
+  const lBtn = el.lanternBtn || el.lanternToggle;
+  if (lBtn) {
+    lBtn.disabled = !controlsEnabled;
+    lBtn.classList.toggle('disabled', !controlsEnabled);
+    lBtn.closest('.control-toggle-card')?.classList.toggle('disabled', !controlsEnabled);
   }
   if (el.sleepBtn) el.sleepBtn.disabled = !controlsEnabled;
   if (el.powerOffBtn) el.powerOffBtn.disabled = !controlsEnabled;
@@ -523,9 +529,9 @@ function handleTelemetryUpdate(data) {
     el.statFirmwareVersion.textContent = connected && data.firmware_version ? data.firmware_version : (connected ? 'V1.3.8' : '--');
   }
 
-  // Stealth & Lantern toggles sync
-  el.stealthToggle.checked = !!data.stealth_mode;
-  el.lanternToggle.checked = !!data.lantern_active;
+  // Stealth & Lantern modes sync
+  updateStealthModeUI(!!data.stealth_mode);
+  updateLanternModeUI(!!data.lantern_active);
 
   // Sync slider if not actively dragging
   if (!document.activeElement || document.activeElement !== el.tempSlider) {
@@ -568,6 +574,38 @@ function updateLanternPanelUI(data) {
     if (document.activeElement !== el.lanternBrightnessSlider) {
       el.lanternBrightnessSlider.value = pct;
       el.lanternBrightnessVal.textContent = `${pct}%`;
+    }
+  }
+}
+
+function updateStealthModeUI(active) {
+  const btn = el.stealthBtn || el.stealthToggle;
+  if (!btn) return;
+  if (btn.tagName === 'INPUT') {
+    btn.checked = !!active;
+  } else {
+    btn.classList.toggle('active', !!active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    const pill = btn.querySelector('.mode-status-pill');
+    if (pill) {
+      pill.textContent = active ? 'ON' : 'OFF';
+      pill.classList.toggle('active', !!active);
+    }
+  }
+}
+
+function updateLanternModeUI(active) {
+  const btn = el.lanternBtn || el.lanternToggle;
+  if (!btn) return;
+  if (btn.tagName === 'INPUT') {
+    btn.checked = !!active;
+  } else {
+    btn.classList.toggle('active', !!active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    const pill = btn.querySelector('.mode-status-pill');
+    if (pill) {
+      pill.textContent = active ? 'ON' : 'OFF';
+      pill.classList.toggle('active', !!active);
     }
   }
 }
@@ -2940,24 +2978,109 @@ function attachEventListeners() {
     });
   });
 
-  // Stealth & Lantern toggles
-  el.stealthToggle.addEventListener('change', async (e) => {
-    await activeClient.setStealthMode(e.target.checked);
-    showToast(`Stealth mode ${e.target.checked ? 'enabled (LEDs blackout)' : 'disabled'}`, 'info');
-  });
+  // Stealth & Lantern toggle buttons (mutually exclusive)
+  const stealthEl = el.stealthBtn || el.stealthToggle;
+  if (stealthEl) {
+    const handleStealthToggle = async () => {
+      if (stealthEl.disabled) return;
+      const isCurrentlyActive = stealthEl.tagName === 'INPUT' ? stealthEl.checked : stealthEl.classList.contains('active');
+      const targetState = !isCurrentlyActive;
 
-  el.lanternToggle.addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    if (el.lanternControlsPanel) {
-      if (isChecked) {
-        el.lanternControlsPanel.classList.remove('hidden');
+      if (targetState) {
+        // Incompatible modes: If Lantern is active, turn it off first!
+        const lanternEl = el.lanternBtn || el.lanternToggle;
+        const isLanternActive = lanternEl && (lanternEl.tagName === 'INPUT' ? lanternEl.checked : lanternEl.classList.contains('active'));
+        if (isLanternActive) {
+          updateLanternModeUI(false);
+          if (el.lanternControlsPanel) {
+            el.lanternControlsPanel.classList.add('hidden');
+          }
+          await activeClient.setLanternMode(false);
+        }
+
+        updateStealthModeUI(true);
+        await activeClient.setStealthMode(true);
+        showToast('Stealth mode enabled (LEDs blackout)', 'info');
       } else {
-        el.lanternControlsPanel.classList.add('hidden');
+        updateStealthModeUI(false);
+        await activeClient.setStealthMode(false);
+        showToast('Stealth mode disabled', 'info');
       }
+    };
+
+    if (stealthEl.tagName === 'BUTTON') {
+      stealthEl.addEventListener('click', handleStealthToggle);
+    } else {
+      stealthEl.addEventListener('change', async (e) => {
+        const isChecked = e.target.checked;
+        if (isChecked) {
+          const lanternEl = el.lanternBtn || el.lanternToggle;
+          const isLanternActive = lanternEl && (lanternEl.tagName === 'INPUT' ? lanternEl.checked : lanternEl.classList.contains('active'));
+          if (isLanternActive) {
+            updateLanternModeUI(false);
+            if (el.lanternControlsPanel) el.lanternControlsPanel.classList.add('hidden');
+            await activeClient.setLanternMode(false);
+          }
+        }
+        await activeClient.setStealthMode(isChecked);
+        showToast(`Stealth mode ${isChecked ? 'enabled (LEDs blackout)' : 'disabled'}`, 'info');
+      });
     }
-    await activeClient.setLanternMode(isChecked);
-    showToast(`Lantern mode ${isChecked ? 'started ✨' : 'stopped'}`, 'info');
-  });
+  }
+
+  const lanternEl = el.lanternBtn || el.lanternToggle;
+  if (lanternEl) {
+    const handleLanternToggle = async () => {
+      if (lanternEl.disabled) return;
+      const isCurrentlyActive = lanternEl.tagName === 'INPUT' ? lanternEl.checked : lanternEl.classList.contains('active');
+      const targetState = !isCurrentlyActive;
+
+      if (targetState) {
+        // Incompatible modes: If Stealth is active, turn it off first!
+        const sEl = el.stealthBtn || el.stealthToggle;
+        const isStealthActive = sEl && (sEl.tagName === 'INPUT' ? sEl.checked : sEl.classList.contains('active'));
+        if (isStealthActive) {
+          updateStealthModeUI(false);
+          await activeClient.setStealthMode(false);
+        }
+
+        updateLanternModeUI(true);
+        if (el.lanternControlsPanel) {
+          el.lanternControlsPanel.classList.remove('hidden');
+        }
+        await activeClient.setLanternMode(true);
+        showToast('Lantern mode started ✨', 'info');
+      } else {
+        updateLanternModeUI(false);
+        if (el.lanternControlsPanel) {
+          el.lanternControlsPanel.classList.add('hidden');
+        }
+        await activeClient.setLanternMode(false);
+        showToast('Lantern mode stopped', 'info');
+      }
+    };
+
+    if (lanternEl.tagName === 'BUTTON') {
+      lanternEl.addEventListener('click', handleLanternToggle);
+    } else {
+      lanternEl.addEventListener('change', async (e) => {
+        const isChecked = e.target.checked;
+        if (isChecked) {
+          const sEl = el.stealthBtn || el.stealthToggle;
+          const isStealthActive = sEl && (sEl.tagName === 'INPUT' ? sEl.checked : sEl.classList.contains('active'));
+          if (isStealthActive) {
+            updateStealthModeUI(false);
+            await activeClient.setStealthMode(false);
+          }
+          if (el.lanternControlsPanel) el.lanternControlsPanel.classList.remove('hidden');
+        } else {
+          if (el.lanternControlsPanel) el.lanternControlsPanel.classList.add('hidden');
+        }
+        await activeClient.setLanternMode(isChecked);
+        showToast(`Lantern mode ${isChecked ? 'started ✨' : 'stopped'}`, 'info');
+      });
+    }
+  }
 
   // Lantern Lighting Effect Buttons
   const fxBtns = document.querySelectorAll('.lantern-fx-btn');
@@ -3029,18 +3152,22 @@ function attachEventListeners() {
     });
   }
 
-  // Power controls
-  el.sleepBtn.addEventListener('click', async () => {
-    if (!confirm('Put Puff device into low-power sleep mode?')) return;
-    await activeClient.enterSleepMode();
-    showToast('Device entered sleep mode 💤', 'info');
-  });
+  // Power controls (if elements exist)
+  if (el.sleepBtn) {
+    el.sleepBtn.addEventListener('click', async () => {
+      if (!confirm('Put Puff device into low-power sleep mode?')) return;
+      await activeClient.enterSleepMode();
+      showToast('Device entered sleep mode 💤', 'info');
+    });
+  }
 
-  el.powerOffBtn.addEventListener('click', async () => {
-    if (!confirm('Completely power off your Puff device?')) return;
-    await activeClient.powerOff();
-    showToast('Device powered down', 'info');
-  });
+  if (el.powerOffBtn) {
+    el.powerOffBtn.addEventListener('click', async () => {
+      if (!confirm('Completely power off your Puff device?')) return;
+      await activeClient.powerOff();
+      showToast('Device powered down', 'info');
+    });
+  }
 }
 
 // ==========================================================================

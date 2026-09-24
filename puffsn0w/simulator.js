@@ -270,15 +270,24 @@ class PuffcoSimulator {
 
   async setStealthMode(enabled) {
     this.telemetry.stealth_mode = !!enabled;
+    if (enabled && this.telemetry.lantern_active) {
+      this.telemetry.lantern_active = false;
+      this.telemetry.lantern_effect = 'off';
+    }
     this._notifyListeners();
     return true;
   }
 
   async setLanternMode(enabled) {
     this.telemetry.lantern_active = !!enabled;
-    if (enabled && (!this.telemetry.lantern_effect || this.telemetry.lantern_effect === 'off')) {
-      this.telemetry.lantern_effect = 'campfire';
-    } else if (!enabled) {
+    if (enabled) {
+      if (this.telemetry.stealth_mode) {
+        this.telemetry.stealth_mode = false;
+      }
+      if (!this.telemetry.lantern_effect || this.telemetry.lantern_effect === 'off') {
+        this.telemetry.lantern_effect = 'campfire';
+      }
+    } else {
       this.telemetry.lantern_effect = 'off';
     }
     this._notifyListeners();

@@ -1277,6 +1277,168 @@ body {
 .control-title { font-size: 0.88rem; font-weight: 700; color: #fff; }
 .control-desc { font-size: 0.7rem; color: var(--text-muted); max-width: 200px; }
 
+/* Mode Toggle Buttons */
+.control-toggle-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  width: 100%;
+  font-family: inherit;
+  color: inherit;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.control-toggle-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.control-toggle-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.control-btn-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.toggle-btn-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.control-toggle-btn .control-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.control-toggle-btn .control-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.control-toggle-btn .control-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.25;
+}
+
+.toggle-badge-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.mode-status-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-status-pill::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Stealth Mode Active */
+.control-toggle-btn#stealth-mode-btn.active,
+.control-toggle-btn[data-mode="stealth"].active {
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.12), rgba(18, 18, 24, 0.95));
+  border-color: rgba(255, 170, 0, 0.5);
+  box-shadow: 0 4px 20px rgba(255, 170, 0, 0.18), inset 0 0 12px rgba(255, 170, 0, 0.06);
+}
+
+.control-toggle-btn#stealth-mode-btn.active .toggle-btn-icon,
+.control-toggle-btn[data-mode="stealth"].active .toggle-btn-icon {
+  background: rgba(255, 170, 0, 0.2);
+  border-color: rgba(255, 170, 0, 0.4);
+  color: var(--accent-amber);
+}
+
+.control-toggle-btn#stealth-mode-btn.active .mode-status-pill,
+.control-toggle-btn[data-mode="stealth"].active .mode-status-pill {
+  background: rgba(255, 170, 0, 0.2);
+  border-color: rgba(255, 170, 0, 0.5);
+  color: #ffc14d;
+}
+
+.control-toggle-btn#stealth-mode-btn.active .mode-status-pill::before,
+.control-toggle-btn[data-mode="stealth"].active .mode-status-pill::before {
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px var(--accent-amber);
+}
+
+/* Lantern Mode Active */
+.control-toggle-btn#lantern-mode-btn.active,
+.control-toggle-btn[data-mode="lantern"].active {
+  background: linear-gradient(135deg, rgba(157, 78, 221, 0.16), rgba(18, 18, 24, 0.95));
+  border-color: rgba(157, 78, 221, 0.55);
+  box-shadow: 0 4px 20px rgba(157, 78, 221, 0.22), inset 0 0 12px rgba(157, 78, 221, 0.08);
+}
+
+.control-toggle-btn#lantern-mode-btn.active .toggle-btn-icon,
+.control-toggle-btn[data-mode="lantern"].active .toggle-btn-icon {
+  background: rgba(157, 78, 221, 0.25);
+  border-color: rgba(157, 78, 221, 0.5);
+  color: var(--accent-purple);
+}
+
+.control-toggle-btn#lantern-mode-btn.active .mode-status-pill,
+.control-toggle-btn[data-mode="lantern"].active .mode-status-pill {
+  background: rgba(157, 78, 221, 0.25);
+  border-color: rgba(157, 78, 221, 0.6);
+  color: #e0aaff;
+}
+
+.control-toggle-btn#lantern-mode-btn.active .mode-status-pill::before,
+.control-toggle-btn[data-mode="lantern"].active .mode-status-pill::before {
+  background: var(--accent-purple);
+  box-shadow: 0 0 8px var(--accent-purple);
+}
+
 /* Switch */
 .switch {
   position: relative;
@@ -1316,6 +1478,8 @@ input[type="range"]:disabled,
 .switch input:disabled + .slider,
 .profile-card.disabled,
 .control-toggle-card.disabled,
+.control-toggle-btn:disabled,
+.control-toggle-btn.disabled,
 .temp-slider-wrap.disabled,
 .lantern-controls-panel.disabled {
   opacity: 0.38 !important;
