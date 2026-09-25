@@ -156,7 +156,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=5.2">
+  <link rel="stylesheet" href="./styles.css?v=5.5">
 </head>
 
 <body class="theme-dark lockscreen-active">
@@ -341,231 +341,324 @@
             aria-label="Close guide">✕</button>
         </div>
 
+        <!-- Modal Section Switcher Tabs -->
+        <div class="info-nav-tabs" role="tablist" aria-label="Information section switcher">
+          <button type="button" class="info-nav-tab active" data-info-tab="instructions" id="info-tab-instructions"
+            role="tab" aria-selected="true" aria-controls="info-section-instructions">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+            <span>Setup Instructions</span>
+          </button>
+          <button type="button" class="info-nav-tab tab-disclaimer" data-info-tab="disclaimer" id="info-tab-disclaimer"
+            role="tab" aria-selected="false" aria-controls="info-section-disclaimer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>Legal Disclaimer</span>
+          </button>
+        </div>
+
         <div class="lockscreen-info-body">
-          <!-- 1-Sentence App Rundown Banner -->
-          <div class="lockscreen-rundown-card">
-            <div class="rundown-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            </div>
-            <p class="rundown-text">
-              <strong>puffsn0w</strong> is an open-source web jailbreak for Puffco Peak Pro &amp; Proxy that unlocks
-              custom dynamic heat curves, real-time telemetry, and hardware profile tuning directly in your browser with
-              zero vendor lock-in.
-            </p>
-          </div>
-
-          <!-- Tri-Toggle Platform Switcher -->
-          <div class="platform-switcher-section">
-            <div class="platform-switcher-label">Select Your Platform:</div>
-            <div class="platform-switcher" role="tablist" aria-label="Choose operating system">
-              <button type="button" class="platform-tab-btn active" data-platform="ios" role="tab" aria-selected="true"
-                aria-controls="platform-panel-ios" id="tab-ios">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.4c.66-.82 1.11-1.96.99-3.1-.96.04-2.12.64-2.8 1.44-.6.69-1.12 1.83-.98 2.93 1.07.08 2.13-.45 2.79-1.27z" />
+          <!-- SECTION 1: SETUP INSTRUCTIONS -->
+          <div id="info-section-instructions" class="info-section-content active">
+            <!-- 1-Sentence App Rundown Banner -->
+            <div class="lockscreen-rundown-card">
+              <div class="rundown-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
-                <span>iOS</span>
-              </button>
-              <button type="button" class="platform-tab-btn" data-platform="android" role="tab" aria-selected="false"
-                aria-controls="platform-panel-android" id="tab-android">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M17.523 15.341a1 1 0 1 0-1.732-1 1 1 0 0 0 1.732 1zm-11.046 0a1 1 0 1 0-1.732-1 1 1 0 0 0 1.732 1zM7.05 6.462l-1.42-2.46a.5.5 0 1 0-.866.5l1.443 2.5A8.04 8.04 0 0 0 2.05 13h19.9a8.04 8.04 0 0 0-4.157-5.998l1.443-2.5a.5.5 0 1 0-.866-.5L16.95 6.462A7.95 7.95 0 0 0 12 5.5c-1.79 0-3.465.347-4.95.962z" />
-                </svg>
-                <span>Android</span>
-              </button>
-              <button type="button" class="platform-tab-btn" data-platform="desktop" role="tab" aria-selected="false"
-                aria-controls="platform-panel-desktop" id="tab-desktop">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
-                </svg>
-                <span>Desktop</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Platform Panels Container -->
-          <div class="platform-panels-container">
-            <!-- iOS Instructions Panel -->
-            <div id="platform-panel-ios" class="platform-panel active" role="tabpanel" aria-labelledby="tab-ios">
-              <div class="panel-header-badge">
-                <span class="badge-tag apple-tag">Apple iPhone &amp; iPad</span>
-                <span class="badge-status">Web BLE Browser Required</span>
               </div>
-              <ol class="instruction-steps">
-                <li class="instruction-step">
-                  <div class="step-num">1</div>
-                  <div class="step-details">
-                    <h4>Install Bluefy &amp; Open puffsn0w</h4>
-                    <p>Download <a href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055"
-                        target="_blank" rel="noopener noreferrer" class="link-cyan"><strong>Bluefy Web BLE Browser
-                          ↗</strong></a> from the App Store, then open <strong>puffsn0w.terpscoops.com</strong>.</p>
-                    <div class="copy-url-container">
-                      <div class="copy-url-box">
-                        <input type="text" class="copy-url-input" id="ios-puffsn0w-url" value="puffsn0w.terpscoops.com"
-                          readonly spellcheck="false" aria-label="puffsn0w URL" />
-                        <button type="button" class="btn-copy-url" id="copy-url-btn" aria-label="Copy website URL"
-                          title="Copy URL">
-                          <svg class="copy-icon" viewBox="0 0 24 24" width="13" height="13" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                          </svg>
-                          <span class="copy-text">Copy</span>
-                        </button>
+              <p class="rundown-text">
+                <strong>puffsn0w</strong> is an open-source web jailbreak for Puffco Peak Pro &amp; Proxy that unlocks
+                custom dynamic heat curves, real-time telemetry, and hardware profile tuning directly in your browser with
+                zero vendor lock-in.
+              </p>
+            </div>
+
+            <!-- Tri-Toggle Platform Switcher -->
+            <div class="platform-switcher-section">
+              <div class="platform-switcher-label">Select Your Platform:</div>
+              <div class="platform-switcher" role="tablist" aria-label="Choose operating system">
+                <button type="button" class="platform-tab-btn active" data-platform="ios" role="tab" aria-selected="true"
+                  aria-controls="platform-panel-ios" id="tab-ios">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.4c.66-.82 1.11-1.96.99-3.1-.96.04-2.12.64-2.8 1.44-.6.69-1.12 1.83-.98 2.93 1.07.08 2.13-.45 2.79-1.27z" />
+                  </svg>
+                  <span>iOS</span>
+                </button>
+                <button type="button" class="platform-tab-btn" data-platform="android" role="tab" aria-selected="false"
+                  aria-controls="platform-panel-android" id="tab-android">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M17.523 15.341a1 1 0 1 0-1.732-1 1 1 0 0 0 1.732 1zm-11.046 0a1 1 0 1 0-1.732-1 1 1 0 0 0 1.732 1zM7.05 6.462l-1.42-2.46a.5.5 0 1 0-.866.5l1.443 2.5A8.04 8.04 0 0 0 2.05 13h19.9a8.04 8.04 0 0 0-4.157-5.998l1.443-2.5a.5.5 0 1 0-.866-.5L16.95 6.462A7.95 7.95 0 0 0 12 5.5c-1.79 0-3.465.347-4.95.962z" />
+                  </svg>
+                  <span>Android</span>
+                </button>
+                <button type="button" class="platform-tab-btn" data-platform="desktop" role="tab" aria-selected="false"
+                  aria-controls="platform-panel-desktop" id="tab-desktop">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
+                  </svg>
+                  <span>Desktop</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Platform Panels Container -->
+            <div class="platform-panels-container">
+              <!-- iOS Instructions Panel -->
+              <div id="platform-panel-ios" class="platform-panel active" role="tabpanel" aria-labelledby="tab-ios">
+                <div class="panel-header-badge">
+                  <span class="badge-tag apple-tag">Apple iPhone &amp; iPad</span>
+                  <span class="badge-status">Web BLE Browser Required</span>
+                </div>
+                <ol class="instruction-steps">
+                  <li class="instruction-step">
+                    <div class="step-num">1</div>
+                    <div class="step-details">
+                      <h4>Install Bluefy &amp; Open puffsn0w</h4>
+                      <p>Download <a href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055"
+                          target="_blank" rel="noopener noreferrer" class="link-cyan"><strong>Bluefy Web BLE Browser
+                            ↗</strong></a> from the App Store, then open <strong>puffsn0w.terpscoops.com</strong>.</p>
+                      <div class="copy-url-container">
+                        <div class="copy-url-box">
+                          <input type="text" class="copy-url-input" id="ios-puffsn0w-url" value="puffsn0w.terpscoops.com"
+                            readonly spellcheck="false" aria-label="puffsn0w URL" />
+                          <button type="button" class="btn-copy-url" id="copy-url-btn" aria-label="Copy website URL"
+                            title="Copy URL">
+                            <svg class="copy-icon" viewBox="0 0 24 24" width="13" height="13" fill="none"
+                              stroke="currentColor" stroke-width="2">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span class="copy-text">Copy</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">2</div>
-                  <div class="step-details">
-                    <h4>Before Pairing</h4>
-                    <p>Close the official Puffco app (Path Browser). Hold the power button on your Peak Pro or Proxy for
-                      <strong>6 seconds</strong> until the light ring pulses blue.
-                    </p>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">3</div>
-                  <div class="step-details">
-                    <h4>Connect &amp; Slide to Unlock</h4>
-                    <p>Tap <strong>Connect Device</strong>, select your device from the popup picker, and slide to
-                      unlock!</p>
-                  </div>
-                </li>
-              </ol>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">2</div>
+                    <div class="step-details">
+                      <h4>Before Pairing</h4>
+                      <p>Close the official Puffco app (Path Browser). Hold the power button on your Peak Pro or Proxy for
+                        <strong>6 seconds</strong> until the light ring pulses blue.
+                      </p>
+                    </div>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">3</div>
+                    <div class="step-details">
+                      <h4>Connect &amp; Slide to Unlock</h4>
+                      <p>Tap <strong>Connect Device</strong>, select your device from the popup picker, and slide to
+                        unlock!</p>
+                    </div>
+                  </li>
+                </ol>
 
-              <!-- Tooltip Style Tip Step -->
-              <div class="instruction-tip-card">
-                <div class="tip-header">
-                  <div class="tip-badge">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
-                      stroke-width="2.5">
-                      <path
-                        d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                    <span>TIP</span>
+                <!-- Tooltip Style Tip Step -->
+                <div class="instruction-tip-card">
+                  <div class="tip-header">
+                    <div class="tip-badge">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <path
+                          d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                      </svg>
+                      <span>TIP</span>
+                    </div>
+                    <span class="tip-title">Home Screen Shortcut</span>
                   </div>
-                  <span class="tip-title">Home Screen Shortcut</span>
+                  <p class="tip-body">
+                    To create a 1-tap Home Screen icon, open your <strong>Shortcuts</strong> app and create a shortcut for
+                    <em>Open App &gt; Bluefy</em>.
+                  </p>
                 </div>
-                <p class="tip-body">
-                  To create a 1-tap Home Screen icon, open your <strong>Shortcuts</strong> app and create a shortcut for
-                  <em>Open App &gt; Bluefy</em>.
-                </p>
+              </div>
+
+              <!-- Android Instructions Panel -->
+              <div id="platform-panel-android" class="platform-panel" role="tabpanel" aria-labelledby="tab-android"
+                hidden>
+                <div class="panel-header-badge">
+                  <span class="badge-tag android-tag">Android Devices</span>
+                  <span class="badge-status">Native Web Bluetooth Ready</span>
+                </div>
+                <ol class="instruction-steps">
+                  <li class="instruction-step">
+                    <div class="step-num">1</div>
+                    <div class="step-details">
+                      <h4>Open in Browser</h4>
+                      <p>Open in Chrome, Edge, or Samsung Internet. Web Bluetooth is natively supported.</p>
+                    </div>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">2</div>
+                    <div class="step-details">
+                      <h4>Before Pairing</h4>
+                      <p>Turn on Bluetooth &amp; Location, and close the official Puffco app. Hold power on your device
+                        for
+                        <strong>6 seconds</strong> until the light ring pulses blue.
+                      </p>
+                    </div>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">3</div>
+                    <div class="step-details">
+                      <h4>Connect &amp; Slide to Unlock</h4>
+                      <p>Tap <strong>Connect Device</strong>, select your device from the popup picker, and slide to
+                        unlock!</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <!-- Tooltip Style Tip Step -->
+                <div class="instruction-tip-card">
+                  <div class="tip-header">
+                    <div class="tip-badge">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <path
+                          d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                      </svg>
+                      <span>TIP</span>
+                    </div>
+                    <span class="tip-title">Install App (PWA)</span>
+                  </div>
+                  <p class="tip-body">
+                    Tap the browser menu (<strong>⋮</strong>) and select <strong>"Install app"</strong> or
+                    <strong>"Add to Home screen"</strong> for a full-screen standalone app experience.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Desktop Instructions Panel -->
+              <div id="platform-panel-desktop" class="platform-panel" role="tabpanel" aria-labelledby="tab-desktop"
+                hidden>
+                <div class="panel-header-badge">
+                  <span class="badge-tag desktop-tag">macOS / Windows / Linux</span>
+                  <span class="badge-status">Chromium Native BLE</span>
+                </div>
+                <ol class="instruction-steps">
+                  <li class="instruction-step">
+                    <div class="step-num">1</div>
+                    <div class="step-details">
+                      <h4>Open in Chromium Browser</h4>
+                      <p>Open in Chrome, Edge, Brave, or Arc. Web Bluetooth is natively supported.</p>
+                    </div>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">2</div>
+                    <div class="step-details">
+                      <h4>Before Pairing</h4>
+                      <p>Close the mobile app. On macOS, ensure Chrome has Bluetooth access. Hold power on your device for
+                        <strong>6 seconds</strong> until the light ring pulses blue.
+                      </p>
+                    </div>
+                  </li>
+                  <li class="instruction-step">
+                    <div class="step-num">3</div>
+                    <div class="step-details">
+                      <h4>Connect &amp; Slide to Unlock</h4>
+                      <p>Click <strong>Connect Device</strong>, select your device from the popup picker, and slide to
+                        unlock!</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <!-- Tooltip Style Tip Step -->
+                <div class="instruction-tip-card">
+                  <div class="tip-header">
+                    <div class="tip-badge">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <path
+                          d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                      </svg>
+                      <span>TIP</span>
+                    </div>
+                    <span class="tip-title">Install Desktop App</span>
+                  </div>
+                  <p class="tip-body">
+                    Click the install icon (<strong>⊕</strong>) in your browser address bar to install puffsn0w as a
+                    standalone desktop app.
+                  </p>
+                </div>
               </div>
             </div>
 
-            <!-- Android Instructions Panel -->
-            <div id="platform-panel-android" class="platform-panel" role="tabpanel" aria-labelledby="tab-android"
-              hidden>
-              <div class="panel-header-badge">
-                <span class="badge-tag android-tag">Android Devices</span>
-                <span class="badge-status">Native Web Bluetooth Ready</span>
-              </div>
-              <ol class="instruction-steps">
-                <li class="instruction-step">
-                  <div class="step-num">1</div>
-                  <div class="step-details">
-                    <h4>Open in Browser</h4>
-                    <p>Open in Chrome, Edge, or Samsung Internet. Web Bluetooth is natively supported.</p>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">2</div>
-                  <div class="step-details">
-                    <h4>Before Pairing</h4>
-                    <p>Turn on Bluetooth &amp; Location, and close the official Puffco app. Hold power on your device
-                      for
-                      <strong>6 seconds</strong> until the light ring pulses blue.
-                    </p>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">3</div>
-                  <div class="step-details">
-                    <h4>Connect &amp; Slide to Unlock</h4>
-                    <p>Tap <strong>Connect Device</strong>, select your device from the popup picker, and slide to
-                      unlock!</p>
-                  </div>
-                </li>
-              </ol>
+            <!-- Subtle Link to Legal Disclaimer -->
+            <div class="disclaimer-jump-wrap">
+              <button type="button" class="btn-text-link" id="jump-to-disclaimer-btn">
+                <span>⚖️ Read Legal Disclaimer &amp; Liability Waiver</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
 
-              <!-- Tooltip Style Tip Step -->
-              <div class="instruction-tip-card">
-                <div class="tip-header">
-                  <div class="tip-badge">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
-                      stroke-width="2.5">
-                      <path
-                        d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                    <span>TIP</span>
-                  </div>
-                  <span class="tip-title">Install App (PWA)</span>
-                </div>
-                <p class="tip-body">
-                  Tap the browser menu (<strong>⋮</strong>) and select <strong>"Install app"</strong> or
-                  <strong>"Add to Home screen"</strong> for a full-screen standalone app experience.
-                </p>
+          <!-- SECTION 2: LEGAL & SAFETY DISCLAIMER (Separate Tab) -->
+          <div id="info-section-disclaimer" class="info-section-content" hidden>
+            <div class="disclaimer-overview-banner">
+              <div class="disclaimer-banner-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <div>
+                <h4 class="disclaimer-banner-title">Legal &amp; Safety Disclaimer</h4>
+                <p class="disclaimer-banner-sub">Please review the terms of use, assumption of risk, and limitation of liability before connecting your device.</p>
               </div>
             </div>
 
-            <!-- Desktop Instructions Panel -->
-            <div id="platform-panel-desktop" class="platform-panel" role="tabpanel" aria-labelledby="tab-desktop"
-              hidden>
-              <div class="panel-header-badge">
-                <span class="badge-tag desktop-tag">macOS / Windows / Linux</span>
-                <span class="badge-status">Chromium Native BLE</span>
-              </div>
-              <ol class="instruction-steps">
-                <li class="instruction-step">
-                  <div class="step-num">1</div>
-                  <div class="step-details">
-                    <h4>Open in Chromium Browser</h4>
-                    <p>Open in Chrome, Edge, Brave, or Arc. Web Bluetooth is natively supported.</p>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">2</div>
-                  <div class="step-details">
-                    <h4>Before Pairing</h4>
-                    <p>Close the mobile app. On macOS, ensure Chrome has Bluetooth access. Hold power on your device for
-                      <strong>6 seconds</strong> until the light ring pulses blue.
-                    </p>
-                  </div>
-                </li>
-                <li class="instruction-step">
-                  <div class="step-num">3</div>
-                  <div class="step-details">
-                    <h4>Connect &amp; Slide to Unlock</h4>
-                    <p>Click <strong>Connect Device</strong>, select your device from the popup picker, and slide to
-                      unlock!</p>
-                  </div>
-                </li>
-              </ol>
-
-              <!-- Tooltip Style Tip Step -->
-              <div class="instruction-tip-card">
-                <div class="tip-header">
-                  <div class="tip-badge">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
-                      stroke-width="2.5">
-                      <path
-                        d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                    <span>TIP</span>
-                  </div>
-                  <span class="tip-title">Install Desktop App</span>
+            <div class="disclaimer-clauses-list">
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge">AFFILIATION</span>
+                  <h5>Independent Third-Party Software</h5>
                 </div>
-                <p class="tip-body">
-                  Click the install icon (<strong>⊕</strong>) in your browser address bar to install puffsn0w as a
-                  standalone desktop app.
-                </p>
+                <p>puffsn0w is an independent, community-developed open-source software project. It is <strong>not affiliated, associated, authorized, endorsed by, or in any way officially connected with Puff Co.</strong> or any of its subsidiaries. All product names, logos, and trademarks (including &ldquo;Puff Co.&rdquo;, &ldquo;Puffco&rdquo;, &ldquo;Peak Pro&rdquo;, &ldquo;Proxy&rdquo;, and &ldquo;3DXL&rdquo;) are registered trademarks of their respective owners.</p>
               </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-warning">AS-IS USE</span>
+                  <h5>Assumption of Risk (&ldquo;As-Is&rdquo;)</h5>
+                </div>
+                <p>This software is provided <strong>&ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties of any kind</strong>, express or implied. Operating electronic vaporizers, tuning temperature setpoints, executing dynamic heating curves, or writing directly to hardware profile registers involves inherent physical and electrical risks. You assume all responsibility and risk for any use of puffsn0w with your hardware.</p>
+              </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-danger">LIABILITY</span>
+                  <h5>Complete Limitation of Liability</h5>
+                </div>
+                <p>In no event shall the authors, developers, maintainers, contributors, or distributors of puffsn0w be held liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages (including, but not limited to, device malfunction, chamber damage, heating element burnout, battery degradation, voided manufacturer warranties, loss of data, property damage, or personal injury) arising out of or in connection with the use, misuse, or inability to use this software.</p>
+              </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-muted">WARRANTY</span>
+                  <h5>Manufacturer Warranty Notice</h5>
+                </div>
+                <p>Modifying factory operating parameters, flashing unofficial thermal curves, or communicating with your device via third-party Bluetooth software may void your original manufacturer warranty. Use entirely at your own discretion and risk.</p>
+              </div>
+            </div>
+
+            <div class="disclaimer-back-wrap">
+              <button type="button" class="btn btn-secondary btn-sm" id="back-to-guide-btn">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                <span>Back to Setup Instructions</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1650,7 +1743,7 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <div>puffsn0w • the open-source puffco jailbreak &amp; dynamic heat curve studio</div>
+      <div>puffsn0w • open-source enthusiast utility • not affiliated with Puff Co. • use at own risk</div>
       <div id="bt-indicator" class="ws-pill ws-connected">Web BLE Ready</div>
     </footer>
   </div>
@@ -1660,7 +1753,7 @@
   <script src="./puffco-ble.js?v=5.1"></script>
   <script src="./simulator.js?v=5.1"></script>
   <script src="./curve-governor.js?v=5.1"></script>
-  <script src="./app.js?v=5.1"></script>
+  <script src="./app.js?v=5.5"></script>
 </body>
 
 </html>

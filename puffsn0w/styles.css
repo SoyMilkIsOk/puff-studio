@@ -4730,6 +4730,215 @@ body.lockscreen-active .btn-global-estop {
   font-size: 0.76rem;
 }
 
+/* Modal Section Navigation Tabs */
+.info-nav-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 16px 0 16px;
+  gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.info-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  top: 1px;
+}
+
+.info-nav-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.info-nav-tab.active {
+  color: #00f2fe;
+  background: rgba(19, 23, 34, 0.95);
+  border-color: rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid #00f2fe;
+  font-weight: 600;
+}
+
+.info-nav-tab.tab-disclaimer.active {
+  color: #ffaa00;
+  border-bottom: 2px solid #ffaa00;
+}
+
+.info-nav-tab.tab-disclaimer svg {
+  color: #ffaa00;
+}
+
+/* Modal Sections */
+.info-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: panelFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.info-section-content[hidden] {
+  display: none !important;
+}
+
+/* Disclaimer Overview Banner */
+.disclaimer-overview-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 170, 0, 0.07);
+  border: 1px solid rgba(255, 170, 0, 0.25);
+  border-radius: 13px;
+}
+
+.disclaimer-banner-icon {
+  color: #ffaa00;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.disclaimer-banner-title {
+  margin: 0 0 3px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.disclaimer-banner-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+/* Disclaimer Clauses List */
+.disclaimer-clauses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.disclaimer-clause-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  padding: 12px 14px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.disclaimer-clause-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.clause-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.clause-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 242, 254, 0.12);
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.3);
+}
+
+.clause-badge.badge-warning {
+  background: rgba(255, 170, 0, 0.12);
+  color: #ffaa00;
+  border-color: rgba(255, 170, 0, 0.35);
+}
+
+.clause-badge.badge-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.clause-badge.badge-muted {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.disclaimer-clause-card h5 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.disclaimer-clause-card p {
+  margin: 0;
+  font-size: 0.77rem;
+  line-height: 1.48;
+  color: #94a3b8;
+}
+
+.disclaimer-clause-card p strong {
+  color: #f1f5f9;
+}
+
+/* Jump & Back Links */
+.disclaimer-jump-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+
+.btn-text-link {
+  background: rgba(255, 170, 0, 0.06);
+  border: 1px solid rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+  font-family: inherit;
+  font-size: 0.77rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 9px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  justify-content: center;
+}
+
+.btn-text-link:hover {
+  background: rgba(255, 170, 0, 0.12);
+  border-color: rgba(255, 170, 0, 0.4);
+  color: #ffbb22;
+  transform: translateY(-1px);
+}
+
+.disclaimer-back-wrap {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
 /* Modal Footer */
 .lockscreen-info-footer {
   display: flex;

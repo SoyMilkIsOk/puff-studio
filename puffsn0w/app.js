@@ -2485,11 +2485,86 @@ function setupLockscreenInfoModal() {
     }
   }
 
+  // Section Navigation Tabs (Setup Instructions vs Legal Disclaimer)
+  const infoNavTabs = el.lockscreenInfoModal.querySelectorAll('.info-nav-tab');
+  const infoSectionInstructions = el.lockscreenInfoModal.querySelector('#info-section-instructions');
+  const infoSectionDisclaimer = el.lockscreenInfoModal.querySelector('#info-section-disclaimer');
+  const infoTitle = el.lockscreenInfoModal.querySelector('#lockscreen-info-title');
+  const infoBadge = el.lockscreenInfoModal.querySelector('.lockscreen-info-pill-badge');
+  const infoBody = el.lockscreenInfoModal.querySelector('.lockscreen-info-body');
+  const jumpToDisclaimerBtn = el.lockscreenInfoModal.querySelector('#jump-to-disclaimer-btn');
+  const backToGuideBtn = el.lockscreenInfoModal.querySelector('#back-to-guide-btn');
+
+  function switchInfoSection(section) {
+    const isInstructions = section === 'instructions';
+    infoNavTabs.forEach((tab) => {
+      const isCurrent = tab.getAttribute('data-info-tab') === section;
+      tab.classList.toggle('active', isCurrent);
+      tab.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
+    });
+
+    if (infoSectionInstructions) {
+      if (isInstructions) {
+        infoSectionInstructions.classList.add('active');
+        infoSectionInstructions.removeAttribute('hidden');
+      } else {
+        infoSectionInstructions.classList.remove('active');
+        infoSectionInstructions.setAttribute('hidden', '');
+      }
+    }
+
+    if (infoSectionDisclaimer) {
+      if (!isInstructions) {
+        infoSectionDisclaimer.classList.add('active');
+        infoSectionDisclaimer.removeAttribute('hidden');
+      } else {
+        infoSectionDisclaimer.classList.remove('active');
+        infoSectionDisclaimer.setAttribute('hidden', '');
+      }
+    }
+
+    if (infoTitle) {
+      infoTitle.textContent = isInstructions ? 'Quick Overview & Setup' : 'Legal & Safety Disclaimer';
+    }
+    if (infoBadge) {
+      infoBadge.textContent = isInstructions ? 'PUFFSN0W GUIDE' : 'LEGAL DISCLAIMER';
+      infoBadge.style.color = isInstructions ? '' : '#ffaa00';
+      infoBadge.style.borderColor = isInstructions ? '' : 'rgba(255, 170, 0, 0.4)';
+    }
+
+    if (infoBody) {
+      infoBody.scrollTop = 0;
+    }
+  }
+
+  infoNavTabs.forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabTarget = tab.getAttribute('data-info-tab');
+      if (tabTarget) switchInfoSection(tabTarget);
+    });
+  });
+
+  if (jumpToDisclaimerBtn) {
+    jumpToDisclaimerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchInfoSection('disclaimer');
+    });
+  }
+
+  if (backToGuideBtn) {
+    backToGuideBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchInfoSection('instructions');
+    });
+  }
+
   // Pre-select detected platform (or iOS fallback) silently on initialization
   selectPlatform(detectUserPlatform());
 
   function openModal() {
     if (el.lockscreenInfoModal) {
+      switchInfoSection('instructions');
       if (!userManuallySelected) {
         selectPlatform(detectUserPlatform());
       }

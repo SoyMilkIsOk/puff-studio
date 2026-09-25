@@ -88,7 +88,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=5.2">
+  <link rel="stylesheet" href="./styles.css?v=5.5">
 </head>
 
 <body class="theme-dark lockscreen-active demo-mode" data-demo="true">
@@ -256,26 +256,138 @@
         <!-- Modal Header -->
         <div class="lockscreen-info-header">
           <div class="lockscreen-info-header-title">
-            <div class="lockscreen-info-pill-badge">PUFFSN0W OVERVIEW</div>
-            <h3 id="lockscreen-info-title" class="lockscreen-info-title">Quick Overview</h3>
+            <div class="lockscreen-info-pill-badge">PUFFSN0W DEMO</div>
+            <h3 id="lockscreen-info-title" class="lockscreen-info-title">Interactive Demo Overview</h3>
           </div>
           <button id="close-lockscreen-info-modal" class="lockscreen-info-close-btn" type="button"
             aria-label="Close overview">✕</button>
         </div>
 
+        <!-- Modal Section Switcher Tabs -->
+        <div class="info-nav-tabs" role="tablist" aria-label="Demo information section switcher">
+          <button type="button" class="info-nav-tab active" data-info-tab="instructions" id="info-tab-instructions"
+            role="tab" aria-selected="true" aria-controls="info-section-instructions">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="10 8 16 12 10 16 10 8" />
+            </svg>
+            <span>Demo Overview</span>
+          </button>
+          <button type="button" class="info-nav-tab tab-disclaimer" data-info-tab="disclaimer" id="info-tab-disclaimer"
+            role="tab" aria-selected="false" aria-controls="info-section-disclaimer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>Legal Disclaimer</span>
+          </button>
+        </div>
+
         <div class="lockscreen-info-body">
-          <!-- 1-Sentence App Rundown Banner -->
-          <div class="lockscreen-rundown-card">
-            <div class="rundown-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
+          <!-- SECTION 1: DEMO OVERVIEW -->
+          <div id="info-section-instructions" class="info-section-content active">
+            <!-- 1-Sentence App Rundown Banner -->
+            <div class="lockscreen-rundown-card">
+              <div class="rundown-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+              <p class="rundown-text">
+                <strong>puffsn0w</strong> is an open-source web jailbreak for Puffco Peak Pro &amp; Proxy that unlocks
+                custom dynamic heat curves, real-time telemetry, and hardware profile tuning directly in your browser with
+                zero vendor lock-in.
+              </p>
             </div>
-            <p class="rundown-text">
-              <strong>puffsn0w</strong> is an open-source web jailbreak for Puffco Peak Pro &amp; Proxy that unlocks
-              custom dynamic heat curves, real-time telemetry, and hardware profile tuning directly in your browser with
-              zero vendor lock-in.
-            </p>
+
+            <!-- Demo Mode Guide Card -->
+            <div class="instruction-tip-card" style="margin-top: 4px;">
+              <div class="tip-header">
+                <div class="tip-badge">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
+                  <span>SIMULATOR</span>
+                </div>
+                <span class="tip-title">Virtual Hardware Mode</span>
+              </div>
+              <p class="tip-body">
+                You are currently in <strong>Demo Sandbox Mode</strong>. A virtual Puffco Peak Pro 3DXL is running inside this browser session so you can test live temperature heating curves, LED light effects, and profile editing without connecting physical hardware. Slide the slider on the lockscreen to unlock!
+              </p>
+            </div>
+
+            <!-- Jump to Disclaimer Link -->
+            <div class="disclaimer-jump-wrap">
+              <button type="button" class="btn-text-link" id="jump-to-disclaimer-btn">
+                <span>⚖️ Read Legal Disclaimer &amp; Liability Waiver</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- SECTION 2: LEGAL & SAFETY DISCLAIMER (Separate Tab) -->
+          <div id="info-section-disclaimer" class="info-section-content" hidden>
+            <div class="disclaimer-overview-banner">
+              <div class="disclaimer-banner-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <div>
+                <h4 class="disclaimer-banner-title">Legal &amp; Safety Disclaimer</h4>
+                <p class="disclaimer-banner-sub">Please review the terms of use, assumption of risk, and limitation of liability before connecting your device.</p>
+              </div>
+            </div>
+
+            <div class="disclaimer-clauses-list">
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge">AFFILIATION</span>
+                  <h5>Independent Third-Party Software</h5>
+                </div>
+                <p>puffsn0w is an independent, community-developed open-source software project. It is <strong>not affiliated, associated, authorized, endorsed by, or in any way officially connected with Puff Co.</strong> or any of its subsidiaries. All product names, logos, and trademarks (including &ldquo;Puff Co.&rdquo;, &ldquo;Puffco&rdquo;, &ldquo;Peak Pro&rdquo;, &ldquo;Proxy&rdquo;, and &ldquo;3DXL&rdquo;) are registered trademarks of their respective owners.</p>
+              </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-warning">AS-IS USE</span>
+                  <h5>Assumption of Risk (&ldquo;As-Is&rdquo;)</h5>
+                </div>
+                <p>This software is provided <strong>&ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties of any kind</strong>, express or implied. Operating electronic vaporizers, tuning temperature setpoints, executing dynamic heating curves, or writing directly to hardware profile registers involves inherent physical and electrical risks. You assume all responsibility and risk for any use of puffsn0w with your hardware.</p>
+              </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-danger">LIABILITY</span>
+                  <h5>Complete Limitation of Liability</h5>
+                </div>
+                <p>In no event shall the authors, developers, maintainers, contributors, or distributors of puffsn0w be held liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages (including, but not limited to, device malfunction, chamber damage, heating element burnout, battery degradation, voided manufacturer warranties, loss of data, property damage, or personal injury) arising out of or in connection with the use, misuse, or inability to use this software.</p>
+              </div>
+
+              <div class="disclaimer-clause-card">
+                <div class="clause-header">
+                  <span class="clause-badge badge-muted">WARRANTY</span>
+                  <h5>Manufacturer Warranty Notice</h5>
+                </div>
+                <p>Modifying factory operating parameters, flashing unofficial thermal curves, or communicating with your device via third-party Bluetooth software may void your original manufacturer warranty. Use entirely at your own discretion and risk.</p>
+              </div>
+            </div>
+
+            <div class="disclaimer-back-wrap">
+              <button type="button" class="btn btn-secondary btn-sm" id="back-to-guide-btn">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                <span>Back to Overview</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1359,7 +1471,7 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <div>puffsn0w • the open-source puffco jailbreak &amp; dynamic heat curve studio (demo)</div>
+      <div>puffsn0w • open-source enthusiast utility (demo) • not affiliated with Puff Co. • use at own risk</div>
       <div id="bt-indicator" class="ws-pill ws-connected">Web BLE Ready</div>
     </footer>
   </div>
