@@ -218,7 +218,13 @@ class CurveGovernor {
     let lastSentTemp = initialTemp;
     let lastWriteTime = performance.now();
     let activeIdleCount = 0;
-    console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s...`);
+    const isProxy = (typeof this.client.isProxyDevice === 'function' && this.client.isProxyDevice()) ||
+      (this.client?.telemetry?.device_name || '').toLowerCase().includes('proxy') ||
+      this.client?.telemetry?.chamber_type === 'TOAD' ||
+      this.client?.telemetry?.chamber_name === 'Proxy';
+
+    let lastProxyBoostElapsed = 0;
+    console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s (isProxy=${isProxy})...`);
 
     while (this.isActive) {
       const now = performance.now();
@@ -248,12 +254,13 @@ class CurveGovernor {
         break;
       }
 
-      // Check external abort (after 3.0s into curve timeline, require 2 consecutive non-heating reads)
+      // Check external abort (after 3.0s into curve timeline, require 3 consecutive non-heating reads)
+      // Note: Include HEAT_FADE (state 9) to prevent false aborts during downward setpoint step-downs
       const opState = this.client.telemetry.operating_state || '';
-      const isHeating = this.client.telemetry.is_heating || ['READY', 'HEAT_ACTIVE', 'HEAT_PREHEAT'].includes(opState);
+      const isHeating = this.client.telemetry.is_heating || ['READY', 'HEAT_ACTIVE', 'HEAT_PREHEAT', 'HEAT_FADE'].includes(opState);
       if (!isHeating && elapsed > 3.0) {
         activeIdleCount++;
-        if (activeIdleCount >= 2) {
+        if (activeIdleCount >= 3) {
           console.log(`[Governor] Heat stopped externally (state=${opState}).`);
           this._broadcast({
             is_active: false,
@@ -295,6 +302,28 @@ class CurveGovernor {
       let currentTarget = Math.round(window.interpolateCurveTarget(keyframes, elapsed) * 10) / 10;
       // Hard safety clamp: Never command setpoint outside [350°F, 590°F]
       currentTarget = Math.min(590.0, Math.max(350.0, currentTarget));
+
+      // PROXY HARDWARE EXTENSION: The Proxy hardware has a built-in ~30-35s cycle limit.
+      // To run curves longer than 25s on Proxy without premature termination,
+      // dispatch keep-alive Boost pulses (0x09 to /p/app/mc) to add +15s intervals.
+      if (isProxy && durationS > 25.0) {
+        const timeSinceLastBoost = elapsed - lastProxyBoostElapsed;
+        const timeRemainingInCurve = durationS - elapsed;
+        // Trigger first boost around t = 20s, then repeat every 12-14s while at least 5s remain in the curve
+        if (elapsed >= 20.0 && timeSinceLastBoost >= 12.0 && timeRemainingInCurve >= 5.0) {
+          console.log(`[Governor] Proxy keep-alive boost pulse dispatched at t=${elapsed.toFixed(1)}s (extending hardware timer +15s)...`);
+          lastProxyBoostElapsed = elapsed;
+          try {
+            await this.client.boostSession();
+            // Immediately re-assert current interpolated setpoint to override boost's temp bump
+            await this.client.writeTemperature(currentTarget, slot);
+            lastSentTemp = currentTarget;
+            lastWriteTime = now;
+          } catch (boostErr) {
+            console.warn('[Governor] Proxy boost pulse warning:', boostErr);
+          }
+        }
+      }
 
       // Slew-rate check & flash wear reduction delta filter:
       // Only write to device flash if setpoint changed by >= 2.0°F (or if >= 2.5s since last write)

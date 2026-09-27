@@ -438,13 +438,17 @@ function parseDurationSeconds(rawVal) {
       const view = new DataView(buf);
       view.setUint32(0, rawVal, true);
       const fVal = view.getFloat32(0, true);
-      if (fVal >= 5.0 && fVal <= 300.0) {
+      if (fVal >= 5.0 && fVal <= 300.0 && !isNaN(fVal) && isFinite(fVal)) {
         return Math.round(fVal);
       }
     } catch (e) {}
+    // If rawVal is in milliseconds (e.g. 15000ms to 180000ms)
+    if (rawVal >= 15000 && rawVal <= 180000) {
+      return Math.round(rawVal / 1000);
+    }
   }
   if (rawVal >= 5 && rawVal <= 300) return rawVal;
-  if (rawVal >= 500 && rawVal <= 30000) return Math.round(rawVal / 100);
+  if (rawVal >= 500 && rawVal < 15000) return Math.round(rawVal / 100);
   return 45;
 }
 
@@ -517,6 +521,13 @@ class PuffcoBleClient {
 
   isWebBluetoothSupported() {
     return typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  }
+
+  isProxyDevice() {
+    const devName = (this.telemetry.device_name || this.device?.name || '').toLowerCase();
+    const chType = this.telemetry.chamber_type;
+    const chName = (this.telemetry.chamber_name || '').toLowerCase();
+    return devName.includes('proxy') || chType === 'TOAD' || chName === 'proxy';
   }
 
   addTelemetryListener(cb) {
@@ -1192,11 +1203,11 @@ class PuffcoBleClient {
       const chmtBytes = await this.readPath(PATH_CHAMBER_TYPE);
       if (chmtBytes.length > 0) {
         const cType = chmtBytes[0];
-        this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Standard' : '3DXL');
+        this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Proxy' : '3DXL');
         this.telemetry.chamber_type = (cType === 2 || cType === 4) ? 'CHAMBER_3DXL' : (cType === 3 ? 'CHAMBER_3D' : (cType === 1 ? 'STANDARD' : (cType === 5 ? 'TOAD' : 'NONE')));
       } else if (this.telemetry.device_name.toLowerCase().includes('proxy')) {
-        this.telemetry.chamber_name = 'Standard';
-        this.telemetry.chamber_type = 'STANDARD';
+        this.telemetry.chamber_name = 'Proxy';
+        this.telemetry.chamber_type = 'TOAD';
       }
 
       // 4. Lifetime Dabs Odometer
@@ -1483,7 +1494,7 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
     tempF = validateTemperature(tempF);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    const isProxy = this.isProxyDevice();
     const cVal = fToC(tempF);
 
     // Proxy hardware strictly requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
@@ -1511,8 +1522,10 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].target_temp_f = tempF;
       }
-      // Re-assert active profile to update live PID register
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      // Re-assert active profile to update live PID register (Peak Pro only; omit on Proxy during active heating to prevent cycle abort)
+      if (!isProxy || !this.telemetry.is_heating) {
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      }
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write temperature ${tempF}°F to slot ${slot}`);
@@ -1525,20 +1538,20 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    const isProxy = this.isProxyDevice();
 
-    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 80s -> 8000)
+    // Proxy hardware uses uint32 LE seconds (e.g. 60s -> 60)
     // Peak Pro hardware strictly requires float32 LE seconds
-    const bufHundredths = new ArrayBuffer(4);
-    new DataView(bufHundredths).setUint32(0, Math.round(durationS * 100), true);
-    const payloadHundredths = new Uint8Array(bufHundredths);
+    const bufSeconds = new ArrayBuffer(4);
+    new DataView(bufSeconds).setUint32(0, Math.round(durationS), true);
+    const payloadSeconds = new Uint8Array(bufSeconds);
 
     const bufFloat = new ArrayBuffer(4);
     new DataView(bufFloat).setFloat32(0, Number(durationS), true);
     const payloadFloat = new Uint8Array(bufFloat);
 
-    const primaryPayload = isProxy ? payloadHundredths : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadHundredths;
+    const primaryPayload = isProxy ? payloadSeconds : payloadFloat;
+    const secondaryPayload = isProxy ? payloadFloat : payloadSeconds;
 
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
     let ok = await this.writePath(path, primaryPayload);
@@ -1552,7 +1565,10 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].duration_s = durationS;
       }
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      // Re-assert active profile to update live PID register (Peak Pro only; omit on Proxy during active heating to prevent cycle abort)
+      if (!isProxy || !this.telemetry.is_heating) {
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      }
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write duration ${durationS}s to slot ${slot}`);

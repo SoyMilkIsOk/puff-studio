@@ -3,7 +3,7 @@
  * Network-first strategy with offline cache fallback.
  */
 
-const CACHE_NAME = 'puffsn0w-cache-v5.7';
+const CACHE_NAME = 'puffsn0w-cache-v5.8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
