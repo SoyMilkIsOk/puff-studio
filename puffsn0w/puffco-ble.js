@@ -1536,14 +1536,27 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
 
-    // Both Peak Pro and Proxy hardware strictly require IEEE 754 float32 LE seconds for /u/app/hc/{slot}/time
-    // (verified in Lorax VFS PATH_CONFIG and official firmware reverse-engineering writeups)
+    const isProxy = this.isProxyDevice();
+
+    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 50s -> 5000, 85s -> 8500)
+    // Peak Pro hardware strictly requires float32 LE seconds (e.g. 50s -> 50.0, 85s -> 85.0)
+    const bufHundredths = new ArrayBuffer(4);
+    new DataView(bufHundredths).setUint32(0, Math.round(durationS * 100), true);
+    const payloadHundredths = new Uint8Array(bufHundredths);
+
     const bufFloat = new ArrayBuffer(4);
     new DataView(bufFloat).setFloat32(0, Number(durationS), true);
     const payloadFloat = new Uint8Array(bufFloat);
 
+    const primaryPayload = isProxy ? payloadHundredths : payloadFloat;
+    const secondaryPayload = isProxy ? payloadFloat : payloadHundredths;
+
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
-    const ok = await this.writePath(path, payloadFloat);
+    let ok = await this.writePath(path, primaryPayload);
+    if (!ok) {
+      console.warn('[PuffcoBLE] Primary duration write format rejected, trying fallback format...');
+      ok = await this.writePath(path, secondaryPayload);
+    }
 
     if (ok) {
       this.telemetry.total_time = durationS;

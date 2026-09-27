@@ -229,6 +229,7 @@ class CurveGovernor {
       this.client?.telemetry?.chamber_name === 'Proxy';
 
     let lastProxyBoostElapsed = 0;
+    let curHardwareDuration = hardwareDuration;
     console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s (isProxy=${isProxy})...`);
 
     while (this.isActive) {
@@ -309,17 +310,20 @@ class CurveGovernor {
       currentTarget = Math.min(590.0, Math.max(350.0, currentTarget));
 
       // HARDWARE SESSION EXTENSION / SAFETY NET:
-      // If the hardware countdown timer is running low (<= 8s remaining) while at least 5s remain in the curve,
+      // Track elapsed hardware time from session start (preheatStart) against programmed hardware duration.
+      // If hardware timer has <= 8s remaining while at least 5s remain in the curve,
       // dispatch a keep-alive Boost pulse (0x09 to /p/app/mc) to add +15s to the active hardware timer.
-      const hwRemaining = this.client.telemetry?.time_remaining;
+      const elapsedHardware = (now - preheatStart) / 1000;
+      const estHardwareRemaining = curHardwareDuration - elapsedHardware;
       const timeRemainingInCurve = durationS - elapsed;
-      if (typeof hwRemaining === 'number' && hwRemaining > 0 && hwRemaining <= 8 && timeRemainingInCurve >= 5.0) {
+      if (estHardwareRemaining <= 8.0 && timeRemainingInCurve >= 5.0) {
         const timeSinceLastBoost = elapsed - lastProxyBoostElapsed;
-        if (timeSinceLastBoost >= 8.0) {
-          console.log(`[Governor] Hardware timer low (${hwRemaining}s remaining, ${timeRemainingInCurve.toFixed(1)}s left in curve). Dispatching keep-alive boost pulse...`);
+        if (timeSinceLastBoost >= 10.0) {
+          console.log(`[Governor] Hardware timer low (~${estHardwareRemaining.toFixed(1)}s remaining, ${timeRemainingInCurve.toFixed(1)}s left in curve). Dispatching keep-alive boost pulse...`);
           lastProxyBoostElapsed = elapsed;
           try {
             await this.client.boostSession();
+            curHardwareDuration += 15.0; // Boost extends hardware timer by +15s
             // Immediately re-assert current interpolated setpoint to override boost's temp bump
             await this.client.writeTemperature(currentTarget, slot);
             lastSentTemp = currentTarget;
