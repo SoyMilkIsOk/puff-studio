@@ -55,6 +55,9 @@ const el = {
   lockscreenBatteryFill: document.getElementById('lockscreen-battery-fill'),
   lockscreenConnectBtn: document.getElementById('lockscreen-connect-btn'),
   lockscreenConnectLabel: document.getElementById('lockscreen-connect-label'),
+  lockscreenSearchAllBtn: document.getElementById('lockscreen-search-all-btn'),
+  lockscreenPairNewBtn: document.getElementById('lockscreen-pair-new-btn'),
+  lockscreenPairNewDot: document.getElementById('lockscreen-pair-new-dot'),
   lockscreenInfoBtn: document.getElementById('lockscreen-info-btn'),
   lockscreenInfoModal: document.getElementById('lockscreen-info-modal'),
   closeLockscreenInfoModal: document.getElementById('close-lockscreen-info-modal'),
@@ -88,6 +91,7 @@ const el = {
   closeTutorialModal: document.getElementById('close-tutorial-modal'),
   tutorialDismissBtn: document.getElementById('tutorial-dismiss-btn'),
   tutorialConnectBtn: document.getElementById('tutorial-connect-btn'),
+  tutorialSearchAllBtn: document.getElementById('tutorial-search-all-btn'),
   btIndicator: document.getElementById('bt-indicator'),
 
   // Compatibility Banner & Modal
@@ -395,6 +399,7 @@ function handleTelemetryUpdate(data) {
           el.lockscreenConnectLabel.textContent = `✓ ${data.device_name || 'E-Rig'} Connected`;
         }
       }
+      updateRememberedDevUI();
     } else {
       el.lockscreen.classList.add('lockscreen-locked');
       if (el.lockscreenBtBadge) el.lockscreenBtBadge.classList.remove('connected');
@@ -411,10 +416,8 @@ function handleTelemetryUpdate(data) {
       }
       if (el.lockscreenConnectBtn) {
         el.lockscreenConnectBtn.classList.remove('connected');
-        if (el.lockscreenConnectLabel) {
-          el.lockscreenConnectLabel.textContent = 'Connect Device';
-        }
       }
+      updateRememberedDevUI();
     }
   }
 
@@ -2073,6 +2076,7 @@ async function handleConnectToggle(options = {}) {
       showToast('Demo Puffco reconnected ⚡', 'success', 2500);
     }
     handleTelemetryUpdate(activeClient.telemetry);
+    updateRememberedDevUI();
     return;
   }
 
@@ -2081,29 +2085,108 @@ async function handleConnectToggle(options = {}) {
     await activeClient.disconnect();
     showToast('Disconnected', 'info');
     handleTelemetryUpdate(activeClient.telemetry);
+    updateRememberedDevUI();
   } else {
     try {
-      showToast('Scanning for nearby Bluetooth devices...', 'info', 3000);
+      const lastDev = (typeof activeClient.getLastRememberedDev === 'function')
+        ? activeClient.getLastRememberedDev()
+        : { id: localStorage.getItem('puff_last_device_id'), name: localStorage.getItem('puff_last_device_name') };
+
+      // Fast auto-reconnect if device is already authorized and no forced picker or "showAll" requested
+      if (!options.forcePicker && !options.showAll && lastDev && lastDev.id && typeof navigator.bluetooth?.getDevices === 'function') {
+        el.mainConnectBtn.disabled = true;
+        el.mainConnectBtn.textContent = 'Connecting...';
+        if (el.lockscreenConnectBtn) el.lockscreenConnectBtn.disabled = true;
+        if (el.lockscreenConnectLabel) el.lockscreenConnectLabel.textContent = `Connecting to ${lastDev.name || 'Rig'}...`;
+
+        const connected = await activeClient.autoConnect(lastDev.id).catch(() => false);
+        if (connected) {
+          showToast(`Reconnected to ${activeClient.telemetry.device_name || lastDev.name || 'Rig'}! ⚡`, 'success', 3000);
+          updateRememberedDevUI();
+          return;
+        }
+      }
+
+      showToast(
+        options.showAll
+          ? 'Scanning for all nearby Bluetooth devices...'
+          : 'Scanning for nearby Puffco devices...',
+        'info',
+        3000
+      );
       el.mainConnectBtn.disabled = true;
       el.mainConnectBtn.textContent = 'Connecting...';
+      if (el.lockscreenConnectBtn) el.lockscreenConnectBtn.disabled = true;
 
-      await activeClient.connect({ showAll: true, ...options });
+      await activeClient.connect({ showAll: false, ...options });
+      updateRememberedDevUI();
     } catch (err) {
       console.warn('[App] Connect error:', err);
       const isUserCancel =
+        err.wasCancelled ||
         err.message?.includes('cancelled') ||
         err.message?.includes('No device selected') ||
         err.name === 'NotFoundError';
 
       if (isUserCancel) {
-        showToast('Pairing cancelled.', 'info', 2500);
+        if (!options.showAll) {
+          showToast('Rig not listed? Tap "Search All BLE" or put your rig in pairing mode.', 'info', 5000);
+        } else {
+          showToast('Pairing cancelled.', 'info', 2500);
+        }
       } else {
         showToast(err.message || 'Connection failed or device not recognized.', 'error', 5000);
       }
     } finally {
       el.mainConnectBtn.disabled = false;
+      if (el.lockscreenConnectBtn) el.lockscreenConnectBtn.disabled = false;
       handleTelemetryUpdate(activeClient.telemetry);
+      updateRememberedDevUI();
     }
+  }
+}
+
+function updateRememberedDevUI() {
+  if (!activeClient) return;
+  const lastDev = (typeof activeClient.getLastRememberedDev === 'function')
+    ? activeClient.getLastRememberedDev()
+    : { id: localStorage.getItem('puff_last_device_id'), name: localStorage.getItem('puff_last_device_name') };
+
+  const isConn = activeClient.isConnected;
+
+  if (isConn) {
+    if (el.mainConnectBtn) el.mainConnectBtn.textContent = 'Disconnect';
+    if (el.lockscreenPairNewBtn) el.lockscreenPairNewBtn.classList.add('hidden');
+    if (el.lockscreenPairNewDot) el.lockscreenPairNewDot.classList.add('hidden');
+    return;
+  }
+
+  if (lastDev && lastDev.name) {
+    if (el.lockscreenConnectLabel) {
+      el.lockscreenConnectLabel.textContent = `⚡ Reconnect ${lastDev.name}`;
+    }
+    if (el.lockscreenConnectBtn) {
+      el.lockscreenConnectBtn.title = `Reconnect to ${lastDev.name}`;
+    }
+    if (el.mainConnectBtn) {
+      el.mainConnectBtn.textContent = '⚡ Reconnect';
+      el.mainConnectBtn.title = `Reconnect to ${lastDev.name}`;
+    }
+    if (el.lockscreenPairNewBtn) el.lockscreenPairNewBtn.classList.remove('hidden');
+    if (el.lockscreenPairNewDot) el.lockscreenPairNewDot.classList.remove('hidden');
+  } else {
+    if (el.lockscreenConnectLabel) {
+      el.lockscreenConnectLabel.textContent = 'Connect Device';
+    }
+    if (el.lockscreenConnectBtn) {
+      el.lockscreenConnectBtn.title = 'Scan & Connect Puffco Device';
+    }
+    if (el.mainConnectBtn) {
+      el.mainConnectBtn.textContent = 'Connect';
+      el.mainConnectBtn.title = 'Scan & Connect to Puff device via Web Bluetooth';
+    }
+    if (el.lockscreenPairNewBtn) el.lockscreenPairNewBtn.classList.add('hidden');
+    if (el.lockscreenPairNewDot) el.lockscreenPairNewDot.classList.add('hidden');
   }
 }
 
@@ -2612,7 +2695,7 @@ function setupLockscreenInfoModal() {
     el.lockscreenInfoConnectBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       closeModal();
-      await handleConnectToggle({ showAll: true });
+      await handleConnectToggle({ showAll: false });
     });
   }
 
@@ -2674,8 +2757,22 @@ function setupLockscreen() {
       if (activeClient && activeClient.isConnected) {
         unlockToDashboard();
       } else {
-        await handleConnectToggle({ showAll: true });
+        await handleConnectToggle({ showAll: false });
       }
+    });
+  }
+
+  // Lockscreen "Search All BLE" sublink
+  if (el.lockscreenSearchAllBtn) {
+    el.lockscreenSearchAllBtn.addEventListener('click', async () => {
+      await handleConnectToggle({ showAll: true, forcePicker: true });
+    });
+  }
+
+  // Lockscreen "Pair New Rig" sublink
+  if (el.lockscreenPairNewBtn) {
+    el.lockscreenPairNewBtn.addEventListener('click', async () => {
+      await handleConnectToggle({ showAll: false, forcePicker: true });
     });
   }
 
@@ -2754,7 +2851,7 @@ function attachEventListeners() {
 
   // Connect Button
   if (el.mainConnectBtn) {
-    el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: true }));
+    el.mainConnectBtn.addEventListener('click', () => handleConnectToggle({ showAll: false }));
   }
 
   // Information / Connection Tutorial Modal
@@ -2779,7 +2876,14 @@ function attachEventListeners() {
   if (el.tutorialConnectBtn) {
     el.tutorialConnectBtn.addEventListener('click', async () => {
       if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
-      await handleConnectToggle({ showAll: true });
+      await handleConnectToggle({ showAll: false });
+    });
+  }
+
+  if (el.tutorialSearchAllBtn) {
+    el.tutorialSearchAllBtn.addEventListener('click', async () => {
+      if (el.connectTutorialModal) el.connectTutorialModal.classList.add('hidden');
+      await handleConnectToggle({ showAll: true, forcePicker: true });
     });
   }
 
@@ -3348,12 +3452,14 @@ function bootstrap() {
   } else {
     // Initial UI state for normal hardware mode
     handleTelemetryUpdate(activeClient.telemetry);
+    updateRememberedDevUI();
 
     // Auto-connect to previously paired Bluetooth device if permitted by browser
     if (bleClient && bleClient.isWebBluetoothSupported() && typeof navigator.bluetooth?.getDevices === 'function') {
       bleClient.autoConnect().then((connected) => {
         if (connected) {
           showToast(`Auto-connected to ${bleClient.telemetry.device_name || 'Puff'}! 🌿`, 'success', 3500);
+          updateRememberedDevUI();
         }
       }).catch((err) => {
         console.log('[puffsn0w] Auto-connect check bypassed:', err);

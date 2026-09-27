@@ -53,6 +53,11 @@ class PuffcoSimulator {
     return true; // Always supported for demo
   }
 
+  isProxyDevice() {
+    const name = (this.telemetry.device_name || '').toLowerCase();
+    return name.includes('proxy') || this.telemetry.chamber_type === 'TOAD';
+  }
+
   addTelemetryListener(cb) {
     this._listeners.add(cb);
   }

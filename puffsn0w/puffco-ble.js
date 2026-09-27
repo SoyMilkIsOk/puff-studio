@@ -438,13 +438,17 @@ function parseDurationSeconds(rawVal) {
       const view = new DataView(buf);
       view.setUint32(0, rawVal, true);
       const fVal = view.getFloat32(0, true);
-      if (fVal >= 5.0 && fVal <= 300.0) {
+      if (fVal >= 5.0 && fVal <= 300.0 && !isNaN(fVal) && isFinite(fVal)) {
         return Math.round(fVal);
       }
     } catch (e) {}
+    // If rawVal is in milliseconds (e.g. 15000ms to 180000ms)
+    if (rawVal >= 15000 && rawVal <= 180000) {
+      return Math.round(rawVal / 1000);
+    }
   }
   if (rawVal >= 5 && rawVal <= 300) return rawVal;
-  if (rawVal >= 500 && rawVal <= 30000) return Math.round(rawVal / 100);
+  if (rawVal >= 500 && rawVal < 15000) return Math.round(rawVal / 100);
   return 45;
 }
 
@@ -517,6 +521,13 @@ class PuffcoBleClient {
 
   isWebBluetoothSupported() {
     return typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  }
+
+  isProxyDevice() {
+    const devName = (this.telemetry.device_name || this.device?.name || '').toLowerCase();
+    const chType = this.telemetry.chamber_type;
+    const chName = (this.telemetry.chamber_name || '').toLowerCase();
+    return devName.includes('proxy') || chType === 'TOAD' || chName === 'proxy';
   }
 
   addTelemetryListener(cb) {
@@ -623,19 +634,83 @@ class PuffcoBleClient {
       'f9a98c15-c651-4f34-b656-d100bf580000', // Puffco base service
     ];
 
-    console.log('[PuffcoBLE] Requesting Bluetooth Device (acceptAllDevices: true)...');
-
+    const isBluefy = typeof navigator !== 'undefined' && /bluefy|webble|pathbrowser/i.test(navigator.userAgent || '');
+    const showAll = !!options.showAll || isBluefy;
     let selectedDevice = null;
-    try {
-      selectedDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices,
-      });
-    } catch (err) {
-      if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
-        throw new Error('No device selected. Pairing was cancelled.');
+
+    if (showAll) {
+      console.log(`[PuffcoBLE] Requesting Bluetooth Device (Unfiltered: acceptAllDevices: true${isBluefy ? ', iOS Bluefy detected' : ''})...`);
+      try {
+        selectedDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices,
+        });
+      } catch (err) {
+        if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
+          const cancelErr = new Error('No device selected. Pairing was cancelled.');
+          cancelErr.name = 'NotFoundError';
+          cancelErr.wasCancelled = true;
+          throw cancelErr;
+        }
+        throw err;
       }
-      throw err;
+    } else {
+      console.log('[PuffcoBLE] Requesting Bluetooth Device (Smart Filtered: Company 3075 + Peak/Proxy prefixes)...');
+      const remembered = this.getLastRememberedDev();
+      const filters = [
+        // 1. Bluetooth SIG Manufacturer ID 3075 (0x0C03) - Puffco Company ID
+        // Matches Peak Pro v1 & v2, New Peak, Proxy, regardless of custom name ("SAMS PEAK")
+        { manufacturerData: [{ companyIdentifier: PUFFCO_MANUFACTURER_ID }] },
+
+        // 2. Name Prefixes (for stock devices)
+        { namePrefix: 'Peak' },
+        { namePrefix: 'peak' },
+        { namePrefix: 'PEAK' },
+        { namePrefix: 'Proxy' },
+        { namePrefix: 'proxy' },
+        { namePrefix: 'PROXY' },
+        { namePrefix: 'Puffco' },
+        { namePrefix: 'puffco' },
+        { namePrefix: 'PUFFCO' },
+
+        // 3. Fallback Service UUIDs
+        { services: [PUFFCO_LORAX_SVC_UUID] },
+        { services: [PUFFCO_PIKACHU_SVC_UUID] },
+      ];
+
+      if (remembered && remembered.name) {
+        filters.unshift({ name: remembered.name });
+      }
+
+      try {
+        selectedDevice = await navigator.bluetooth.requestDevice({
+          filters,
+          optionalServices,
+        });
+      } catch (err) {
+        if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
+          const cancelErr = new Error('No device selected. Pairing was cancelled.');
+          cancelErr.name = 'NotFoundError';
+          cancelErr.wasCancelled = true;
+          throw cancelErr;
+        }
+        // If the browser rejects filters (e.g. quirks in some iOS wrappers or older browser stacks), fallback to acceptAllDevices
+        console.warn('[PuffcoBLE] Filtered scan encountered error, falling back to acceptAllDevices:', err);
+        try {
+          selectedDevice = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices,
+          });
+        } catch (fbErr) {
+          if (fbErr.name === 'NotFoundError' || fbErr.message?.includes('User cancelled') || fbErr.message?.includes('cancelled')) {
+            const cancelErr = new Error('No device selected. Pairing was cancelled.');
+            cancelErr.name = 'NotFoundError';
+            cancelErr.wasCancelled = true;
+            throw cancelErr;
+          }
+          throw fbErr;
+        }
+      }
     }
 
     if (!selectedDevice) {
@@ -649,12 +724,13 @@ class PuffcoBleClient {
     if (!device) throw new Error('No BluetoothDevice specified.');
     this.device = device;
 
-    // Persist last connected device ID for auto-reconnection
+    // Persist last connected device ID and name for auto-reconnection
     try {
       if (this.device.id) {
         localStorage.setItem('puff_last_device_id', this.device.id);
-        if (this.device.name) {
-          localStorage.setItem('puff_last_device_name', this.device.name);
+        const nameToSave = this.device.name || this.telemetry.device_name;
+        if (nameToSave) {
+          localStorage.setItem('puff_last_device_name', nameToSave);
         }
         document.cookie = `puff_last_device_id=${encodeURIComponent(this.device.id)}; path=/; max-age=31536000; SameSite=Lax`;
       }
@@ -772,9 +848,37 @@ class PuffcoBleClient {
   }
 
   /**
+   * Returns remembered device details from local persistence.
+   */
+  getLastRememberedDev() {
+    try {
+      const id = localStorage.getItem('puff_last_device_id') || null;
+      let name = localStorage.getItem('puff_last_device_name') || null;
+      if (!id && !name) {
+        const match = document.cookie.match(/(?:^|; )puff_last_device_id=([^;]*)/);
+        if (match) return { id: decodeURIComponent(match[1]), name: null };
+      }
+      return { id, name };
+    } catch (e) {
+      return { id: null, name: null };
+    }
+  }
+
+  /**
+   * Forgets the remembered device.
+   */
+  forgetDevice() {
+    try {
+      localStorage.removeItem('puff_last_device_id');
+      localStorage.removeItem('puff_last_device_name');
+      document.cookie = 'puff_last_device_id=; path=/; max-age=0; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  /**
    * Attempts automatic reconnection to the last paired device if permitted by browser.
    */
-  async autoConnect() {
+  async autoConnect(targetId = null) {
     if (this.isConnected) return true;
     if (typeof window !== 'undefined' && !window.isSecureContext) return false;
     if (!this.isWebBluetoothSupported() || typeof navigator.bluetooth.getDevices !== 'function') return false;
@@ -783,14 +887,16 @@ class PuffcoBleClient {
       const devices = await navigator.bluetooth.getDevices();
       if (!devices || devices.length === 0) return false;
 
-      let lastId = null;
-      try {
-        lastId = localStorage.getItem('puff_last_device_id');
-        if (!lastId) {
-          const match = document.cookie.match(/(?:^|; )puff_last_device_id=([^;]*)/);
-          if (match) lastId = decodeURIComponent(match[1]);
-        }
-      } catch (e) {}
+      let lastId = targetId;
+      if (!lastId) {
+        try {
+          lastId = localStorage.getItem('puff_last_device_id');
+          if (!lastId) {
+            const match = document.cookie.match(/(?:^|; )puff_last_device_id=([^;]*)/);
+            if (match) lastId = decodeURIComponent(match[1]);
+          }
+        } catch (e) {}
+      }
 
       let targetDevice = null;
       if (lastId) {
@@ -1075,6 +1181,9 @@ class PuffcoBleClient {
         const cleanName = decodeUtf8(nameBytes).trim();
         if (cleanName) {
           this.telemetry.device_name = cleanName;
+          try {
+            localStorage.setItem('puff_last_device_name', cleanName);
+          } catch (e) {}
         }
       }
 
@@ -1094,11 +1203,11 @@ class PuffcoBleClient {
       const chmtBytes = await this.readPath(PATH_CHAMBER_TYPE);
       if (chmtBytes.length > 0) {
         const cType = chmtBytes[0];
-        this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Standard' : '3DXL');
+        this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Proxy' : '3DXL');
         this.telemetry.chamber_type = (cType === 2 || cType === 4) ? 'CHAMBER_3DXL' : (cType === 3 ? 'CHAMBER_3D' : (cType === 1 ? 'STANDARD' : (cType === 5 ? 'TOAD' : 'NONE')));
       } else if (this.telemetry.device_name.toLowerCase().includes('proxy')) {
-        this.telemetry.chamber_name = 'Standard';
-        this.telemetry.chamber_type = 'STANDARD';
+        this.telemetry.chamber_name = 'Proxy';
+        this.telemetry.chamber_type = 'TOAD';
       }
 
       // 4. Lifetime Dabs Odometer
@@ -1385,7 +1494,7 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
     tempF = validateTemperature(tempF);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    const isProxy = this.isProxyDevice();
     const cVal = fToC(tempF);
 
     // Proxy hardware strictly requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
@@ -1427,10 +1536,10 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    const isProxy = this.isProxyDevice();
 
-    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 80s -> 8000)
-    // Peak Pro hardware strictly requires float32 LE seconds
+    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 50s -> 5000, 85s -> 8500)
+    // Peak Pro hardware strictly requires float32 LE seconds (e.g. 50s -> 50.0, 85s -> 85.0)
     const bufHundredths = new ArrayBuffer(4);
     new DataView(bufHundredths).setUint32(0, Math.round(durationS * 100), true);
     const payloadHundredths = new Uint8Array(bufHundredths);
@@ -1454,6 +1563,7 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].duration_s = durationS;
       }
+      // Re-assert active profile to synchronize live countdown registers
       await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
       this._notifyListeners();
     } else {
@@ -1696,3 +1806,5 @@ class PuffcoBleClient {
 window.PuffcoBleClient = PuffcoBleClient;
 window.validateTemperature = validateTemperature;
 window.validateDuration = validateDuration;
+window.parseTempBytes = parseTempBytes;
+window.OperatingStateNames = OperatingStateNames;

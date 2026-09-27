@@ -93,13 +93,18 @@ class CurveGovernor {
     }
 
     // 2. Program initial curve duration and temp
-    console.log(`[Governor] Programming initial curve setpoint: ${initialTemp}°F, duration: ${durationS}s to slot ${slot}`);
-    let durOk = await this.client.writeDuration(durationS, slot);
+    // Hardware session time (/p/app/stat/elap) starts the instant startSession (heatCycleStart 0x07) is issued.
+    // Preheat takes 15-25 seconds, which counts against the hardware profile timer.
+    // To ensure the active curve can run its full duration without being cut off early by the hardware,
+    // program the hardware profile duration with preheat buffer allowance (curve duration + 25s, clamped to 120s max).
+    const hardwareDuration = Math.min(120, durationS + 25);
+    console.log(`[Governor] Programming initial curve setpoint: ${initialTemp}°F, hardware duration: ${hardwareDuration}s (curve: ${durationS}s) to slot ${slot}`);
+    let durOk = await this.client.writeDuration(hardwareDuration, slot);
     let tempOk = await this.client.writeTemperature(initialTemp, slot);
     if (!durOk || !tempOk) {
       console.warn('[Governor] Retrying initial setpoint write to ensure hardware synchronization...');
       await new Promise((r) => setTimeout(r, 150));
-      if (!durOk) durOk = await this.client.writeDuration(durationS, slot);
+      if (!durOk) durOk = await this.client.writeDuration(hardwareDuration, slot);
       if (!tempOk) tempOk = await this.client.writeTemperature(initialTemp, slot);
     }
     console.log(`[Governor] Initial configuration results: durOk=${durOk}, tempOk=${tempOk}`);
@@ -218,7 +223,14 @@ class CurveGovernor {
     let lastSentTemp = initialTemp;
     let lastWriteTime = performance.now();
     let activeIdleCount = 0;
-    console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s...`);
+    const isProxy = (typeof this.client.isProxyDevice === 'function' && this.client.isProxyDevice()) ||
+      (this.client?.telemetry?.device_name || '').toLowerCase().includes('proxy') ||
+      this.client?.telemetry?.chamber_type === 'TOAD' ||
+      this.client?.telemetry?.chamber_name === 'Proxy';
+
+    let lastProxyBoostElapsed = 0;
+    let curHardwareDuration = hardwareDuration;
+    console.log(`[Governor] Active curve governor running at 2 Hz for ${durationS}s (isProxy=${isProxy})...`);
 
     while (this.isActive) {
       const now = performance.now();
@@ -248,12 +260,13 @@ class CurveGovernor {
         break;
       }
 
-      // Check external abort (after 3.0s into curve timeline, require 2 consecutive non-heating reads)
+      // Check external abort (after 3.0s into curve timeline, require 3 consecutive non-heating reads)
+      // Note: Include HEAT_FADE (state 9) to prevent false aborts during downward setpoint step-downs
       const opState = this.client.telemetry.operating_state || '';
-      const isHeating = this.client.telemetry.is_heating || ['READY', 'HEAT_ACTIVE', 'HEAT_PREHEAT'].includes(opState);
+      const isHeating = this.client.telemetry.is_heating || ['READY', 'HEAT_ACTIVE', 'HEAT_PREHEAT', 'HEAT_FADE'].includes(opState);
       if (!isHeating && elapsed > 3.0) {
         activeIdleCount++;
-        if (activeIdleCount >= 2) {
+        if (activeIdleCount >= 3) {
           console.log(`[Governor] Heat stopped externally (state=${opState}).`);
           this._broadcast({
             is_active: false,
@@ -295,6 +308,31 @@ class CurveGovernor {
       let currentTarget = Math.round(window.interpolateCurveTarget(keyframes, elapsed) * 10) / 10;
       // Hard safety clamp: Never command setpoint outside [350°F, 590°F]
       currentTarget = Math.min(590.0, Math.max(350.0, currentTarget));
+
+      // HARDWARE SESSION EXTENSION / SAFETY NET:
+      // Track elapsed hardware time from session start (preheatStart) against programmed hardware duration.
+      // If hardware timer has <= 8s remaining while at least 5s remain in the curve,
+      // dispatch a keep-alive Boost pulse (0x09 to /p/app/mc) to add +15s to the active hardware timer.
+      const elapsedHardware = (now - preheatStart) / 1000;
+      const estHardwareRemaining = curHardwareDuration - elapsedHardware;
+      const timeRemainingInCurve = durationS - elapsed;
+      if (estHardwareRemaining <= 8.0 && timeRemainingInCurve >= 5.0) {
+        const timeSinceLastBoost = elapsed - lastProxyBoostElapsed;
+        if (timeSinceLastBoost >= 10.0) {
+          console.log(`[Governor] Hardware timer low (~${estHardwareRemaining.toFixed(1)}s remaining, ${timeRemainingInCurve.toFixed(1)}s left in curve). Dispatching keep-alive boost pulse...`);
+          lastProxyBoostElapsed = elapsed;
+          try {
+            await this.client.boostSession();
+            curHardwareDuration += 15.0; // Boost extends hardware timer by +15s
+            // Immediately re-assert current interpolated setpoint to override boost's temp bump
+            await this.client.writeTemperature(currentTarget, slot);
+            lastSentTemp = currentTarget;
+            lastWriteTime = now;
+          } catch (boostErr) {
+            console.warn('[Governor] Keep-alive boost warning:', boostErr);
+          }
+        }
+      }
 
       // Slew-rate check & flash wear reduction delta filter:
       // Only write to device flash if setpoint changed by >= 2.0°F (or if >= 2.5s since last write)

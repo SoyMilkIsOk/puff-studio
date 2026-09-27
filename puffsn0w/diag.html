@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>puffsn0w — Hardware Diagnostics & Protocol Probe</title>
+  <meta name="description" content="In-depth hardware diagnostic tool and BLE protocol prober for Puffco Peak Pro and Proxy vaporizers.">
+  <link rel="icon" type="image/x-icon" href="./icons/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --card-bg: rgba(18, 22, 34, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-purple: #8b5cf6;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --mono: 'JetBrains Mono', monospace;
+      --font: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: radial-gradient(circle at 50% 0%, rgba(0, 242, 254, 0.08), transparent 60%);
+    }
+    .container {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 6px 12px;
+      background: rgba(0, 242, 254, 0.1);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: rgba(0, 242, 254, 0.2);
+      transform: translateX(-2px);
+    }
+    .title-wrap h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .title-wrap p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, #00f2fe, #4facfe);
+      color: #0b0e14;
+      border-color: rgba(0, 242, 254, 0.3);
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border-color: var(--card-border);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .btn-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .btn-orange {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    /* Device Status Card */
+    .status-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      backdrop-filter: blur(10px);
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: #fff;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 4px;
+      width: fit-content;
+    }
+    .badge-disconnected { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .badge-connected { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .badge-proxy { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .badge-peak { background: rgba(0, 242, 254, 0.2); color: #00f2fe; }
+
+    /* Collapsible Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .card-header h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+
+    /* Table styles */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+    }
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .tag-pass { color: var(--accent-green); font-weight: 600; }
+    .tag-clamp { color: var(--accent-orange); font-weight: 600; }
+    .tag-fail { color: var(--accent-red); font-weight: 600; }
+
+    /* Live Telemetry Flight Recorder */
+    .flight-telemetry {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .flight-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .flight-box .num {
+      font-size: 1.3rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--accent-cyan);
+    }
+    .flight-box.orange .num { color: var(--accent-orange); }
+    .flight-box.red .num { color: var(--accent-red); }
+    .flight-box.green .num { color: var(--accent-green); }
+
+    /* Log Terminal */
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .terminal-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal {
+      background: #06080d;
+      border: 1px solid rgba(0, 242, 254, 0.15);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #94a3b8;
+    }
+    .terminal::-webkit-scrollbar { width: 6px; }
+    .terminal::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+
+    .log-info { color: #38bdf8; }
+    .log-success { color: #34d399; }
+    .log-warn { color: #fbbf24; }
+    .log-err { color: #f87171; font-weight: 600; }
+    .log-dim { color: #64748b; }
+    .log-rx { color: #c084fc; }
+    .log-tx { color: #e879f9; }
+
+    /* Quick Action Buttons Grid */
+    .actions-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    input[type="text"], input[type="number"], select {
+      background: #06080d;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent-cyan);
+    }
+    .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <a href="./" class="back-link">← Return to puffsn0w</a>
+        <div class="title-wrap">
+          <h1>Hardware Diagnostics &amp; Protocol Probe</h1>
+          <p>Direct low-level BLE register interrogation for Peak Pro &amp; Proxy</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-connect" class="btn btn-primary">Connect Device</button>
+        <button id="btn-disconnect" class="btn btn-secondary" style="display: none;">Disconnect</button>
+      </div>
+    </header>
+
+    <!-- Device Status Strip -->
+    <div class="status-card">
+      <div class="stat-item">
+        <span class="stat-label">Connection</span>
+        <span id="stat-conn" class="badge badge-disconnected">DISCONNECTED</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Device Model</span>
+        <span id="stat-model" class="stat-val">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Chamber Type</span>
+        <span id="stat-chamber" class="stat-val">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Battery SOC</span>
+        <span id="stat-battery" class="stat-val">--%</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Operating State</span>
+        <span id="stat-state" class="stat-val">IDLE</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Bowl Temp</span>
+        <span id="stat-temp" class="stat-val">--°F</span>
+      </div>
+    </div>
+
+    <!-- TEST 1: DRY RUN DURATION LIMIT PROBE (ZERO HEAT) -->
+    <div class="card">
+      <div class="card-header">
+        <h2>🔬 Test 1: Non-Heating Duration Limit Probe (Dry Run)</h2>
+        <button id="btn-run-probe" class="btn btn-primary" disabled>Run Probe Suite</button>
+      </div>
+      <p class="card-desc">
+        Tests the Proxy's duration register limits (<code>/u/app/hc/3/time</code>) <strong>100% safely without turning on the heater</strong>.
+        Tests whether the Proxy accepts 45s, 60s, 75s, 85s (hundredths), and float32 formats, immediately reading back the value saved in flash memory to detect if the firmware clamps or rejects long durations.
+      </p>
+
+      <div class="table-wrap">
+        <table id="probe-table">
+          <thead>
+            <tr>
+              <th>Target Test</th>
+              <th>Encoding Format</th>
+              <th>Bytes Written</th>
+              <th>Bytes Read Back</th>
+              <th>Decoded Val</th>
+              <th>Firmware Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="probe-tbody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                Connect your device and tap "Run Probe Suite" to inspect hardware limits.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TEST 2: SESSION FLIGHT RECORDER (HEATING TEST) -->
+    <div class="card">
+      <div class="card-header">
+        <h2>🔥 Test 2: Hardware Session Flight Recorder</h2>
+        <div style="display: flex; gap: 6px;">
+          <button id="btn-start-recorder" class="btn btn-orange" disabled>Start Test Cycle</button>
+          <button id="btn-abort-recorder" class="btn btn-danger" disabled>⛔ ABORT</button>
+        </div>
+      </div>
+      <p class="card-desc">
+        Runs a test session while sampling the internal hardware clock (<code>/p/app/stat/elap</code> vs <code>/p/app/stat/tott</code>) at 2 Hz.
+        Captures the exact millisecond and reason the heater shuts off.
+      </p>
+
+      <div class="form-row">
+        <label class="check-label">
+          Target Temp:
+          <select id="sel-flight-temp">
+            <option value="400">400°F (Low Safety)</option>
+            <option value="450" selected>450°F (Normal)</option>
+            <option value="485">485°F (Standard)</option>
+          </select>
+        </label>
+        <label class="check-label">
+          Test Duration:
+          <select id="sel-flight-dur">
+            <option value="45">45 Seconds (Factory Proxy)</option>
+            <option value="60" selected>60 Seconds (Standard Curve)</option>
+            <option value="85">85 Seconds (Curve + Preheat Buffer)</option>
+          </select>
+        </label>
+        <label class="check-label">
+          <input type="checkbox" id="chk-auto-boost">
+          Auto Boost Keep-Alive (Pulse 0x09 at t=25s and t=40s)
+        </label>
+        <button id="btn-manual-boost" class="btn btn-secondary" disabled>⚡ Send Manual Boost (0x09)</button>
+      </div>
+
+      <div class="flight-telemetry">
+        <div class="flight-box">
+          <span class="stat-label">Session Elapsed</span>
+          <span id="fl-elapsed" class="num">0.0s</span>
+        </div>
+        <div class="flight-box orange">
+          <span class="stat-label">Hardware Timer (TOTT)</span>
+          <span id="fl-tott" class="num">--</span>
+        </div>
+        <div class="flight-box green">
+          <span class="stat-label">Hardware Clock (ELAP)</span>
+          <span id="fl-elap" class="num">--</span>
+        </div>
+        <div class="flight-box">
+          <span class="stat-label">Operating State</span>
+          <span id="fl-state" class="num" style="font-size: 1rem;">IDLE</span>
+        </div>
+        <div class="flight-box red">
+          <span class="stat-label">Bowl Temp</span>
+          <span id="fl-temp" class="num">--°F</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEST 3: RAW VFS EXPLORER & QUICK COMMANDS -->
+    <div class="card">
+      <div class="card-header">
+        <h2>⚡ Test 3: Raw VFS Explorer &amp; Direct Commands</h2>
+      </div>
+      <p class="card-desc">Directly read or command any Lorax characteristic.</p>
+      
+      <div class="actions-grid">
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/id">Read State ID</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/elap">Read Elapsed Time</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/tott">Read Total Time</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/htr/temp">Read Bowl Temp (/app/htr/temp)</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/htr/temp">Read Sensor Temp (/htr/temp)</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/bat/soc">Read Battery SOC</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/hcs">Read Active Profile</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/0/time">Read Profile 0 Time</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/3/time">Read Profile 3 Time</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/timo">Read Time Override (/timo)</button>
+      </div>
+
+      <div class="form-row">
+        <input type="text" id="custom-path-input" placeholder="Custom VFS path (e.g. /p/app/stat/elap)" style="flex: 1; min-width: 220px;">
+        <button id="btn-custom-read" class="btn btn-secondary">Read Path</button>
+      </div>
+    </div>
+
+    <!-- REAL-TIME DIAGNOSTIC TERMINAL LOG -->
+    <div class="card">
+      <div class="terminal-header">
+        <h2>📋 Live Telemetry Log &amp; Diagnostic Export</h2>
+        <div class="terminal-actions">
+          <button id="btn-copy-log" class="btn btn-success">📋 Copy Diagnostic Report</button>
+          <button id="btn-download-log" class="btn btn-secondary">💾 Download Log</button>
+          <button id="btn-clear-log" class="btn btn-secondary">Clear</button>
+        </div>
+      </div>
+      <div id="terminal" class="terminal" role="log" aria-live="polite">
+[DIAG] puffsn0w Hardware Diagnostics Suite v1.0 Ready.
+[DIAG] Ready to pair via Web Bluetooth. Tap "Connect Device" to begin.
+      </div>
+    </div>
+  </div>
+
+  <!-- Load puffsn0w BLE engine -->
+  <script src="./puffco-ble.js?v=6.1"></script>
+  <script>
+    (function() {
+      // -------------------------------------------------------------
+      // UI Elements & State
+      // -------------------------------------------------------------
+      let client = null;
+      let flightRecording = false;
+      let flightTimer = null;
+      let flightStartTime = 0;
+      let flightLastBoost = 0;
+      let fullReportLogs = [];
+
+      const btnConnect = document.getElementById('btn-connect');
+      const btnDisconnect = document.getElementById('btn-disconnect');
+      const btnRunProbe = document.getElementById('btn-run-probe');
+      const btnStartRecorder = document.getElementById('btn-start-recorder');
+      const btnAbortRecorder = document.getElementById('btn-abort-recorder');
+      const btnManualBoost = document.getElementById('btn-manual-boost');
+      const btnCopyLog = document.getElementById('btn-copy-log');
+      const btnDownloadLog = document.getElementById('btn-download-log');
+      const btnClearLog = document.getElementById('btn-clear-log');
+      const btnCustomRead = document.getElementById('btn-custom-read');
+      const customPathInput = document.getElementById('custom-path-input');
+
+      const statConn = document.getElementById('stat-conn');
+      const statModel = document.getElementById('stat-model');
+      const statChamber = document.getElementById('stat-chamber');
+      const statBattery = document.getElementById('stat-battery');
+      const statState = document.getElementById('stat-state');
+      const statTemp = document.getElementById('stat-temp');
+
+      const flElapsed = document.getElementById('fl-elapsed');
+      const flTott = document.getElementById('fl-tott');
+      const flElap = document.getElementById('fl-elap');
+      const flState = document.getElementById('fl-state');
+      const flTemp = document.getElementById('fl-temp');
+
+      const terminal = document.getElementById('terminal');
+      const probeTbody = document.getElementById('probe-tbody');
+
+      function formatTimestamp() {
+        const d = new Date();
+        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}.${d.getMilliseconds().toString().padStart(3, '0')}`;
+      }
+
+      function log(msg, type = 'info') {
+        const ts = formatTimestamp();
+        const line = `[${ts}] ${msg}`;
+        fullReportLogs.push(line);
+
+        const span = document.createElement('div');
+        if (type === 'err') span.className = 'log-err';
+        else if (type === 'warn') span.className = 'log-warn';
+        else if (type === 'success') span.className = 'log-success';
+        else if (type === 'rx') span.className = 'log-rx';
+        else if (type === 'tx') span.className = 'log-tx';
+        else if (type === 'dim') span.className = 'log-dim';
+        else span.className = 'log-info';
+
+        span.textContent = line;
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+
+      function hexDump(bytes) {
+        if (!bytes || !bytes.length) return '(empty)';
+        return Array.from(bytes).map(b => '0x' + b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+      }
+
+      // -------------------------------------------------------------
+      // Connect / Disconnect
+      // -------------------------------------------------------------
+      btnConnect.addEventListener('click', async () => {
+        try {
+          log('Requesting Bluetooth device pairing...', 'info');
+          if (!client) client = new window.PuffcoBleClient();
+
+          btnConnect.disabled = true;
+          btnConnect.textContent = 'Connecting...';
+
+          const ok = await client.connect();
+          if (ok) {
+            statConn.textContent = 'CONNECTED';
+            statConn.className = 'badge badge-connected';
+            btnConnect.style.display = 'none';
+            btnDisconnect.style.display = 'inline-flex';
+            btnRunProbe.disabled = false;
+            btnStartRecorder.disabled = false;
+            btnManualBoost.disabled = false;
+
+            const isProxy = client.isProxyDevice();
+            const devName = client.telemetry.device_name || 'Puffco Device';
+            const chName = client.telemetry.chamber_name || (isProxy ? 'Proxy' : '3DXL');
+
+            statModel.textContent = devName;
+            statModel.className = isProxy ? 'badge badge-proxy' : 'badge badge-peak';
+            statChamber.textContent = chName;
+            statBattery.textContent = `${client.telemetry.battery_pct ?? '--'}%`;
+
+            log(`Device Connected: ${devName} (Chamber: ${chName}, isProxy=${isProxy})`, 'success');
+            log(`Lorax handshake unlocked. Battery: ${client.telemetry.battery_pct}%`, 'info');
+
+            // Attach telemetry listener
+            client.addTelemetryListener((t) => {
+              if (t.battery_pct !== null) statBattery.textContent = `${t.battery_pct}%`;
+              if (t.operating_state) statState.textContent = t.operating_state;
+              if (t.live_temp_f) statTemp.textContent = `${Math.round(t.live_temp_f)}°F`;
+            });
+          }
+        } catch (err) {
+          log(`Connection failed: ${err.message || err}`, 'err');
+          btnConnect.disabled = false;
+          btnConnect.textContent = 'Connect Device';
+        }
+      });
+
+      btnDisconnect.addEventListener('click', async () => {
+        if (client) {
+          log('Disconnecting from device...', 'info');
+          await client.disconnect();
+          statConn.textContent = 'DISCONNECTED';
+          statConn.className = 'badge badge-disconnected';
+          btnConnect.style.display = 'inline-flex';
+          btnConnect.disabled = false;
+          btnConnect.textContent = 'Connect Device';
+          btnDisconnect.style.display = 'none';
+          btnRunProbe.disabled = true;
+          btnStartRecorder.disabled = true;
+          btnAbortRecorder.disabled = true;
+          btnManualBoost.disabled = true;
+          log('Disconnected.', 'dim');
+        }
+      });
+
+      // -------------------------------------------------------------
+      // TEST 1: DRY RUN PROBE (Duration Register Interrogation)
+      // -------------------------------------------------------------
+      btnRunProbe.addEventListener('click', async () => {
+        if (!client || !client.isConnected) {
+          alert('Please connect your Puffco device first.');
+          return;
+        }
+
+        btnRunProbe.disabled = true;
+        btnRunProbe.textContent = 'Running Probe...';
+        probeTbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--accent-cyan);">Executing probe suite against Slot 3...</td></tr>`;
+
+        log('----------------------------------------------------', 'dim');
+        log('STARTING DURATION LIMIT PROBE (DRY RUN - ZERO HEAT)', 'warn');
+        log('Target Register: /u/app/hc/3/time', 'info');
+
+        const isProxy = client.isProxyDevice();
+        log(`Device Type Detected: ${isProxy ? 'Puffco Proxy' : 'Peak Pro'}`, 'info');
+
+        // 1. Read existing profile Slot 3
+        const origBytes = await client.readPath('/u/app/hc/3/time');
+        log(`Current Slot 3 Duration Raw Bytes: ${hexDump(origBytes)}`, 'rx');
+
+        let origParsedHundredths = 0;
+        let origParsedFloat = 0;
+        if (origBytes.length >= 4) {
+          const v = new DataView(origBytes.buffer, origBytes.byteOffset, origBytes.byteLength);
+          origParsedHundredths = v.getUint32(0, true) / 100;
+          origParsedFloat = v.getFloat32(0, true);
+        }
+        log(`Interpreted: ${origParsedHundredths}s (if uint32 hundredths) | ${origParsedFloat.toFixed(1)}s (if float32)`, 'info');
+
+        const testCases = [
+          { label: '45s Standard', format: 'uint32 hundredths', valS: 45, rawVal: 4500, type: 'hundredths' },
+          { label: '60s Normal', format: 'uint32 hundredths', valS: 60, rawVal: 6000, type: 'hundredths' },
+          { label: '75s Extended', format: 'uint32 hundredths', valS: 75, rawVal: 7500, type: 'hundredths' },
+          { label: '85s Curve+Preheat', format: 'uint32 hundredths', valS: 85, rawVal: 8500, type: 'hundredths' },
+          { label: '90s Long', format: 'uint32 hundredths', valS: 90, rawVal: 9000, type: 'hundredths' },
+          { label: '60s IEEE Float', format: 'float32 seconds', valS: 60, rawVal: 60.0, type: 'float' },
+          { label: '60s Raw Seconds', format: 'uint32 seconds', valS: 60, rawVal: 60, type: 'rawSec' },
+        ];
+
+        probeTbody.innerHTML = '';
+
+        for (const tc of testCases) {
+          log(`Testing: Write ${tc.label} (${tc.format})...`, 'tx');
+          const buf = new ArrayBuffer(4);
+          const dv = new DataView(buf);
+          if (tc.type === 'hundredths' || tc.type === 'rawSec') {
+            dv.setUint32(0, tc.rawVal, true);
+          } else {
+            dv.setFloat32(0, tc.rawVal, true);
+          }
+          const writeBytes = new Uint8Array(buf);
+
+          // Write
+          const writeOk = await client.writePath('/u/app/hc/3/time', writeBytes);
+          await new Promise(r => setTimeout(r, 120)); // bus settle delay
+
+          // Read back immediately from flash
+          const readBytes = await client.readPath('/u/app/hc/3/time');
+          log(`Write: ${hexDump(writeBytes)} | Readback: ${hexDump(readBytes)} (writeOk=${writeOk})`, 'rx');
+
+          let decodedVal = '--';
+          let verdict = 'UNKNOWN';
+          let verdictClass = 'tag-fail';
+
+          if (readBytes.length >= 4) {
+            const rv = new DataView(readBytes.buffer, readBytes.byteOffset, readBytes.byteLength);
+            const u32 = rv.getUint32(0, true);
+            const f32 = rv.getFloat32(0, true);
+
+            if (tc.type === 'hundredths') {
+              const readSec = u32 / 100;
+              decodedVal = `${readSec}s (${u32})`;
+              if (u32 === tc.rawVal) {
+                verdict = 'ACCEPTED (Exact)';
+                verdictClass = 'tag-pass';
+              } else if (u32 < tc.rawVal && u32 > 0) {
+                verdict = `CLAMPED to ${readSec}s (${u32})`;
+                verdictClass = 'tag-clamp';
+              } else {
+                verdict = `REJECTED / RESET (${u32})`;
+                verdictClass = 'tag-fail';
+              }
+            } else if (tc.type === 'float') {
+              decodedVal = `${f32.toFixed(1)}s (raw u32: ${u32})`;
+              if (Math.abs(f32 - tc.rawVal) < 0.1) {
+                verdict = 'ACCEPTED as Float';
+                verdictClass = 'tag-pass';
+              } else {
+                verdict = `REJECTED (raw: ${u32})`;
+                verdictClass = 'tag-fail';
+              }
+            } else if (tc.type === 'rawSec') {
+              decodedVal = `${u32}s (hundredths: ${u32/100}s)`;
+              verdict = u32 === tc.rawVal ? 'STORED AS SECONDS' : 'REJECTED';
+              verdictClass = u32 === tc.rawVal ? 'tag-clamp' : 'tag-fail';
+            }
+          }
+
+          log(`Result for ${tc.label}: ${decodedVal} -> ${verdict}`, verdictClass === 'tag-pass' ? 'success' : (verdictClass === 'tag-clamp' ? 'warn' : 'err'));
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${tc.label}</strong></td>
+            <td>${tc.format}</td>
+            <td><code>${hexDump(writeBytes)}</code></td>
+            <td><code>${hexDump(readBytes)}</code></td>
+            <td>${decodedVal}</td>
+            <td class="${verdictClass}">${verdict}</td>
+          `;
+          probeTbody.appendChild(tr);
+        }
+
+        // Restore original bytes to Slot 3
+        if (origBytes.length >= 4) {
+          log('Restoring Slot 3 to original state...', 'dim');
+          await client.writePath('/u/app/hc/3/time', origBytes);
+          const verifyRestore = await client.readPath('/u/app/hc/3/time');
+          log(`Restored. Readback: ${hexDump(verifyRestore)}`, 'success');
+        }
+
+        log('PROBE SUITE COMPLETE. Review table above.', 'success');
+        log('----------------------------------------------------', 'dim');
+        btnRunProbe.disabled = false;
+        btnRunProbe.textContent = 'Run Probe Suite';
+      });
+
+      // -------------------------------------------------------------
+      // TEST 2: SESSION FLIGHT RECORDER (Real Heating Test)
+      // -------------------------------------------------------------
+      btnStartRecorder.addEventListener('click', async () => {
+        if (!client || !client.isConnected) {
+          alert('Please connect device first.');
+          return;
+        }
+
+        const tempF = Number(document.getElementById('sel-flight-temp').value || 450);
+        const durS = Number(document.getElementById('sel-flight-dur').value || 60);
+        const autoBoost = document.getElementById('chk-auto-boost').checked;
+
+        log('----------------------------------------------------', 'dim');
+        log(`STARTING FLIGHT RECORDER TEST SESSION`, 'warn');
+        log(`Target Setpoint: ${tempF}°F | Duration: ${durS}s | Auto-Boost: ${autoBoost}`, 'info');
+
+        // Program Slot 3
+        const isProxy = client.isProxyDevice();
+        log(`Programming Slot 3 duration (${durS}s) and temperature (${tempF}°F)...`, 'info');
+        await client.setProfile(3);
+        await client.writeDuration(durS, 3);
+        await client.writeTemperature(tempF, 3);
+
+        // Verify write
+        const checkDur = await client.readPath('/u/app/hc/3/time');
+        log(`Slot 3 Duration confirmed before start: ${hexDump(checkDur)}`, 'rx');
+
+        // Trigger start (0x07 to /p/app/mc)
+        log('Dispatching 0x07 (heatCycleStart) to /p/app/mc...', 'tx');
+        const startOk = await client.startSession();
+        if (!startOk) {
+          log('Start command failed or rejected by device!', 'err');
+          return;
+        }
+
+        flightRecording = true;
+        flightStartTime = performance.now();
+        flightLastBoost = 0;
+        btnStartRecorder.disabled = true;
+        btnAbortRecorder.disabled = false;
+
+        log('Session heat cycle initiated. Flight recording at 2 Hz...', 'success');
+
+        // High frequency poll loop (2 Hz)
+        flightTimer = setInterval(async () => {
+          if (!flightRecording) return;
+          const now = performance.now();
+          const elapsed = (now - flightStartTime) / 1000;
+
+          flElapsed.textContent = `${elapsed.toFixed(1)}s`;
+
+          // Read flight telemetry registers
+          const [stateBytes, elapBytes, tottBytes, tempBytes] = await Promise.all([
+            client.readPath('/p/app/stat/id'),
+            client.readPath('/p/app/stat/elap'),
+            client.readPath('/p/app/stat/tott'),
+            client.readPath('/p/app/htr/temp')
+          ]);
+
+          let stateId = -1;
+          let stateName = 'UNKNOWN';
+          if (stateBytes.length > 0) {
+            stateId = stateBytes[0];
+            stateName = window.OperatingStateNames?.[stateId] || `State_${stateId}`;
+          }
+          flState.textContent = stateName;
+
+          let elapVal = '--';
+          let tottVal = '--';
+          let elapSec = -1;
+          let tottSec = -1;
+
+          if (elapBytes.length >= 4) {
+            const v = new DataView(elapBytes.buffer, elapBytes.byteOffset, elapBytes.byteLength);
+            let f = v.getFloat32(0, true);
+            if (isNaN(f) || !isFinite(f)) f = v.getUint32(0, true);
+            if (f > 300) f /= 1000.0;
+            elapSec = f;
+            elapVal = `${f.toFixed(1)}s`;
+          }
+          flElap.textContent = elapVal;
+
+          if (tottBytes.length >= 4) {
+            const v = new DataView(tottBytes.buffer, tottBytes.byteOffset, tottBytes.byteLength);
+            let f = v.getFloat32(0, true);
+            if (isNaN(f) || !isFinite(f)) f = v.getUint32(0, true);
+            if (f > 300) f /= 1000.0;
+            tottSec = f;
+            tottVal = `${f.toFixed(1)}s`;
+          }
+          flTott.textContent = tottVal;
+
+          let liveTempF = '--';
+          let tempParsed = 0;
+          if (tempBytes && tempBytes.length >= 4) {
+            tempParsed = window.parseTempBytes ? window.parseTempBytes(tempBytes) : 0;
+          }
+          if (tempParsed <= 0) {
+            // Fallback: Check alternative chamber temperature path /p/htr/temp
+            const fallbackTemp = await client.readPath('/p/htr/temp');
+            if (fallbackTemp && fallbackTemp.length >= 4) {
+              tempParsed = window.parseTempBytes ? window.parseTempBytes(fallbackTemp) : 0;
+            }
+          }
+          if (tempParsed > 0) {
+            liveTempF = `${tempParsed.toFixed(1)}°F`;
+          }
+          flTemp.textContent = liveTempF;
+
+          const logMsg = `T+${elapsed.toFixed(1)}s | STATE: ${stateName}(${stateId}) | ELAP: ${elapVal} | TOTT: ${tottVal} | TEMP: ${liveTempF}°F`;
+          log(logMsg, stateId === 8 ? 'info' : (stateId === 7 ? 'dim' : 'warn'));
+
+          // Check Auto Boost
+          if (autoBoost && elapsed >= 25.0 && (elapsed - flightLastBoost) >= 15.0 && elapsed < (durS - 8.0)) {
+            flightLastBoost = elapsed;
+            log(`[AUTO-BOOST TRIGGER] Pulsing 0x09 at T+${elapsed.toFixed(1)}s...`, 'tx');
+            const bOk = await client.boostSession();
+            log(`Boost command response: ${bOk}`, bOk ? 'success' : 'err');
+          }
+
+          // Termination check: Has device transitioned to IDLE, COOLDOWN, or OFF after running?
+          if (elapsed > 4.0 && (stateId === 2 || stateId === 5 || stateId === 11 || stateId === 1 || stateId === 0)) {
+            log('====================================================', 'err');
+            log(`SESSION TERMINATED ABRUPTLY AT T+${elapsed.toFixed(1)}s!`, 'err');
+            log(`Final State: ${stateName} (${stateId}) | Hardware ELAP: ${elapVal} | Hardware TOTT: ${tottVal}`, 'err');
+            log('====================================================', 'err');
+            stopFlightRecorder();
+          }
+
+          // Target elapsed reached
+          if (elapsed >= (durS + 10.0)) {
+            log(`Test session reached programmed limit (${durS}s). Halting test.`, 'success');
+            stopFlightRecorder();
+          }
+        }, 500);
+      });
+
+      function stopFlightRecorder() {
+        if (!flightRecording) return;
+        flightRecording = false;
+        clearInterval(flightTimer);
+        flightTimer = null;
+        btnStartRecorder.disabled = false;
+        btnAbortRecorder.disabled = true;
+      }
+
+      btnAbortRecorder.addEventListener('click', async () => {
+        log('User pressed EMERGENCY ABORT. Sending stop burst...', 'warn');
+        stopFlightRecorder();
+        if (client) {
+          await client.stopSession(true);
+        }
+        log('Stop burst sent. Heater deactivated.', 'success');
+      });
+
+      btnManualBoost.addEventListener('click', async () => {
+        if (!client || !client.isConnected) return;
+        log('Sending manual boost command (0x09 to /p/app/mc)...', 'tx');
+        const ok = await client.boostSession();
+        log(`Manual boost result: ${ok}`, ok ? 'success' : 'err');
+      });
+
+      // -------------------------------------------------------------
+      // TEST 3: RAW VFS EXPLORER
+      // -------------------------------------------------------------
+      document.querySelectorAll('.btn-quick-read').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const path = btn.getAttribute('data-path');
+          await readAndDisplayPath(path);
+        });
+      });
+
+      btnCustomRead.addEventListener('click', async () => {
+        const path = customPathInput.value.trim();
+        if (!path) return;
+        await readAndDisplayPath(path);
+      });
+
+      async function readAndDisplayPath(path) {
+        if (!client || !client.isConnected) {
+          alert('Connect device first.');
+          return;
+        }
+        log(`Reading VFS path: '${path}'...`, 'tx');
+        const bytes = await client.readPath(path);
+        log(`Path '${path}' reply (${bytes.length} bytes): ${hexDump(bytes)}`, 'rx');
+
+        if (bytes.length >= 4) {
+          const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+          const u32 = dv.getUint32(0, true);
+          const i32 = dv.getInt32(0, true);
+          const f32 = dv.getFloat32(0, true);
+          log(`Decoded [${path}]: uint32=${u32} | int32=${i32} | float32=${f32.toFixed(3)} | hundredths=${(u32/100).toFixed(2)}`, 'info');
+        } else if (bytes.length === 1) {
+          log(`Decoded [${path}]: byte=0x${bytes[0].toString(16)} (${bytes[0]})`, 'info');
+        }
+      }
+
+      // -------------------------------------------------------------
+      // DIAGNOSTIC LOG EXPORT
+      // -------------------------------------------------------------
+      btnCopyLog.addEventListener('click', async () => {
+        try {
+          const dev = client ? client.telemetry.device_name : 'Not connected';
+          const header = [
+            `# puffsn0w Hardware Diagnostic Report`,
+            `Generated: ${new Date().toISOString()}`,
+            `Device: ${dev} (${client?.isProxyDevice() ? 'Puffco Proxy' : 'Peak Pro'})`,
+            `Chamber: ${client?.telemetry?.chamber_name || 'Unknown'}`,
+            `Battery: ${client?.telemetry?.battery_pct ?? '--'}%`,
+            `----------------------------------------------------`,
+            ``
+          ].join('\n');
+
+          const fullText = header + fullReportLogs.join('\n');
+          await navigator.clipboard.writeText(fullText);
+          btnCopyLog.textContent = '✅ Copied to Clipboard!';
+          setTimeout(() => btnCopyLog.textContent = '📋 Copy Diagnostic Report', 2000);
+        } catch (e) {
+          alert('Could not copy to clipboard. Select text manually from log.');
+        }
+      });
+
+      btnDownloadLog.addEventListener('click', () => {
+        const text = fullReportLogs.join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `puffsn0w-diag-${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      btnClearLog.addEventListener('click', () => {
+        terminal.innerHTML = '';
+        fullReportLogs = [];
+        log('Diagnostic log cleared.', 'dim');
+      });
+
+    })();
+  </script>
+</body>
+</html>
