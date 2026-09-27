@@ -495,7 +495,9 @@
         <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/id">Read State ID</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/elap">Read Elapsed Time</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/p/app/stat/tott">Read Total Time</button>
-        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/htr/temp">Read Bowl Temp</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/htr/temp">Read Bowl Temp (/app/htr/temp)</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/htr/temp">Read Sensor Temp (/htr/temp)</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/bat/soc">Read Battery SOC</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/p/app/hcs">Read Active Profile</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/0/time">Read Profile 0 Time</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/3/time">Read Profile 3 Time</button>
@@ -885,17 +887,21 @@
           flTott.textContent = tottVal;
 
           let liveTempF = '--';
-          if (tempBytes.length >= 4) {
-            const v = new DataView(tempBytes.buffer, tempBytes.byteOffset, tempBytes.byteLength);
-            const rawC = v.getFloat32(0, true);
-            if (!isNaN(rawC) && isFinite(rawC)) {
-              liveTempF = (rawC * 9 / 5 + 32).toFixed(1);
-            } else {
-              const tenthsC = v.getInt32(0, true);
-              liveTempF = ((tenthsC / 10.0) * 9 / 5 + 32).toFixed(1);
+          let tempParsed = 0;
+          if (tempBytes && tempBytes.length >= 4) {
+            tempParsed = window.parseTempBytes ? window.parseTempBytes(tempBytes) : 0;
+          }
+          if (tempParsed <= 0) {
+            // Fallback: Check alternative chamber temperature path /p/htr/temp
+            const fallbackTemp = await client.readPath('/p/htr/temp');
+            if (fallbackTemp && fallbackTemp.length >= 4) {
+              tempParsed = window.parseTempBytes ? window.parseTempBytes(fallbackTemp) : 0;
             }
           }
-          flTemp.textContent = `${liveTempF}°F`;
+          if (tempParsed > 0) {
+            liveTempF = `${tempParsed.toFixed(1)}°F`;
+          }
+          flTemp.textContent = liveTempF;
 
           const logMsg = `T+${elapsed.toFixed(1)}s | STATE: ${stateName}(${stateId}) | ELAP: ${elapVal} | TOTT: ${tottVal} | TEMP: ${liveTempF}°F`;
           log(logMsg, stateId === 8 ? 'info' : (stateId === 7 ? 'dim' : 'warn'));
