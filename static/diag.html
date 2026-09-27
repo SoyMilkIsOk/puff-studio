@@ -454,8 +454,13 @@
           </select>
         </label>
         <label class="check-label">
-          <input type="checkbox" id="chk-auto-boost">
-          Auto Boost Keep-Alive (Pulse 0x09 at t=25s and t=40s)
+          Extension Method:
+          <select id="sel-keepalive-strategy">
+            <option value="none">None (Strict 30s Factory Cycle)</option>
+            <option value="boost_reset" selected>Boost 0x09 + Temp Re-Assertion</option>
+            <option value="timo_float">Silent /p/app/timo (Float32 Seconds - No Buzz)</option>
+            <option value="timo_hundredths">Silent /p/app/timo (Uint32 Hundredths - No Buzz)</option>
+          </select>
         </label>
         <button id="btn-manual-boost" class="btn btn-secondary" disabled>⚡ Send Manual Boost (0x09)</button>
       </div>
@@ -501,7 +506,9 @@
         <button class="btn btn-secondary btn-quick-read" data-path="/p/app/hcs">Read Active Profile</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/0/time">Read Profile 0 Time</button>
         <button class="btn btn-secondary btn-quick-read" data-path="/u/app/hc/3/time">Read Profile 3 Time</button>
-        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/timo">Read Time Override (/timo)</button>
+        <button class="btn btn-secondary btn-quick-read" data-path="/p/app/timo">Read /p/app/timo</button>
+        <button class="btn btn-orange btn-test-timo" data-format="float" data-val="60">Write /timo (60s Float)</button>
+        <button class="btn btn-orange btn-test-timo" data-format="hundredths" data-val="6000">Write /timo (6000 u32)</button>
       </div>
 
       <div class="form-row">
@@ -804,11 +811,11 @@
 
         const tempF = Number(document.getElementById('sel-flight-temp').value || 450);
         const durS = Number(document.getElementById('sel-flight-dur').value || 60);
-        const autoBoost = document.getElementById('chk-auto-boost').checked;
+        const keepAlive = document.getElementById('sel-keepalive-strategy').value;
 
         log('----------------------------------------------------', 'dim');
         log(`STARTING FLIGHT RECORDER TEST SESSION`, 'warn');
-        log(`Target Setpoint: ${tempF}°F | Duration: ${durS}s | Auto-Boost: ${autoBoost}`, 'info');
+        log(`Target Setpoint: ${tempF}°F | Duration: ${durS}s | Keep-Alive: ${keepAlive}`, 'info');
 
         // Program Slot 3
         const isProxy = client.isProxyDevice();
@@ -903,41 +910,64 @@
           }
           flTemp.textContent = liveTempF;
 
-          const logMsg = `T+${elapsed.toFixed(1)}s | STATE: ${stateName}(${stateId}) | ELAP: ${elapVal} | TOTT: ${tottVal} | TEMP: ${liveTempF}°F`;
+          const logMsg = `T+${elapsed.toFixed(1)}s | STATE: ${stateName}(${stateId}) | ELAP: ${elapVal} | TOTT: ${tottVal} | TEMP: ${liveTempF}`;
           log(logMsg, stateId === 8 ? 'info' : (stateId === 7 ? 'dim' : 'warn'));
 
-          // Check Auto Boost
-          if (autoBoost && elapsed >= 25.0 && (elapsed - flightLastBoost) >= 15.0 && elapsed < (durS - 8.0)) {
+          // Check Keep-Alive Strategy
+          if (keepAlive !== 'none' && elapsed >= 25.0 && (elapsed - flightLastBoost) >= 15.0 && elapsed < (durS - 6.0)) {
             flightLastBoost = elapsed;
-            log(`[AUTO-BOOST TRIGGER] Pulsing 0x09 at T+${elapsed.toFixed(1)}s...`, 'tx');
-            const bOk = await client.boostSession();
-            log(`Boost command response: ${bOk}`, bOk ? 'success' : 'err');
+            if (keepAlive === 'boost_reset') {
+              log(`[KEEP-ALIVE BOOST] Pulsing 0x09 at T+${elapsed.toFixed(1)}s and immediately locking ${tempF}°F setpoint...`, 'tx');
+              const bOk = await client.boostSession();
+              await client.writeTemperature(tempF, 3);
+              log(`Boost command response: ${bOk} (setpoint locked to ${tempF}°F)`, bOk ? 'success' : 'err');
+            } else if (keepAlive === 'timo_float') {
+              log(`[SILENT TIMO] Writing float32 duration (${durS}s) to /p/app/timo...`, 'tx');
+              const buf = new ArrayBuffer(4);
+              new DataView(buf).setFloat32(0, Number(durS), true);
+              const ok = await client.writePath('/p/app/timo', new Uint8Array(buf));
+              log(`Write /p/app/timo float32 result: ${ok}`, ok ? 'success' : 'err');
+            } else if (keepAlive === 'timo_hundredths') {
+              log(`[SILENT TIMO] Writing uint32 hundredths (${durS * 100}) to /p/app/timo...`, 'tx');
+              const buf = new ArrayBuffer(4);
+              new DataView(buf).setUint32(0, Math.round(durS * 100), true);
+              const ok = await client.writePath('/p/app/timo', new Uint8Array(buf));
+              log(`Write /p/app/timo hundredths result: ${ok}`, ok ? 'success' : 'err');
+            }
           }
 
           // Termination check: Has device transitioned to IDLE, COOLDOWN, or OFF after running?
           if (elapsed > 4.0 && (stateId === 2 || stateId === 5 || stateId === 11 || stateId === 1 || stateId === 0)) {
             log('====================================================', 'err');
-            log(`SESSION TERMINATED ABRUPTLY AT T+${elapsed.toFixed(1)}s!`, 'err');
+            log(`SESSION TERMINATED AT T+${elapsed.toFixed(1)}s!`, 'err');
             log(`Final State: ${stateName} (${stateId}) | Hardware ELAP: ${elapVal} | Hardware TOTT: ${tottVal}`, 'err');
             log('====================================================', 'err');
-            stopFlightRecorder();
+            stopFlightRecorder(false);
           }
 
-          // Target elapsed reached
-          if (elapsed >= (durS + 10.0)) {
-            log(`Test session reached programmed limit (${durS}s). Halting test.`, 'success');
-            stopFlightRecorder();
+          // Target elapsed reached (stop cleanly right at programmed duration)
+          if (elapsed >= durS) {
+            log(`Target session duration (${durS}s) reached! Deactivating heater now...`, 'success');
+            await stopFlightRecorder(true);
           }
         }, 500);
       });
 
-      function stopFlightRecorder() {
+      async function stopFlightRecorder(sendHaltCommand = false) {
         if (!flightRecording) return;
         flightRecording = false;
         clearInterval(flightTimer);
         flightTimer = null;
         btnStartRecorder.disabled = false;
         btnAbortRecorder.disabled = true;
+        if (sendHaltCommand && client) {
+          try {
+            await client.stopSession(false);
+            log('Stop burst sent. Heater deactivated cleanly at target duration.', 'success');
+          } catch (e) {
+            console.warn(e);
+          }
+        }
       }
 
       btnAbortRecorder.addEventListener('click', async () => {
@@ -963,6 +993,27 @@
         btn.addEventListener('click', async () => {
           const path = btn.getAttribute('data-path');
           await readAndDisplayPath(path);
+        });
+      });
+
+      document.querySelectorAll('.btn-test-timo').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!client || !client.isConnected) {
+            alert('Connect device first.');
+            return;
+          }
+          const fmt = btn.getAttribute('data-format');
+          const val = Number(btn.getAttribute('data-val'));
+          const buf = new ArrayBuffer(4);
+          const dv = new DataView(buf);
+          if (fmt === 'float') dv.setFloat32(0, val, true);
+          else dv.setUint32(0, val, true);
+          const bytes = new Uint8Array(buf);
+          log(`Writing ${fmt} (${val}) to /p/app/timo: ${hexDump(bytes)}...`, 'tx');
+          const ok = await client.writePath('/p/app/timo', bytes);
+          log(`Write /p/app/timo result: ${ok}`, ok ? 'success' : 'err');
+          const readBack = await client.readPath('/p/app/timo');
+          log(`Readback /p/app/timo: ${hexDump(readBack)}`, 'rx');
         });
       });
 
