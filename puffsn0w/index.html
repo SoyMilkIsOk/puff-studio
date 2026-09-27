@@ -276,6 +276,8 @@
           <button type="button" id="lockscreen-search-all-btn" class="lockscreen-link-btn" title="Search all Bluetooth devices in the room (unfiltered)">Search All BLE</button>
           <span class="sublink-dot">•</span>
           <a href="./demo/" class="lockscreen-demo-link" title="Explore puffsn0w with a simulated Peak Pro">⚡ Demo Mode</a>
+          <span class="sublink-dot">•</span>
+          <a href="./diag.html" class="lockscreen-demo-link" title="Hardware Diagnostics and BLE Register Prober" style="color: var(--accent-orange, #f59e0b);">🔬 Diagnostics</a>
         </div>
       </div>
 
@@ -745,6 +747,13 @@
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </button>
+          <a href="./diag.html" id="header-diag-btn" class="btn-icon header-safety-btn" title="Hardware Diagnostics & Protocol Probe"
+            aria-label="Hardware Diagnostics" style="display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: inherit;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </a>
           <button id="lock-screen-btn" class="btn-icon header-lock-btn" title="Lock Screen"
             aria-label="Return to Lock Screen">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -1725,6 +1734,16 @@
               <button id="restore-vault-btn" class="btn btn-secondary btn-sm">Restore Profiles to Hardware</button>
             </div>
           </div>
+
+          <div class="safety-vault-card" style="margin-top: 12px; border-color: rgba(0, 242, 254, 0.2);">
+            <div class="vault-header">
+              <span class="vault-title" style="color: var(--accent-cyan, #00f2fe);">Protocol &amp; Hardware Diagnostics</span>
+            </div>
+            <p class="vault-desc">Run low-level BLE register interrogation, dry-run duration limit tests, and session flight telemetry.</p>
+            <div class="vault-actions">
+              <a href="./diag.html" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: inherit;">🔬 Open Diagnostics Page</a>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button id="close-safety-modal-btn" class="btn btn-primary">Done</button>
@@ -1753,11 +1772,11 @@
   </div>
 
   <!-- Application Logic Modules -->
-  <script src="./curves-data.js?v=5.1"></script>
-  <script src="./puffco-ble.js?v=6.0"></script>
-  <script src="./simulator.js?v=6.0"></script>
-  <script src="./curve-governor.js?v=6.0"></script>
-  <script src="./app.js?v=5.7"></script>
+  <script src="./curves-data.js?v=6.1"></script>
+  <script src="./puffco-ble.js?v=6.1"></script>
+  <script src="./simulator.js?v=6.1"></script>
+  <script src="./curve-governor.js?v=6.1"></script>
+  <script src="./app.js?v=6.1"></script>
 </body>
 
 </html>
