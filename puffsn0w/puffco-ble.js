@@ -1522,10 +1522,8 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].target_temp_f = tempF;
       }
-      // Re-assert active profile to update live PID register (Peak Pro only; omit on Proxy during active heating to prevent cycle abort)
-      if (!isProxy || !this.telemetry.is_heating) {
-        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
-      }
+      // Re-assert active profile to update live PID register
+      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write temperature ${tempF}°F to slot ${slot}`);
@@ -1538,37 +1536,22 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
 
-    const isProxy = this.isProxyDevice();
-
-    // Proxy hardware uses uint32 LE seconds (e.g. 60s -> 60)
-    // Peak Pro hardware strictly requires float32 LE seconds
-    const bufSeconds = new ArrayBuffer(4);
-    new DataView(bufSeconds).setUint32(0, Math.round(durationS), true);
-    const payloadSeconds = new Uint8Array(bufSeconds);
-
+    // Both Peak Pro and Proxy hardware strictly require IEEE 754 float32 LE seconds for /u/app/hc/{slot}/time
+    // (verified in Lorax VFS PATH_CONFIG and official firmware reverse-engineering writeups)
     const bufFloat = new ArrayBuffer(4);
     new DataView(bufFloat).setFloat32(0, Number(durationS), true);
     const payloadFloat = new Uint8Array(bufFloat);
 
-    const primaryPayload = isProxy ? payloadSeconds : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadSeconds;
-
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
-    let ok = await this.writePath(path, primaryPayload);
-    if (!ok) {
-      console.warn('[PuffcoBLE] Primary duration write format rejected, trying fallback format...');
-      ok = await this.writePath(path, secondaryPayload);
-    }
+    const ok = await this.writePath(path, payloadFloat);
 
     if (ok) {
       this.telemetry.total_time = durationS;
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].duration_s = durationS;
       }
-      // Re-assert active profile to update live PID register (Peak Pro only; omit on Proxy during active heating to prevent cycle abort)
-      if (!isProxy || !this.telemetry.is_heating) {
-        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
-      }
+      // Re-assert active profile to synchronize live countdown registers
+      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write duration ${durationS}s to slot ${slot}`);

@@ -93,13 +93,18 @@ class CurveGovernor {
     }
 
     // 2. Program initial curve duration and temp
-    console.log(`[Governor] Programming initial curve setpoint: ${initialTemp}°F, duration: ${durationS}s to slot ${slot}`);
-    let durOk = await this.client.writeDuration(durationS, slot);
+    // Hardware session time (/p/app/stat/elap) starts the instant startSession (heatCycleStart 0x07) is issued.
+    // Preheat takes 15-25 seconds, which counts against the hardware profile timer.
+    // To ensure the active curve can run its full duration without being cut off early by the hardware,
+    // program the hardware profile duration with preheat buffer allowance (curve duration + 25s, clamped to 120s max).
+    const hardwareDuration = Math.min(120, durationS + 25);
+    console.log(`[Governor] Programming initial curve setpoint: ${initialTemp}°F, hardware duration: ${hardwareDuration}s (curve: ${durationS}s) to slot ${slot}`);
+    let durOk = await this.client.writeDuration(hardwareDuration, slot);
     let tempOk = await this.client.writeTemperature(initialTemp, slot);
     if (!durOk || !tempOk) {
       console.warn('[Governor] Retrying initial setpoint write to ensure hardware synchronization...');
       await new Promise((r) => setTimeout(r, 150));
-      if (!durOk) durOk = await this.client.writeDuration(durationS, slot);
+      if (!durOk) durOk = await this.client.writeDuration(hardwareDuration, slot);
       if (!tempOk) tempOk = await this.client.writeTemperature(initialTemp, slot);
     }
     console.log(`[Governor] Initial configuration results: durOk=${durOk}, tempOk=${tempOk}`);
@@ -303,15 +308,15 @@ class CurveGovernor {
       // Hard safety clamp: Never command setpoint outside [350°F, 590°F]
       currentTarget = Math.min(590.0, Math.max(350.0, currentTarget));
 
-      // PROXY HARDWARE EXTENSION: The Proxy hardware has a built-in ~30-35s cycle limit.
-      // To run curves longer than 25s on Proxy without premature termination,
-      // dispatch keep-alive Boost pulses (0x09 to /p/app/mc) to add +15s intervals.
-      if (isProxy && durationS > 25.0) {
+      // HARDWARE SESSION EXTENSION / SAFETY NET:
+      // If the hardware countdown timer is running low (<= 8s remaining) while at least 5s remain in the curve,
+      // dispatch a keep-alive Boost pulse (0x09 to /p/app/mc) to add +15s to the active hardware timer.
+      const hwRemaining = this.client.telemetry?.time_remaining;
+      const timeRemainingInCurve = durationS - elapsed;
+      if (typeof hwRemaining === 'number' && hwRemaining > 0 && hwRemaining <= 8 && timeRemainingInCurve >= 5.0) {
         const timeSinceLastBoost = elapsed - lastProxyBoostElapsed;
-        const timeRemainingInCurve = durationS - elapsed;
-        // Trigger first boost around t = 20s, then repeat every 12-14s while at least 5s remain in the curve
-        if (elapsed >= 20.0 && timeSinceLastBoost >= 12.0 && timeRemainingInCurve >= 5.0) {
-          console.log(`[Governor] Proxy keep-alive boost pulse dispatched at t=${elapsed.toFixed(1)}s (extending hardware timer +15s)...`);
+        if (timeSinceLastBoost >= 8.0) {
+          console.log(`[Governor] Hardware timer low (${hwRemaining}s remaining, ${timeRemainingInCurve.toFixed(1)}s left in curve). Dispatching keep-alive boost pulse...`);
           lastProxyBoostElapsed = elapsed;
           try {
             await this.client.boostSession();
@@ -320,7 +325,7 @@ class CurveGovernor {
             lastSentTemp = currentTarget;
             lastWriteTime = now;
           } catch (boostErr) {
-            console.warn('[Governor] Proxy boost pulse warning:', boostErr);
+            console.warn('[Governor] Keep-alive boost warning:', boostErr);
           }
         }
       }
