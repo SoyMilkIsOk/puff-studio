@@ -156,7 +156,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=5.5">
+  <link rel="stylesheet" href="./styles.css?v=5.6">
 </head>
 
 <body class="theme-dark lockscreen-active">
@@ -270,9 +270,12 @@
           </svg>
           <span id="lockscreen-connect-label">Connect Device</span>
         </button>
-        <div style="margin-top: 8px;">
-          <a href="./demo/" class="lockscreen-demo-link" title="Explore puffsn0w with a simulated Peak Pro">⚡ Or explore
-            with Demo Puffco →</a>
+        <div id="lockscreen-connect-sublinks" class="lockscreen-sublinks">
+          <button type="button" id="lockscreen-pair-new-btn" class="lockscreen-link-btn hidden" title="Pair a different Puffco device">Pair New Rig</button>
+          <span id="lockscreen-pair-new-dot" class="sublink-dot hidden">•</span>
+          <button type="button" id="lockscreen-search-all-btn" class="lockscreen-link-btn" title="Search all Bluetooth devices in the room (unfiltered)">Search All BLE</button>
+          <span class="sublink-dot">•</span>
+          <a href="./demo/" class="lockscreen-demo-link" title="Explore puffsn0w with a simulated Peak Pro">⚡ Demo Mode</a>
         </div>
       </div>
 
@@ -1589,6 +1592,7 @@
         </div>
         <div class="modal-footer tutorial-modal-footer">
           <button id="tutorial-dismiss-btn" class="btn btn-secondary">Got It</button>
+          <button id="tutorial-search-all-btn" class="btn btn-secondary" title="Search all Bluetooth devices without filtering">Search All BLE</button>
           <button id="tutorial-connect-btn" class="btn btn-primary tutorial-action-connect">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <path d="m7 7 10 10-5 5V2l5 5L7 17" />
@@ -1750,10 +1754,10 @@
 
   <!-- Application Logic Modules -->
   <script src="./curves-data.js?v=5.1"></script>
-  <script src="./puffco-ble.js?v=5.1"></script>
+  <script src="./puffco-ble.js?v=5.7"></script>
   <script src="./simulator.js?v=5.1"></script>
   <script src="./curve-governor.js?v=5.1"></script>
-  <script src="./app.js?v=5.5"></script>
+  <script src="./app.js?v=5.7"></script>
 </body>
 
 </html>
