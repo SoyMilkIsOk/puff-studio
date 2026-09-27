@@ -3750,7 +3750,7 @@ body.lockscreen-active .btn-global-estop {
   align-items: center;
   width: 100%;
   transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.45s ease, margin 0.45s ease;
-  max-height: 80px;
+  max-height: 140px;
 }
 
 .lockscreen-connect-card.connected-hidden {
@@ -3769,8 +3769,8 @@ body.lockscreen-active .btn-global-estop {
   justify-content: center;
   gap: 10px;
   width: 100%;
-  max-width: 275px;
-  padding: 14px 28px;
+  max-width: 320px;
+  padding: 14px 24px;
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -3785,6 +3785,15 @@ body.lockscreen-active .btn-global-estop {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.45);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+#lockscreen-connect-label {
+  display: inline-block;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .lockscreen-btn-primary:hover {
@@ -3814,27 +3823,44 @@ body.lockscreen-active .btn-global-estop {
 .lockscreen-sublinks {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.lockscreen-sublinks .lockscreen-demo-link {
+  margin-top: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .lockscreen-link-btn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
   padding: 2px 4px;
   text-decoration: underline;
   text-underline-offset: 3px;
-  transition: color 0.2s ease;
+  transition: all 0.2s ease;
+  letter-spacing: 0.02em;
 }
 
 .lockscreen-link-btn:hover {
   color: #00f2fe;
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+}
+
+.lockscreen-link-btn.hidden,
+.sublink-dot.hidden {
+  display: none !important;
 }
 
 .sublink-dot {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.35);
   font-size: 0.75rem;
 }
 
