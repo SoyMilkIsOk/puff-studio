@@ -264,7 +264,7 @@ function handleTelemetryUpdate(data) {
   const isSyncing = connected && (!!data.is_syncing || data.battery_pct === null);
   const chamberStr = isSyncing ? 'Detecting...' : (data.chamber_name || (connected ? '3DXL' : 'Standard'));
   el.chamberPill.textContent = isSyncing ? 'Detecting...' : (data.chamber_name || '3DXL');
-  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : ' Chamber');
+  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : (chamberStr.toLowerCase().includes('chamber') ? '' : ' Chamber'));
 
   // Battery Widget
   if (el.batteryWidget) {

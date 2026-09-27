@@ -122,9 +122,10 @@ const OperatingStateDisplayNames = {
 const ChamberNames = {
   0: 'None',
   1: 'Standard',
-  2: '3D Chamber',
-  3: '3DXL',
-  4: 'Proxy',
+  2: '3DXL',
+  3: '3D',
+  4: '3DXL',
+  5: 'Proxy',
 };
 
 // ==========================================================================
@@ -1094,7 +1095,7 @@ class PuffcoBleClient {
       if (chmtBytes.length > 0) {
         const cType = chmtBytes[0];
         this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Standard' : '3DXL');
-        this.telemetry.chamber_type = cType === 3 ? 'CHAMBER_3DXL' : (cType === 2 ? 'CHAMBER_3D' : 'STANDARD');
+        this.telemetry.chamber_type = (cType === 2 || cType === 4) ? 'CHAMBER_3DXL' : (cType === 3 ? 'CHAMBER_3D' : (cType === 1 ? 'STANDARD' : (cType === 5 ? 'TOAD' : 'NONE')));
       } else if (this.telemetry.device_name.toLowerCase().includes('proxy')) {
         this.telemetry.chamber_name = 'Standard';
         this.telemetry.chamber_type = 'STANDARD';
