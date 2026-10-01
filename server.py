@@ -475,9 +475,12 @@ class PuffcoDeviceManager:
             return False
 
         c = f_to_c(temp_f)
-        path = PATH_PROFILE_TEMP_PREFIX.format(slot=slot)
-        is_proxy = "proxy" in (self.client.telemetry.device_name or "").lower() or getattr(self.client.telemetry, "chamber_type", None) == ChamberType.STANDARD
-        payload = struct.pack("<i", int(round(c * 10.0))) if is_proxy else struct.pack("<f", c)
+        ch_type = getattr(self.client.telemetry, "chamber_type", None)
+        ch_name = getattr(self.client.telemetry, "chamber_name", "").lower()
+        dev_name = (self.client.telemetry.device_name or "").lower()
+        is_3dxl = (ch_type in (ChamberType.CHAMBER_3DXL, ChamberType.CHAMBER_3DXL_V1) or "3dxl" in ch_name) and "proxy" not in dev_name
+        is_legacy = not is_3dxl
+        payload = struct.pack("<i", int(round(c * 10.0))) if is_legacy else struct.pack("<f", c)
 
         success = False
         for attempt in range(2):
@@ -638,9 +641,12 @@ class PuffcoDeviceManager:
                 logger.warning(f"Failed to backup profile settings: {e}")
 
             # 2. Set initial temperature and full curve duration directly in hardware flash
-            await self.write_temperature_robust(initial_temp, slot)
-            is_proxy = "proxy" in (self.client.telemetry.device_name or "").lower() or getattr(self.client.telemetry, "chamber_type", None) == ChamberType.STANDARD
-            time_payload = struct.pack("<I", int(round(duration * 100))) if is_proxy else struct.pack("<f", float(duration))
+            ch_type = getattr(self.client.telemetry, "chamber_type", None)
+            ch_name = getattr(self.client.telemetry, "chamber_name", "").lower()
+            dev_name = (self.client.telemetry.device_name or "").lower()
+            is_3dxl = (ch_type in (ChamberType.CHAMBER_3DXL, ChamberType.CHAMBER_3DXL_V1) or "3dxl" in ch_name) and "proxy" not in dev_name
+            is_legacy = not is_3dxl
+            time_payload = struct.pack("<I", int(round(duration * 100))) if is_legacy else struct.pack("<f", float(duration))
             await self.client.write_path(PATH_PROFILE_TIME_PREFIX.format(slot=slot), time_payload)
             logger.info(f"Configured slot {slot} for curve: {initial_temp}°F, duration {duration}s")
         else:
