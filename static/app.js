@@ -53,6 +53,7 @@ const el = {
   lockscreenBatteryPill: document.getElementById('lockscreen-battery-pill'),
   lockscreenBatteryVal: document.getElementById('lockscreen-battery-val'),
   lockscreenBatteryFill: document.getElementById('lockscreen-battery-fill'),
+  lockscreenUnitPill: document.getElementById('lockscreen-unit-pill'),
   lockscreenConnectBtn: document.getElementById('lockscreen-connect-btn'),
   lockscreenConnectLabel: document.getElementById('lockscreen-connect-label'),
   lockscreenGuideBtn: document.getElementById('lockscreen-guide-btn'),
@@ -78,6 +79,11 @@ const el = {
   batteryBolt: document.getElementById('battery-bolt'),
   batteryFill: document.getElementById('battery-fill-icon'),
   mainConnectBtn: document.getElementById('main-connect-btn'),
+  headerTempUnitToggle: document.getElementById('header-temp-unit-toggle'),
+  headerUnitOptF: document.querySelector('#header-temp-unit-toggle .opt-f'),
+  headerUnitOptC: document.querySelector('#header-temp-unit-toggle .opt-c'),
+  modalUnitFBtn: document.getElementById('modal-unit-f-btn'),
+  modalUnitCBtn: document.getElementById('modal-unit-c-btn'),
   infoTutorialBtn: document.getElementById('info-tutorial-btn'),
   connectTutorialModal: document.getElementById('connect-tutorial-modal'),
   closeTutorialModal: document.getElementById('close-tutorial-modal'),
@@ -100,12 +106,17 @@ const el = {
   dialProgress: document.getElementById('dial-progress'),
   dialNeedle: document.getElementById('dial-setpoint-needle'),
   dialNeedleGroup: document.getElementById('dial-needle-group'),
+  dialEndpointMin: document.getElementById('dial-endpoint-min'),
+  dialEndpointMax: document.getElementById('dial-endpoint-max'),
   liveTempVal: document.getElementById('live-temp-val'),
+  liveTempUnit: document.getElementById('live-temp-unit'),
   targetTempVal: document.getElementById('target-temp-val'),
+  targetTempUnit: document.getElementById('target-temp-unit'),
   timerPill: document.getElementById('session-timer-pill'),
   timeRemainingVal: document.getElementById('time-remaining-val'),
 
   // Live Session Heat Curve (below dial)
+  lsgYAxis: document.getElementById('lsg-y-axis'),
   lsgPhasePill: document.getElementById('lsg-phase-pill'),
   lsgTargetReadout: document.getElementById('lsg-target-readout'),
   lsgLiveReadout: document.getElementById('lsg-live-readout'),
@@ -125,6 +136,7 @@ const el = {
   // Sesh Buttons
   startSeshBtn: document.getElementById('start-sesh-btn'),
   boostSeshBtn: document.getElementById('boost-sesh-btn'),
+  boostSeshBtnText: document.getElementById('boost-sesh-btn-text'),
   stopSeshBtn: document.getElementById('stop-sesh-btn'),
 
   // Profiles & Tuning
@@ -168,6 +180,8 @@ const el = {
   curveStatusBadge: document.getElementById('curve-status-badge'),
   curveGraphContainer: document.getElementById('curve-graph-container'),
   curveLockedBadge: document.getElementById('curve-locked-badge'),
+  curveYAxis: document.getElementById('curve-y-axis'),
+  curveGraphHint: document.getElementById('curve-graph-hint'),
   keyframeEditorSection: document.querySelector('.keyframe-editor-section'),
   curveSvg: document.getElementById('curve-svg'),
   curveAreaPath: document.getElementById('curve-area-path'),
@@ -184,6 +198,7 @@ const el = {
   runCurveBtn: document.getElementById('run-curve-btn'),
   runCurveBtnLabel: document.getElementById('run-curve-btn-label'),
   stopCurveBtn: document.getElementById('stop-curve-btn'),
+  kfThTemp: document.getElementById('kf-th-temp'),
   keyframeTableBody: document.getElementById('keyframe-table-body'),
   addKeyframeBtn: document.getElementById('add-keyframe-btn'),
 
@@ -229,6 +244,206 @@ function checkBrowserCompatibility() {
     el.btIndicator.textContent = 'Web BLE Ready';
     el.btIndicator.className = 'ws-pill ws-connected';
   }
+}
+
+// ==========================================================================
+// Temperature Unit Settings & Conversions (°F / °C)
+// ==========================================================================
+
+let tempUnit = 'F';
+try {
+  const savedUnit = localStorage.getItem('puff_temp_unit');
+  if (savedUnit === 'C' || savedUnit === 'F') {
+    tempUnit = savedUnit;
+  }
+} catch (e) {
+  console.warn('Could not load temperature unit setting:', e);
+}
+
+function fToC(f) {
+  return ((Number(f) - 32.0) * 5.0) / 9.0;
+}
+
+function cToF(c) {
+  return (Number(c) * 9.0) / 5.0 + 32.0;
+}
+
+function formatTemp(tempF, includeUnit = true, decimals = 0) {
+  if (tempF === null || tempF === undefined || isNaN(tempF)) {
+    return '--' + (includeUnit ? `°${tempUnit}` : '');
+  }
+  const num = Number(tempF);
+  if (tempUnit === 'C') {
+    const c = fToC(num);
+    const str = decimals > 0 ? c.toFixed(decimals) : Math.round(c).toString();
+    return str + (includeUnit ? '°C' : '');
+  }
+  const str = decimals > 0 ? num.toFixed(decimals) : Math.round(num).toString();
+  return str + (includeUnit ? '°F' : '');
+}
+
+function updateUnitToggleElements() {
+  const isC = tempUnit === 'C';
+
+  // 1. Header toggle
+  if (el.headerTempUnitToggle) {
+    el.headerTempUnitToggle.classList.toggle('unit-c', isC);
+    el.headerTempUnitToggle.setAttribute('aria-label', `Temperature Unit: ${isC ? 'Celsius' : 'Fahrenheit'}. Click to toggle.`);
+    el.headerTempUnitToggle.title = `Temperature Unit: ${isC ? 'Celsius (°C)' : 'Fahrenheit (°F)'} (Click to switch)`;
+  }
+  if (el.headerUnitOptF) el.headerUnitOptF.classList.toggle('active', !isC);
+  if (el.headerUnitOptC) el.headerUnitOptC.classList.toggle('active', isC);
+
+  // 2. Modal segmented buttons
+  if (el.modalUnitFBtn) el.modalUnitFBtn.classList.toggle('active', !isC);
+  if (el.modalUnitCBtn) el.modalUnitCBtn.classList.toggle('active', isC);
+
+  // 3. Lockscreen pill
+  if (el.lockscreenUnitPill) {
+    el.lockscreenUnitPill.textContent = `°${tempUnit}`;
+    el.lockscreenUnitPill.title = `Temperature Unit: °${tempUnit} (Click to switch)`;
+  }
+
+  // 4. Dial endpoints
+  if (el.dialEndpointMin) el.dialEndpointMin.textContent = isC ? '204°C' : '400°F';
+  if (el.dialEndpointMax) el.dialEndpointMax.textContent = isC ? '316°C' : '600°F';
+
+  // 5. Dial readout unit labels
+  if (el.liveTempUnit) el.liveTempUnit.textContent = `°${tempUnit}`;
+  if (el.targetTempUnit) el.targetTempUnit.textContent = `°${tempUnit}`;
+
+  // 6. Boost button label & tooltip
+  if (el.boostSeshBtnText) el.boostSeshBtnText.textContent = isC ? 'BOOST +5.5°' : 'BOOST +10°';
+  if (el.boostSeshBtn) {
+    el.boostSeshBtn.title = isC ? 'Add +15s duration and +5.5°C heat boost during session' : 'Add +15s duration and +10°F heat boost during session';
+  }
+
+  // 7. Live session graph Y-axis
+  if (el.lsgYAxis) {
+    const spans = el.lsgYAxis.querySelectorAll('span');
+    if (spans.length >= 5) {
+      if (isC) {
+        spans[0].textContent = '316°';
+        spans[1].textContent = '260°';
+        spans[2].textContent = '204°';
+        spans[3].textContent = '121°';
+        spans[4].textContent = '21°';
+      } else {
+        spans[0].textContent = '600°';
+        spans[1].textContent = '500°';
+        spans[2].textContent = '400°';
+        spans[3].textContent = '250°';
+        spans[4].textContent = '70°';
+      }
+    }
+  }
+
+  // 8. Curve studio Y-axis
+  if (el.curveYAxis) {
+    const spans = el.curveYAxis.querySelectorAll('span');
+    if (spans.length >= 5) {
+      if (isC) {
+        spans[0].textContent = '304°';
+        spans[1].textContent = '280°';
+        spans[2].textContent = '254°';
+        spans[3].textContent = '229°';
+        spans[4].textContent = '204°';
+      } else {
+        spans[0].textContent = '580°';
+        spans[1].textContent = '535°';
+        spans[2].textContent = '490°';
+        spans[3].textContent = '445°';
+        spans[4].textContent = '400°';
+      }
+    }
+  }
+
+  // 9. Curve graph hint
+  if (el.curveGraphHint) {
+    el.curveGraphHint.innerHTML = isC
+      ? '<span class="hint-bullet">•</span> Snaps to 5s &amp; 3°C <span class="hint-bullet">•</span> Tap to add <span class="hint-bullet">•</span> Double-tap to delete'
+      : '<span class="hint-bullet">•</span> Snaps to 5s &amp; 5° <span class="hint-bullet">•</span> Tap to add <span class="hint-bullet">•</span> Double-tap to delete';
+  }
+
+  // 10. Keyframe table header
+  if (el.kfThTemp) {
+    el.kfThTemp.textContent = `Target Temp (°${tempUnit})`;
+  }
+
+  // 11. Stepper buttons
+  if (el.tempDecBtn) {
+    el.tempDecBtn.textContent = isC ? '-3°' : '-5°';
+    el.tempDecBtn.title = isC ? 'Decrease 3°C (~5°F)' : 'Decrease 5°F';
+  }
+  if (el.tempIncBtn) {
+    el.tempIncBtn.textContent = isC ? '+3°' : '+5°';
+    el.tempIncBtn.title = isC ? 'Increase 3°C (~5°F)' : 'Increase 5°F';
+  }
+
+  // 12. Preset pills
+  if (el.presetPills) {
+    el.presetPills.forEach((btn) => {
+      const tempF = Number(btn.dataset.temp || 485);
+      const labels = {
+        450: isC ? '232° Terps' : '450° Terps',
+        485: isC ? '252° Balanced' : '485° Balanced',
+        520: isC ? '271° Vapor' : '520° Vapor',
+        550: isC ? '288° Heavy' : '550° Heavy',
+      };
+      if (labels[tempF]) {
+        btn.textContent = labels[tempF];
+      } else {
+        btn.textContent = isC ? `${Math.round(fToC(tempF))}°` : `${tempF}°`;
+      }
+    });
+  }
+}
+
+function setTempUnit(unit, showToastNotification = true) {
+  const prevUnit = tempUnit;
+  tempUnit = (unit === 'C' ? 'C' : 'F');
+  try {
+    localStorage.setItem('puff_temp_unit', tempUnit);
+  } catch (e) {}
+
+  updateUnitToggleElements();
+
+  if (currentTelemetry) {
+    handleTelemetryUpdate(currentTelemetry);
+  } else {
+    if (el.liveTempUnit) el.liveTempUnit.textContent = `°${tempUnit}`;
+    if (el.targetTempUnit) el.targetTempUnit.textContent = `°${tempUnit}`;
+    if (el.targetTempVal) el.targetTempVal.textContent = tempUnit === 'C' ? Math.round(fToC(485)) : 485;
+    if (el.sliderTempVal) el.sliderTempVal.textContent = tempUnit === 'C' ? `${Math.round(fToC(485))}°C` : '485°F';
+    if (el.tempSlider) {
+      if (tempUnit === 'C') {
+        el.tempSlider.min = 204;
+        el.tempSlider.max = 310;
+        el.tempSlider.value = Math.round(fToC(485));
+      } else {
+        el.tempSlider.min = 400;
+        el.tempSlider.max = 590;
+        el.tempSlider.value = 485;
+      }
+    }
+  }
+
+  if (currentCurve) {
+    renderCurveGraph(currentCurve);
+    renderKeyframeTable(currentCurve);
+  }
+
+  if (typeof renderProfiles === 'function' && activeProfiles && activeProfiles.length > 0) {
+    renderProfiles(activeProfiles, activeProfileIdx, wasDeviceConnected);
+  }
+
+  if (showToastNotification && prevUnit !== tempUnit) {
+    showToast(`Switched display to ${tempUnit === 'C' ? 'Celsius (°C)' : 'Fahrenheit (°F)'}`, 'info');
+  }
+}
+
+function toggleTempUnit() {
+  setTempUnit(tempUnit === 'F' ? 'C' : 'F');
 }
 
 // ==========================================================================
@@ -367,8 +582,15 @@ function handleTelemetryUpdate(data) {
   // Temperature Readouts
   const liveTemp = Number(data.live_temp_f || 0);
   const targetTemp = Number(data.target_temp_f || 485);
-  el.liveTempVal.textContent = connected && liveTemp > 30 ? Math.round(liveTemp) : '--';
-  el.targetTempVal.textContent = Math.round(targetTemp);
+  if (connected && liveTemp > 30) {
+    el.liveTempVal.textContent = tempUnit === 'C' ? Math.round(fToC(liveTemp)) : Math.round(liveTemp);
+  } else {
+    el.liveTempVal.textContent = '--';
+  }
+  if (el.liveTempUnit) el.liveTempUnit.textContent = `°${tempUnit}`;
+
+  el.targetTempVal.textContent = tempUnit === 'C' ? Math.round(fToC(targetTemp)) : Math.round(targetTemp);
+  if (el.targetTempUnit) el.targetTempUnit.textContent = `°${tempUnit}`;
 
   // Update SVG Dial Arc & Needle (350°F to 600°F)
   updateGauge(liveTemp, targetTemp, isHeating, data.operating_state);
@@ -387,8 +609,8 @@ function handleTelemetryUpdate(data) {
 
   // Heat Curve Studio Tab passive readouts (when curve is not actively running)
   if (!isCurveRunning && el.curveActualDisplay && el.curveSetpointDisplay) {
-    el.curveActualDisplay.textContent = connected && liveTemp > 30 ? `${liveTemp.toFixed(1)}°F` : '--°F';
-    el.curveSetpointDisplay.textContent = `${targetTemp.toFixed(1)}°F`;
+    el.curveActualDisplay.textContent = connected && liveTemp > 30 ? formatTemp(liveTemp, true, 1) : `--°${tempUnit}`;
+    el.curveSetpointDisplay.textContent = formatTemp(targetTemp, true, 1);
     if (el.curveElapsedDisplay && currentCurve) {
       el.curveElapsedDisplay.textContent = `READY (0.0s / ${currentCurve.duration_s || 50}s)`;
     }
@@ -476,8 +698,18 @@ function handleTelemetryUpdate(data) {
 
   // Sync slider if not actively dragging
   if (!document.activeElement || document.activeElement !== el.tempSlider) {
-    el.tempSlider.value = Math.round(targetTemp);
-    el.sliderTempVal.textContent = `${Math.round(targetTemp)}°F`;
+    if (tempUnit === 'C') {
+      const targetC = Math.round(fToC(targetTemp));
+      el.tempSlider.min = 204;
+      el.tempSlider.max = 310;
+      el.tempSlider.value = targetC;
+      el.sliderTempVal.textContent = `${targetC}°C`;
+    } else {
+      el.tempSlider.min = 400;
+      el.tempSlider.max = 590;
+      el.tempSlider.value = Math.round(targetTemp);
+      el.sliderTempVal.textContent = `${Math.round(targetTemp)}°F`;
+    }
   }
 }
 
@@ -623,8 +855,8 @@ function updateGauge(liveTemp, targetTemp, isHeating, state) {
 function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
   if (!el.lsgTargetLine) return;
 
-  el.lsgTargetReadout.textContent = `${Math.round(targetTemp)}°`;
-  el.lsgLiveReadout.textContent = liveTemp > 30 ? `${Math.round(liveTemp)}°` : '--°';
+  el.lsgTargetReadout.textContent = formatTemp(targetTemp);
+  el.lsgLiveReadout.textContent = liveTemp > 30 ? formatTemp(liveTemp) : `--°${tempUnit}`;
 
   // Position target line (70°F to 600°F -> y: 148 to 16)
   const targetNorm = Math.max(0, Math.min(1, (targetTemp - 70) / (600 - 70)));
@@ -677,9 +909,9 @@ function updateLiveSessionGraph(data, isHeating, liveTemp, targetTemp) {
     }
 
     el.lsgTimeStat.textContent = `${Math.round(elapsed)}s / ${totalDuration}s`;
-    el.lsgPeakStat.textContent = `${Math.round(sessionPeakTemp)}°F`;
+    el.lsgPeakStat.textContent = formatTemp(sessionPeakTemp);
     const avg = sessionTempCount > 0 ? Math.round(sessionTempSum / sessionTempCount) : Math.round(liveTemp);
-    el.lsgAvgStat.textContent = `${avg}°F`;
+    el.lsgAvgStat.textContent = formatTemp(avg);
   } else if (!isHeating && wasHeating) {
     el.lsgPhasePill.className = 'badge badge-subtle';
     el.lsgPhasePill.textContent = 'COMPLETE';
@@ -775,7 +1007,7 @@ function renderProfiles(profiles, activeSlot, connected) {
       const durEl = card.querySelector('.p-dur');
 
       const nameText = p.name || `Profile ${idx + 1}`;
-      const tempText = `${p.target_temp_f}°F`;
+      const tempText = formatTemp(p.target_temp_f);
       const durText = `${p.duration_s || 50}s`;
 
       if (nameEl && nameEl.textContent !== nameText) nameEl.textContent = nameText;
@@ -810,7 +1042,7 @@ function renderProfiles(profiles, activeSlot, connected) {
 
     const tempSpan = document.createElement('span');
     tempSpan.className = 'p-temp';
-    tempSpan.textContent = `${p.target_temp_f}°F`;
+    tempSpan.textContent = formatTemp(p.target_temp_f);
 
     const durSpan = document.createElement('span');
     durSpan.className = 'p-dur';
@@ -1046,14 +1278,31 @@ function renderKeyframeTable() {
     const inputTemp = document.createElement('input');
     inputTemp.type = 'number';
     inputTemp.className = 'kf-input';
-    inputTemp.step = '5';
-    inputTemp.value = k.temp_f;
-    inputTemp.min = TEMP_MIN;
-    inputTemp.max = TEMP_MAX;
+    if (tempUnit === 'C') {
+      inputTemp.step = '3';
+      inputTemp.value = Math.round(fToC(k.temp_f));
+      inputTemp.min = 204;
+      inputTemp.max = 304;
+      inputTemp.title = 'Target temperature in °C';
+    } else {
+      inputTemp.step = '5';
+      inputTemp.value = k.temp_f;
+      inputTemp.min = TEMP_MIN;
+      inputTemp.max = TEMP_MAX;
+      inputTemp.title = 'Target temperature in °F';
+    }
     inputTemp.disabled = isCurveRunning;
     inputTemp.addEventListener('change', (e) => {
       if (isCurveRunning) return;
-      k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Number(e.target.value)));
+      const val = Number(e.target.value);
+      if (tempUnit === 'C') {
+        const cVal = Math.max(204, Math.min(304, val));
+        k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, Math.round(cToF(cVal))));
+        inputTemp.value = cVal;
+      } else {
+        k.temp_f = Math.max(TEMP_MIN, Math.min(TEMP_MAX, val));
+        inputTemp.value = k.temp_f;
+      }
       renderCurveGraph();
     });
     tdTemp.appendChild(inputTemp);
@@ -1113,7 +1362,8 @@ function addKeyframe(time_s, temp_f) {
     temp_f: snappedTemp,
   });
   sortAndRefreshCurve();
-  showToast(`Added keyframe at ${snappedTime}s, ${snappedTemp}°F`, 'info');
+  const displayTemp = tempUnit === 'C' ? `${Math.round(fToC(snappedTemp))}°C (${snappedTemp}°F)` : `${snappedTemp}°F`;
+  showToast(`Added keyframe at ${snappedTime}s, ${displayTemp}`, 'info');
 }
 
 // ==========================================================================
@@ -1135,7 +1385,7 @@ function updateDragTooltip(x, y, time_s, temp_f) {
   const timeText = el.curveDragTooltip.querySelector('.drag-val-time');
   const tempText = el.curveDragTooltip.querySelector('.drag-val-temp');
   if (timeText) timeText.textContent = `${time_s}s`;
-  if (tempText) tempText.textContent = `${temp_f}°F`;
+  if (tempText) tempText.textContent = formatTemp(temp_f);
 
   const isNearTop = y < 65;
   const bg = el.curveDragTooltip.querySelector('.drag-tooltip-bg');
@@ -1697,11 +1947,11 @@ function handleCurveTelemetry(data) {
   if (data.phase === 'preheating') {
     el.runCurveBtnLabel.textContent = 'PREHEATING BOWL...';
     el.curveStatusBadge.className = 'state-tag state-heating';
-    el.curveStatusBadge.textContent = `PREHEATING TO ${Math.round(target)}°F`;
+    el.curveStatusBadge.textContent = `PREHEATING TO ${formatTemp(target)}`;
 
-    el.curveElapsedDisplay.textContent = `PREHEATING (${live.toFixed(1)}°F → ${Math.round(target)}°F)`;
-    el.curveSetpointDisplay.textContent = `${target.toFixed(1)}°F`;
-    el.curveActualDisplay.textContent = `${live.toFixed(1)}°F`;
+    el.curveElapsedDisplay.textContent = `PREHEATING (${formatTemp(live, true, 1)} → ${formatTemp(target)})`;
+    el.curveSetpointDisplay.textContent = formatTemp(target, true, 1);
+    el.curveActualDisplay.textContent = formatTemp(live, true, 1);
 
     const playheadX = timeToX(0);
     const playheadY = tempToY(target);
@@ -1727,8 +1977,8 @@ function handleCurveTelemetry(data) {
     el.curveStatusBadge.textContent = 'ACTIVE GOVERNOR';
 
     el.curveElapsedDisplay.textContent = `${elapsed.toFixed(1)}s / ${total}s`;
-    el.curveSetpointDisplay.textContent = `${target.toFixed(1)}°F`;
-    el.curveActualDisplay.textContent = `${live.toFixed(1)}°F`;
+    el.curveSetpointDisplay.textContent = formatTemp(target, true, 1);
+    el.curveActualDisplay.textContent = formatTemp(live, true, 1);
 
     const playheadX = timeToX(elapsed);
     const playheadY = tempToY(target);
@@ -2258,6 +2508,41 @@ function attachEventListeners() {
     }
   });
 
+  // Temperature Unit Toggles
+  if (el.headerTempUnitToggle) {
+    el.headerTempUnitToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTempUnit();
+    });
+  }
+
+  if (el.lockscreenUnitPill) {
+    el.lockscreenUnitPill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTempUnit();
+    });
+  }
+
+  if (el.modalUnitFBtn) {
+    el.modalUnitFBtn.addEventListener('click', () => setTempUnit('F'));
+  }
+  if (el.modalUnitCBtn) {
+    el.modalUnitCBtn.addEventListener('click', () => setTempUnit('C'));
+  }
+
+  if (el.liveTempUnit) {
+    el.liveTempUnit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTempUnit();
+    });
+  }
+  if (el.targetTempUnit) {
+    el.targetTempUnit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTempUnit();
+    });
+  }
+
   // Compatibility Guide Banner & Modal
   el.compatGuideBtn.addEventListener('click', () => {
     el.compatModal.classList.remove('hidden');
@@ -2319,34 +2604,68 @@ function attachEventListeners() {
 
   // Temperature Controls
   el.tempSlider.addEventListener('input', (e) => {
-    el.sliderTempVal.textContent = `${e.target.value}°F`;
+    el.sliderTempVal.textContent = `${e.target.value}°${tempUnit}`;
   });
 
   el.tempDecBtn.addEventListener('click', () => {
-    let val = Math.max(400, Number(el.tempSlider.value) - 5);
-    el.tempSlider.value = val;
-    el.sliderTempVal.textContent = `${val}°F`;
+    if (tempUnit === 'C') {
+      let val = Math.max(204, Number(el.tempSlider.value) - 3);
+      el.tempSlider.value = val;
+      el.sliderTempVal.textContent = `${val}°C`;
+    } else {
+      let val = Math.max(400, Number(el.tempSlider.value) - 5);
+      el.tempSlider.value = val;
+      el.sliderTempVal.textContent = `${val}°F`;
+    }
   });
 
   el.tempIncBtn.addEventListener('click', () => {
-    let val = Math.min(600, Number(el.tempSlider.value) + 5);
-    el.tempSlider.value = val;
-    el.sliderTempVal.textContent = `${val}°F`;
+    if (tempUnit === 'C') {
+      let val = Math.min(310, Number(el.tempSlider.value) + 3);
+      el.tempSlider.value = val;
+      el.sliderTempVal.textContent = `${val}°C`;
+    } else {
+      let val = Math.min(590, Number(el.tempSlider.value) + 5);
+      el.tempSlider.value = val;
+      el.sliderTempVal.textContent = `${val}°F`;
+    }
   });
 
   el.applyTempBtn.addEventListener('click', async () => {
-    const val = Number(el.tempSlider.value);
-    await activeClient.writeTemperature(val);
-    showToast(`Target temperature set to ${val}°F`, 'success');
+    const raw = Number(el.tempSlider.value);
+    let targetF;
+    let displayStr;
+    if (tempUnit === 'C') {
+      const valC = Math.min(310, Math.max(204, Number.isFinite(raw) ? raw : 252));
+      targetF = Math.min(590, Math.max(400, Math.round(cToF(valC))));
+      el.tempSlider.value = valC;
+      el.sliderTempVal.textContent = `${valC}°C`;
+      displayStr = `${valC}°C (${targetF}°F)`;
+    } else {
+      targetF = Math.min(590, Math.max(400, Number.isFinite(raw) ? raw : 485));
+      el.tempSlider.value = targetF;
+      el.sliderTempVal.textContent = `${targetF}°F`;
+      displayStr = `${targetF}°F`;
+    }
+    await activeClient.writeTemperature(targetF);
+    showToast(`Target temperature set to ${displayStr}`, 'success');
   });
 
   el.presetPills.forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const temp = Number(btn.dataset.temp);
-      el.tempSlider.value = temp;
-      el.sliderTempVal.textContent = `${temp}°F`;
-      await activeClient.writeTemperature(temp);
-      showToast(`Target setpoint adjusted to ${temp}°F`, 'info');
+      const tempF = Number(btn.dataset.temp || 485);
+      if (tempUnit === 'C') {
+        const tempC = Math.round(fToC(tempF));
+        el.tempSlider.value = tempC;
+        el.sliderTempVal.textContent = `${tempC}°C`;
+        await activeClient.writeTemperature(tempF);
+        showToast(`Target setpoint adjusted to ${tempC}°C (${tempF}°F)`, 'info');
+      } else {
+        el.tempSlider.value = tempF;
+        el.sliderTempVal.textContent = `${tempF}°F`;
+        await activeClient.writeTemperature(tempF);
+        showToast(`Target setpoint adjusted to ${tempF}°F`, 'info');
+      }
     });
   });
 
@@ -2574,6 +2893,18 @@ function bootstrap() {
   });
 
   attachEventListeners();
+  updateUnitToggleElements();
+  if (el.tempSlider) {
+    if (tempUnit === 'C') {
+      el.tempSlider.min = 204;
+      el.tempSlider.max = 310;
+      el.tempSlider.value = Math.round(fToC(485));
+    } else {
+      el.tempSlider.min = 400;
+      el.tempSlider.max = 590;
+      el.tempSlider.value = 485;
+    }
+  }
   checkBrowserCompatibility();
   loadCurvesList();
   renderCurveGraph();

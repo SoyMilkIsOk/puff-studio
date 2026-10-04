@@ -97,6 +97,7 @@
           <span class="carrier-name">puffsn0w</span>
         </div>
         <div class="status-icons">
+          <button type="button" id="lockscreen-unit-pill" class="lockscreen-unit-pill" title="Temperature Unit: Click to switch °F / °C" aria-label="Toggle Temperature Unit">°F</button>
           <span id="lockscreen-bt-badge" class="lockscreen-bt-badge" title="Web Bluetooth Status">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="m7 7 10 10-5 5V2l5 5L7 17" />
@@ -267,6 +268,11 @@
             </svg>
             Connect
           </button>
+          <button type="button" id="header-temp-unit-toggle" class="btn-unit-toggle" title="Switch Temperature Unit (°F / °C)" aria-label="Switch Temperature Unit">
+            <span class="unit-opt opt-f active">°F</span>
+            <span class="unit-slider-pill"></span>
+            <span class="unit-opt opt-c">°C</span>
+          </button>
           <button id="info-tutorial-btn" class="btn-icon header-info-btn" title="How to Connect & Pair"
             aria-label="Connection Guide">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
@@ -347,18 +353,18 @@
 
             <!-- Scale Endpoints (400°F to 600°F) -->
             <div class="dial-scale-endpoints">
-              <span class="endpoint-min">400°F</span>
-              <span class="endpoint-max">600°F</span>
+              <span class="endpoint-min" id="dial-endpoint-min">400°F</span>
+              <span class="endpoint-max" id="dial-endpoint-max">600°F</span>
             </div>
 
             <!-- Dial Center Digital Readout -->
             <div class="gauge-center">
               <div class="temp-sublabel">CURRENT BOWL</div>
               <div class="live-temp-display">
-                <span id="live-temp-val">--</span><span class="unit">°F</span>
+                <span id="live-temp-val">--</span><span id="live-temp-unit" class="unit unit-clickable" title="Click to switch °F / °C">°F</span>
               </div>
               <div class="target-temp-display">
-                SETPOINT: <span id="target-temp-val">485</span>°F
+                SETPOINT: <span id="target-temp-val">485</span><span id="target-temp-unit" class="unit-clickable" title="Click to switch °F / °C">°F</span>
               </div>
               <div id="session-timer-pill" class="timer-pill hidden">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -387,7 +393,7 @@
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
-              <span>BOOST +10°</span>
+              <span id="boost-sesh-btn-text">BOOST +10°</span>
             </button>
 
             <button id="stop-sesh-btn" class="btn btn-sesh-stop" disabled title="Cancel / Abort current heat cycle">
@@ -414,7 +420,7 @@
             </div>
 
             <div class="lsg-graph-wrapper">
-              <div class="lsg-y-axis">
+              <div class="lsg-y-axis" id="lsg-y-axis">
                 <span>600°</span>
                 <span>500°</span>
                 <span>400°</span>
@@ -811,7 +817,7 @@
 
           <!-- Interactive SVG/Canvas Graph Area (Touch-Enabled) -->
           <div class="graph-wrapper">
-            <div class="graph-y-axis">
+            <div class="graph-y-axis" id="curve-y-axis">
               <span>580°</span>
               <span>535°</span>
               <span>490°</span>
@@ -881,7 +887,7 @@
                 </g>
               </svg>
 
-              <div class="graph-hint">
+              <div class="graph-hint" id="curve-graph-hint">
                 <span class="hint-bullet">•</span> Snaps to 5s &amp; 5°
                 <span class="hint-bullet">•</span> Tap to add
                 <span class="hint-bullet">•</span> Double-tap to delete
@@ -944,7 +950,7 @@
                   <tr>
                     <th>#</th>
                     <th>Time (Seconds)</th>
-                    <th>Target Temp (°F)</th>
+                    <th id="kf-th-temp">Target Temp (°F)</th>
                     <th>Actions</th>
                   </tr>
                 </thead>

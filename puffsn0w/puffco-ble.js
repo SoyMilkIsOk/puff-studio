@@ -1696,3 +1696,5 @@ class PuffcoBleClient {
 window.PuffcoBleClient = PuffcoBleClient;
 window.validateTemperature = validateTemperature;
 window.validateDuration = validateDuration;
+window.fToC = fToC;
+window.cToF = cToF;
