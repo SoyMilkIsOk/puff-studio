@@ -1385,11 +1385,13 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
     tempF = validateTemperature(tempF);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    // 3DXL chamber strictly requires float32 LE Celsius.
+    // Standard Peak Pro, Peak Pro 3D Chamber, and Proxy hardware strictly require int32 LE tenths of °C.
+    const is3DXL = (this.telemetry.chamber_type === 'CHAMBER_3DXL' || (this.telemetry.chamber_name && this.telemetry.chamber_name.includes('3DXL'))) &&
+      !(this.telemetry.device_name || '').toLowerCase().includes('proxy');
+    const isLegacyFormat = !is3DXL;
     const cVal = fToC(tempF);
 
-    // Proxy hardware strictly requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
-    // Peak Pro hardware strictly requires float32 LE Celsius
     const bufInt = new ArrayBuffer(4);
     new DataView(bufInt).setInt32(0, Math.round(cVal * 10.0), true);
     const payloadInt = new Uint8Array(bufInt);
@@ -1398,8 +1400,8 @@ class PuffcoBleClient {
     new DataView(bufFloat).setFloat32(0, cVal, true);
     const payloadFloat = new Uint8Array(bufFloat);
 
-    const primaryPayload = isProxy ? payloadInt : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadInt;
+    const primaryPayload = isLegacyFormat ? payloadInt : payloadFloat;
+    const secondaryPayload = isLegacyFormat ? payloadFloat : payloadInt;
 
     const path = PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot);
     let ok = await this.writePath(path, primaryPayload);
@@ -1427,10 +1429,12 @@ class PuffcoBleClient {
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    // 3DXL chamber strictly requires float32 LE seconds.
+    // Standard Peak Pro, Peak Pro 3D Chamber, and Proxy hardware strictly require uint32 LE hundredths of a second.
+    const is3DXL = (this.telemetry.chamber_type === 'CHAMBER_3DXL' || (this.telemetry.chamber_name && this.telemetry.chamber_name.includes('3DXL'))) &&
+      !(this.telemetry.device_name || '').toLowerCase().includes('proxy');
+    const isLegacyFormat = !is3DXL;
 
-    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 80s -> 8000)
-    // Peak Pro hardware strictly requires float32 LE seconds
     const bufHundredths = new ArrayBuffer(4);
     new DataView(bufHundredths).setUint32(0, Math.round(durationS * 100), true);
     const payloadHundredths = new Uint8Array(bufHundredths);
@@ -1439,8 +1443,8 @@ class PuffcoBleClient {
     new DataView(bufFloat).setFloat32(0, Number(durationS), true);
     const payloadFloat = new Uint8Array(bufFloat);
 
-    const primaryPayload = isProxy ? payloadHundredths : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadHundredths;
+    const primaryPayload = isLegacyFormat ? payloadHundredths : payloadFloat;
+    const secondaryPayload = isLegacyFormat ? payloadFloat : payloadHundredths;
 
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
     let ok = await this.writePath(path, primaryPayload);
