@@ -230,7 +230,7 @@ class PuffcoSimulator {
     return false;
   }
 
-  async writeTemperature(tempF, slot = null) {
+  async writeTemperature(tempF, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     tempF = typeof window.validateTemperature === 'function' ? window.validateTemperature(tempF) : Math.min(590, Math.max(350, Number(tempF)));
     this.telemetry.target_temp_f = tempF;
@@ -241,14 +241,61 @@ class PuffcoSimulator {
     return true;
   }
 
-  async writeDuration(durS, slot = null) {
+  async writeDuration(durS, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     durS = typeof window.validateDuration === 'function' ? window.validateDuration(durS) : Math.min(120, Math.max(15, Number(durS)));
     this.telemetry.total_time = durS;
     if (this.telemetry.profiles[slot]) {
       this.telemetry.profiles[slot].duration_s = durS;
     }
+    this.lastDurationWrite = { ok: true, want: durS, got: durS, adj: null, fmt: this.timefmt || 'f32' };
     this._notifyListeners();
+    return true;
+  }
+
+  async waitForTimeUnit(timeoutMs = 500, shouldContinue = () => true) {
+    return this.timefmt || 'f32';
+  }
+
+  async backupProfileRaw(slot) {
+    const p = this.telemetry.profiles[slot] || { target_temp_f: 485, duration_s: 50 };
+    return {
+      temp: [p.target_temp_f],
+      time: [p.duration_s],
+    };
+  }
+
+  async restoreProfileRaw(slot, bak) {
+    if (bak && this.telemetry.profiles[slot]) {
+      if (bak.temp && bak.temp[0]) this.telemetry.profiles[slot].target_temp_f = bak.temp[0];
+      if (bak.time && bak.time[0]) this.telemetry.profiles[slot].duration_s = bak.time[0];
+      this._notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  async readLiveBase() {
+    return this.telemetry.target_temp_f;
+  }
+
+  async setLiveTarget(tempF) {
+    const t = typeof window.validateTemperature === 'function' ? window.validateTemperature(tempF) : Math.min(590, Math.max(350, Number(tempF)));
+    this.telemetry.target_temp_f = t;
+    this._notifyListeners();
+    return true;
+  }
+
+  async readHeaterTarget() {
+    return this.telemetry.target_temp_f;
+  }
+
+  async readOverride() {
+    return this._override || 0;
+  }
+
+  async setOverride(dF) {
+    this._override = Number(dF) || 0;
     return true;
   }
 

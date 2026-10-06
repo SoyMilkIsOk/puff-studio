@@ -2247,6 +2247,19 @@ function handleCurveTelemetry(data) {
   const target = Number(data.target_temp_f || 0);
   const live = Number(data.live_temp_f || 0);
 
+  if (data.status === 'calibrating') {
+    isCurveRunning = true;
+    setCurveLocked(true);
+    if (el.stopCurveBtn) el.stopCurveBtn.disabled = false;
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'TIMING CLOCK...';
+    if (el.curveStatusBadge) {
+      el.curveStatusBadge.className = 'state-tag state-heating';
+      el.curveStatusBadge.textContent = 'CALIBRATING CLOCK';
+    }
+    if (el.curveElapsedDisplay) el.curveElapsedDisplay.textContent = 'CALIBRATING PROXY CLOCK...';
+    return;
+  }
+
   if (data.phase === 'preheating') {
     el.runCurveBtnLabel.textContent = 'PREHEATING BOWL...';
     el.curveStatusBadge.className = 'state-tag state-heating';

@@ -409,7 +409,11 @@ function parseBatteryBytes(r) {
       const dv = new DataView(r.buffer, r.byteOffset, r.byteLength);
       v = dv.getFloat32(0, true);
       if (!isFinite(v) || (v !== 0 && Math.abs(v) < 1e-6)) {
-        v = r[0];
+        const iVal = dv.getInt32(0, true);
+        if (iVal >= 0 && iVal <= 100) v = iVal;
+        else if (iVal > 100 && iVal <= 1000) v = iVal / 10;
+        else if (iVal > 1000 && iVal <= 10000) v = iVal / 100;
+        else v = r[0];
       } else if (v > 0 && v <= 1.0) {
         v *= 100.0;
       }
@@ -493,7 +497,8 @@ class PuffcoBleClient {
     this._needResp = false;
     this._tfmt = null;     // 'f32' | 'i10'
     this.hctfmt = null;    // profile temp format: 'f32' | 'i10'
-    this.timefmt = null;   // profile duration format: 'f32' | 'cs' | 'ms' | 't5' | 'u32'
+    this.timefmt = null;   // profile duration format: 'f32' | 'f32c' | 'f32m' | 'cs' | 'ms' | 't5' | 'u32'
+    this._resetTimeLearning();
 
     this._streaming = false;
     this._stopGuardUntil = 0;
@@ -690,6 +695,7 @@ class PuffcoBleClient {
     this._tfmt = null;
     this.hctfmt = null;
     this.timefmt = null;
+    this._resetTimeLearning();
     this._htrPath = PATH_CHAMBER_TEMP;
 
     const devName = this.device.name || 'Puff Device';
@@ -1321,7 +1327,8 @@ class PuffcoBleClient {
 
     const profiles = [];
     const detectedTfmts = [];
-    const detectedTimeFmts = [];
+    const timeFits = [];   // per-slot list of heat-time units that make a believable time
+    const ownTimes = [];   // raw time bytes of the device's own profiles (for byte-exact fallbacks)
 
     for (let slot = 0; slot < 4; slot++) {
       let name = `Profile ${slot + 1}`;
@@ -1353,37 +1360,32 @@ class PuffcoBleClient {
         }
       }
 
-      // Duration
+      // Duration — a float or whole number, in seconds (Peak Pro) or in ticks of the device's own clock
+      // (Proxy firmware: 100, 200 or 1000 per second, so 12000 can mean 120 s, 60 s or 12 s).
+      // Only a unit that is the sole fit, or one settled by timing the device clock, is ever trusted.
+      let durUnverified = false;
       const durBytes = await this.readPath(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot), 4);
       if (durBytes.length >= 4) {
-        const dv = new DataView(durBytes.buffer, durBytes.byteOffset, 4);
-        const f = dv.getFloat32(0, true);
-        const u = dv.getUint32(0, true);
-        const fl = isFinite(f) && f >= 0 && f < 1e7 && !(f !== 0 && Math.abs(f) < 1e-3);
-
-        // Check which unit fits a realistic dab duration (10s to 180s)
-        if (fl && f >= 10 && f <= 180) {
-          detectedTimeFmts.push('f32');
-          durS = Math.round(f);
-        } else if (!fl && u >= 1000 && u <= 18000) {
-          // Centiseconds (e.g. 50s = 5000, 80s = 8000)
-          detectedTimeFmts.push('cs');
-          durS = Math.round(u / 100);
-        } else if (!fl && u >= 10000 && u <= 180000) {
-          // Milliseconds
-          detectedTimeFmts.push('ms');
-          durS = Math.round(u / 1000);
-        } else if (!fl && u >= 10 && u <= 180) {
-          // Seconds uint32
-          detectedTimeFmts.push('u32');
-          durS = Math.round(u);
+        const t = this._tdec(durBytes);
+        if (t) {
+          timeFits.push({ ok: t.ok, slot });
+          if (t.ok.length) ownTimes.push({ slot, raw: Array.from(durBytes.slice(0, 4)), ok: t.ok, v: t.v, s: t.s });
+          if (t.s != null) {
+            durS = Math.round(t.s);
+          } else if (t.ok.length) {
+            // Ambiguous until the clock is timed: show a display-only estimate, never write it back
+            const prev = this.telemetry.profiles && this.telemetry.profiles[slot];
+            durS = prev && prev.duration_s ? prev.duration_s : Math.round(this._timeDec(t.ok[0], new DataView(durBytes.buffer, durBytes.byteOffset, 4)));
+            durUnverified = true;
+          }
         } else {
           const raw = parseDabsBytes(durBytes);
           durS = parseDurationSeconds(raw);
+          durUnverified = true;
         }
       }
 
-      profiles.push({ slot, name, target_temp_f: tempF, duration_s: durS });
+      profiles.push({ slot, name, target_temp_f: tempF, duration_s: durS, duration_unverified: durUnverified });
     }
 
     // Set learned formats if clear consensus exists across profiles
@@ -1392,23 +1394,24 @@ class PuffcoBleClient {
       const i10Count = detectedTfmts.filter((x) => x === 'i10').length;
       this.hctfmt = i10Count > f32Count ? 'i10' : 'f32';
     }
-    if (detectedTimeFmts.length > 0) {
-      const csCount = detectedTimeFmts.filter((x) => x === 'cs').length;
-      const f32Count = detectedTimeFmts.filter((x) => x === 'f32').length;
-      const msCount = detectedTimeFmts.filter((x) => x === 'ms').length;
-      if (csCount >= f32Count && csCount >= msCount) this.timefmt = 'cs';
-      else if (msCount >= f32Count && msCount >= csCount) this.timefmt = 'ms';
-      else if (f32Count > 0) this.timefmt = 'f32';
+    this._ownTimes = ownTimes;
+    if (!this.timefmt) {
+      const r = this._pickTimeUnit(timeFits);
+      this.timefmt = r.fmt;
+      this.tUnsure = r.unsure;
+      console.log(`[PuffcoBLE] Heat-time unit from profiles: ${r.fmt || 'unknown'}${r.unsure ? ' (ambiguous — will time the device clock)' : ''}`);
     }
+    if (this.timefmt) this._applyTimeUnitToProfiles(profiles);
 
     this.telemetry.profiles = profiles;
 
     // Snapshot profiles into local storage vault for safe emergency recovery
+    // (a time the app can't read in a known unit is left out so it's never written back wrong)
     try {
       localStorage.setItem('puff_profile_vault', JSON.stringify({
         timestamp: Date.now(),
         device_name: this.telemetry.device_name || 'Puffco Device',
-        profiles: profiles,
+        profiles: profiles.map((p) => (p.duration_unverified ? { ...p, duration_s: null } : p)),
       }));
     } catch (e) {}
 
@@ -1417,6 +1420,279 @@ class PuffcoBleClient {
       this.telemetry.target_temp_f = profiles[this.telemetry.active_profile].target_temp_f;
       this.telemetry.total_time = profiles[this.telemetry.active_profile].duration_s;
     }
+  }
+
+  // ---------------- Heat-Time Units (Proxy-safe, ported from aquaphase.app) ----------------
+
+  _resetTimeLearning() {
+    this.tUnsure = false;       // more than one unit fits the device's own profile times
+    this.tcalDone = false;      // unit settled by timing the device clock
+    this._cal = null;
+    this._calK = null;
+    this._lastCalAt = 0;
+    this._calBusy = false;
+    this._ownTimes = [];
+    this._triedTimeLearn = false;
+    this.liveFmt = null;        // live session target (/p/app/thc/temp) format, read from the device itself
+    this.lastDurationWrite = null;
+  }
+
+  _isProxyDevice() {
+    return !!(this.isProxy || (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'PROXY');
+  }
+
+  _timeDec(fmt, dv) {
+    const u = () => dv.getUint32(0, true);
+    const g = () => dv.getFloat32(0, true);
+    switch (fmt) {
+      case 'u32': return u();
+      case 'cs': return u() / 100;
+      case 't5': return u() / 200;
+      case 'ms': return u() / 1000;
+      case 'f32c': return g() / 100;
+      case 'f32m': return g() / 1000;
+      default: return g();
+    }
+  }
+
+  _timeEnc(fmt, s) {
+    const b = new Uint8Array(4);
+    const dv = new DataView(b.buffer);
+    const U = (k) => dv.setUint32(0, Math.max(0, Math.round(s * k)), true);
+    switch (fmt) {
+      case 'u32': U(1); break;
+      case 'cs': U(100); break;
+      case 't5': U(200); break;
+      case 'ms': U(1000); break;
+      case 'f32c': dv.setFloat32(0, s * 100, true); break;
+      case 'f32m': dv.setFloat32(0, s * 1000, true); break;
+      default: dv.setFloat32(0, Number(s), true);
+    }
+    return b;
+  }
+
+  /**
+   * Decode a stored heat time. `ok` lists every unit that turns the bytes into a normal heat time (10 s – 3 min).
+   * When more than one fits and nothing has settled it, `s` is null rather than a guess.
+   */
+  _tdec(bytes) {
+    if (!bytes || bytes.length < 4) return null;
+    const d = new DataView(bytes.buffer, bytes.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const u = d.getUint32(0, true);
+    const fl = isFinite(f) && f >= 0 && f < 1e7 && !(f !== 0 && f < 1e-3);
+    const v = fl ? f : u;
+    const ok = fl
+      ? (f < 1000 ? (f >= 1 ? ['f32'] : []) : [['f32c', 100], ['f32m', 1000]].filter(([, k]) => f / k >= 10 && f / k <= 180).map((x) => x[0]))
+      : [['u32', 1], ['cs', 100], ['t5', 200], ['ms', 1000]].filter(([, k]) => u / k >= 10 && u / k <= 180).map((x) => x[0]);
+    const pick = this.timefmt && ok.includes(this.timefmt) ? this.timefmt : ok.length === 1 ? ok[0] : null;
+    if (pick) return { s: this._timeDec(pick, d), fmt: ok.length === 1 ? pick : null, ok, fl, v };
+    if (ok.length) return { s: null, fmt: null, ok, fl, v };
+    if (fl && f >= 0 && f < 1) return { s: f, fmt: null, ok: [], fl, v };
+    if (!fl && u > 0 && u < 10) return { s: u, fmt: null, ok: [], fl, v };
+    return null;
+  }
+
+  /** The unit most of the user's own profiles agree on (slot 4 only counts when the others say nothing). */
+  _pickTimeUnit(fits) {
+    const pickFrom = (list) => {
+      const c = list.filter((x) => x.ok.length);
+      if (!c.length) return null;
+      const n = {};
+      c.forEach((x) => x.ok.forEach((f) => { n[f] = (n[f] || 0) + 1; }));
+      const top = Math.max(...Object.values(n));
+      const best = Object.keys(n).filter((f) => n[f] === top);
+      return top * 2 > c.length ? best : null;
+    };
+    const best = pickFrom(fits.filter((x) => x.slot !== 3)) || pickFrom(fits);
+    let cal = null;
+    try { cal = this.device?.id ? localStorage.getItem('puff_tcal2_' + this.device.id) : null; } catch (e) {}
+    if (cal && (!best || best.includes(cal))) return { fmt: cal, unsure: false };
+    if (best && best.length === 1) return { fmt: best[0], unsure: false };
+    return { fmt: null, unsure: !!best };
+  }
+
+  /** Re-decode the stored profile times once the unit is known. */
+  _applyTimeUnitToProfiles(profiles) {
+    if (!this.timefmt || !Array.isArray(profiles)) return;
+    (this._ownTimes || []).forEach((o) => {
+      const p = profiles[o.slot];
+      if (!p || !o.raw) return;
+      const b = Uint8Array.from(o.raw);
+      const s = this._timeDec(this.timefmt, new DataView(b.buffer, 0, 4));
+      if (isFinite(s) && s > 0) {
+        o.s = s;
+        p.duration_s = Math.round(s);
+        p.duration_unverified = false;
+      }
+    });
+  }
+
+  /**
+   * The device clock (/p/app/stat/elap) counts up, in a session and between them: how fast it counts says which
+   * unit this device uses (1, 100, 200 or 1000 per second). Each reading spans at least 4 s so a late answer can't
+   * skew it, and the same answer has to come up twice in a row before it's kept: a wrong unit would cut a curve short.
+   */
+  async calTime() {
+    if (this.tcalDone || !this.isConnected) return null;
+    const r = await this.readPath(PATH_TIME_ELAPSED, 4);
+    if (!r || r.length < 4) return null;
+    const now = performance.now(); // timed when the answer arrives, since reads wait in line
+    const d = new DataView(r.buffer, r.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const u = d.getUint32(0, true);
+    const fl = isFinite(f) && f >= 0 && f < 1e7 && !(f !== 0 && f < 1e-3);
+    const v = fl ? f : u;
+    const c = this._cal;
+    if (!c || now - c.at > 15000 || c.fl !== fl) { this._cal = { at: now, v, fl }; this._calK = null; return null; }
+    const dt = (now - c.at) / 1000;
+    if (dt < 4) return null;
+    const rate = (v - c.v) / dt;
+    this._cal = { at: now, v, fl }; // the next reading starts here
+    const k = rate > 0.6 && rate < 1.6 ? 1 : rate > 70 && rate < 140 ? 100 : rate > 150 && rate < 280 ? 200 : rate > 700 && rate < 1400 ? 1000 : 0;
+    const fmt = k ? (fl ? { 1: 'f32', 100: 'f32c', 1000: 'f32m' }[k] : { 1: 'u32', 100: 'cs', 200: 't5', 1000: 'ms' }[k]) : null;
+    const cand = new Set((this._ownTimes || []).flatMap((o) => o.ok || []));
+    if (!fmt || (cand.size && !cand.has(fmt))) { this._calK = null; return null; } // only a unit the profiles allow
+    if (this._calK !== fmt) { this._calK = fmt; return null; }
+    this.tcalDone = true;
+    this.timefmt = fmt;
+    this.tUnsure = false;
+    try { if (this.device?.id) localStorage.setItem('puff_tcal2_' + this.device.id, fmt); } catch (e) {}
+    return fmt;
+  }
+
+  async _maybeCalibrateTime() {
+    if (this._calBusy || this.tcalDone || this.timefmt || !(this._isProxyDevice() || this.tUnsure)) return;
+    const now = performance.now();
+    if (now - this._lastCalAt < 1000) return;
+    this._lastCalAt = now;
+    this._calBusy = true;
+    try {
+      const fmt = await this.calTime();
+      if (fmt) {
+        console.log(`[PuffcoBLE] Device clock timed: heat-time unit is '${fmt}'.`);
+        this._applyTimeUnitToProfiles(this.telemetry.profiles);
+        this._notifyListeners();
+      }
+    } catch (e) {
+    } finally {
+      this._calBusy = false;
+    }
+  }
+
+  /** Wait (up to timeoutMs) for the heat-time unit to be known. Returns the unit or null. */
+  async waitForTimeUnit(timeoutMs = 12000, shouldContinue = () => true) {
+    if (this.timefmt || !(this._isProxyDevice() || this.tUnsure)) return this.timefmt || 'f32';
+    const t0 = performance.now();
+    while (!this.timefmt && this.isConnected && shouldContinue() && performance.now() - t0 < timeoutMs) {
+      await this._maybeCalibrateTime();
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return this.timefmt;
+  }
+
+  async _readRaw(path, len = 4) {
+    const r = await this.readPath(path, len);
+    return r && r.length >= len ? Array.from(r.slice(0, len)) : null;
+  }
+
+  /** Write bytes exactly as given, then read back: they must match. */
+  async _writeRawVerified(path, raw) {
+    const b = Uint8Array.from(raw);
+    const ok = await this.writePath(path, b);
+    if (!ok) return false;
+    const r = await this.readPath(path, b.length);
+    if (r && r.length >= b.length && !b.every((x, i) => r[i] === x)) {
+      console.warn(`[PuffcoBLE] Device saved different bytes than sent (${path}).`);
+      return false;
+    }
+    return true;
+  }
+
+  /** Byte-for-byte backup of a profile's heat and time, so restoring never depends on knowing the unit. */
+  async backupProfileRaw(slot) {
+    return {
+      temp: await this._readRaw(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot)),
+      time: await this._readRaw(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot)),
+    };
+  }
+
+  async restoreProfileRaw(slot, bak) {
+    if (!bak) return false;
+    let ok = true;
+    if (bak.temp) ok = (await this._writeRawVerified(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot), bak.temp)) && ok;
+    if (bak.time) ok = (await this._writeRawVerified(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot), bak.time)) && ok;
+    try { await this._pollProfiles(); } catch (e) {}
+    this._notifyListeners();
+    return ok;
+  }
+
+  // ---------------- Live Session Control (no flash writes, no profile reselect) ----------------
+
+  _encTempC(fmt, c) {
+    const b = new Uint8Array(4);
+    const dv = new DataView(b.buffer);
+    if (fmt === 'i10') dv.setInt32(0, Math.round(c * 10), true);
+    else dv.setFloat32(0, c, true);
+    return b;
+  }
+
+  _decTempC(bytes) {
+    if (!bytes || bytes.length < 4) return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, 4);
+    const f = dv.getFloat32(0, true);
+    if (this._tfmt !== 'i10' && isFinite(f) && f > -80 && f < 520 && !(f !== 0 && Math.abs(f) < 1e-3)) return f;
+    const i = dv.getInt32(0, true);
+    if (Math.abs(i) <= 6000) return i / 10;
+    return null;
+  }
+
+  /** The session's own target, read before it's ever changed: the bytes show how this firmware keeps it. */
+  async _readLiveFmt() {
+    const r = await this.readPath(PATH_LIVE_TARGET_TEMP, 4);
+    if (!r || r.length < 4) return null;
+    const d = new DataView(r.buffer, r.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const n = d.getInt32(0, true);
+    if (isFinite(f) && f >= 150 && f <= 400) return { f: 'f32', c: f };
+    if (n >= 1500 && n <= 4000) return { f: 'i10', c: n / 10 };
+    return null;
+  }
+
+  /** Live session base target in °F (also learns its format). null when the firmware doesn't show it plainly. */
+  async readLiveBase() {
+    const k = await this._readLiveFmt();
+    if (!k) return null;
+    this.liveFmt = k.f;
+    return cToF(k.c);
+  }
+
+  /** Move the running session's target (/p/app/thc/temp) in the device's own format. Never guesses a format. */
+  async setLiveTarget(tempF) {
+    const t = validateTemperature(tempF);
+    if (!this.liveFmt) {
+      const k = await this._readLiveFmt();
+      if (k) this.liveFmt = k.f;
+    }
+    if (!this.liveFmt) return false;
+    return this.writePath(PATH_LIVE_TARGET_TEMP, this._encTempC(this.liveFmt, fToC(t)));
+  }
+
+  /** What the heater is really aiming for (°F): session base + boost override. */
+  async readHeaterTarget() {
+    const c = this._decTempC(await this.readPath('/p/app/htr/tcmd', 4));
+    return c == null || c <= 0 ? null : cToF(c);
+  }
+
+  /** Boost override (°F delta) — the offset Puffco's own boost uses; capped by firmware (~+15 °F). */
+  async readOverride() {
+    const c = this._decTempC(await this.readPath('/p/app/tmpo', 4));
+    return c == null ? null : (c * 9) / 5;
+  }
+
+  async setOverride(dF) {
+    const d = Math.min(60, Math.max(-60, Number(dF) || 0));
+    return this.writePath('/p/app/tmpo', this._encTempC(this.hctfmt || 'f32', (d * 5) / 9));
   }
 
   getDeviceKind() {
@@ -1451,6 +1727,7 @@ class PuffcoBleClient {
     this._tfmt = null;
     this.hctfmt = null;
     this.timefmt = null;
+    this._resetTimeLearning();
     if (this.device?.id) {
       try {
         localStorage.setItem('puff_devkind_' + this.device.id, kind);
@@ -1526,29 +1803,33 @@ class PuffcoBleClient {
       const elapBytes = await this.readPath(PATH_TIME_ELAPSED, 4);
       const tottBytes = await this.readPath(PATH_TIME_TOTAL, 4);
       if (elapBytes.length >= 4 && tottBytes.length >= 4) {
-        const viewElap = new DataView(elapBytes.buffer, elapBytes.byteOffset, elapBytes.byteLength);
-        const viewTott = new DataView(tottBytes.buffer, tottBytes.byteOffset, tottBytes.byteLength);
+        const viewElap = new DataView(elapBytes.buffer, elapBytes.byteOffset, 4);
+        const viewTott = new DataView(tottBytes.buffer, tottBytes.byteOffset, 4);
 
-        let elap = viewElap.getFloat32(0, true);
-        let tott = viewTott.getFloat32(0, true);
-        if (isNaN(elap) || !isFinite(elap) || (elap !== 0 && Math.abs(elap) < 1e-3)) elap = viewElap.getUint32(0, true);
-        if (isNaN(tott) || !isFinite(tott) || (tott !== 0 && Math.abs(tott) < 1e-3)) tott = viewTott.getUint32(0, true);
-
-        // Normalize time units (seconds vs centiseconds vs milliseconds)
-        if (tott > 300) {
-          if (this.timefmt === 'cs' || (tott >= 500 && tott <= 30000)) {
-            tott /= 100.0;
-            elap /= 100.0;
-          } else if (this.timefmt === 'ms' || tott > 30000) {
-            tott /= 1000.0;
-            elap /= 1000.0;
-          } else if (this.timefmt === 't5') {
-            tott /= 200.0;
-            elap /= 200.0;
+        // Decode in the device's own heat-time unit (learned from profiles or by timing its clock)
+        let elap = NaN;
+        let tott = NaN;
+        if (this.timefmt && this.timefmt !== 'f32') {
+          elap = this._timeDec(this.timefmt, viewElap);
+          tott = this._timeDec(this.timefmt, viewTott);
+        } else {
+          const tb = this._tdec(tottBytes);
+          if (tb && tb.s != null) {
+            const W = ['u32', 'cs', 't5', 'ms'];
+            const unit = W.includes(tb.fmt) ? tb.fmt : (tb.fmt !== 'f32' && W.includes(this.timefmt) ? this.timefmt : null);
+            tott = tb.s;
+            if (unit) {
+              elap = this._timeDec(unit, viewElap); // elapsed starts small, so read it in the total's unit
+            } else {
+              const ta = this._tdec(elapBytes);
+              elap = ta && ta.s != null ? ta.s : NaN;
+            }
           }
         }
-        this.telemetry.total_time = Math.round(tott);
-        this.telemetry.time_remaining = Math.max(0, Math.round(tott - elap));
+        if (isFinite(elap) && isFinite(tott) && tott > 0 && tott < 1000 && elap >= 0) {
+          this.telemetry.total_time = Math.round(tott);
+          this.telemetry.time_remaining = Math.max(0, Math.round(tott - elap));
+        }
       }
     } else if (!isHeating) {
       this.telemetry.time_remaining = 0;
@@ -1575,6 +1856,9 @@ class PuffcoBleClient {
       while (this._streaming && this.isConnected) {
         try {
           await this._pollFastTelemetry();
+
+          // Learn a Proxy's heat-time unit from its own clock (once per device, ~1 read/s until settled)
+          await this._maybeCalibrateTime();
 
           const now = Date.now();
           const isBusy = this.telemetry.is_heating || this.telemetry.active_curve_running;
@@ -1680,26 +1964,28 @@ class PuffcoBleClient {
     return success;
   }
 
-  async writeTemperature(tempF, slot = null) {
+  /**
+   * Write a profile's heat temperature.
+   * opts.skipSelect: don't re-select the profile afterwards (the caller selects it once, e.g. before starting a curve).
+   */
+  async writeTemperature(tempF, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
     tempF = validateTemperature(tempF);
 
-    const isProxy = this.isProxy || (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'PROXY';
+    const isProxy = this._isProxyDevice();
     const cVal = fToC(tempF);
 
     // Format encoding:
     // Proxy hardware often requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
     // Peak Pro hardware requires float32 LE Celsius
-    const encodeTemp = (fmt, c) => {
-      const b = new Uint8Array(4);
-      const dv = new DataView(b.buffer);
-      if (fmt === 'i10') {
-        dv.setInt32(0, Math.round(c * 10.0), true);
-      } else {
-        dv.setFloat32(0, c, true);
-      }
-      return b;
+    const encodeTemp = (fmt, c) => this._encTempC(fmt, c);
+    const readBackOk = async (fmt) => {
+      const r = await this.readPath(path, 4);
+      if (!r || r.length < 4) return true; // can't read back: trust the accepted write
+      const dv = new DataView(r.buffer, r.byteOffset, 4);
+      const back = fmt === 'i10' ? dv.getInt32(0, true) / 10 : dv.getFloat32(0, true);
+      return isFinite(back) && Math.abs(back - cVal) <= 1.5;
     };
 
     const primaryFormat = this.hctfmt || (isProxy ? 'i10' : 'f32');
@@ -1707,9 +1993,11 @@ class PuffcoBleClient {
 
     const path = PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot);
     let ok = await this.writePath(path, encodeTemp(primaryFormat, cVal));
+    if (ok && isProxy) ok = await readBackOk(primaryFormat);
     if (!ok) {
       console.warn(`[PuffcoBLE] Primary temp write format (${primaryFormat}) rejected, trying fallback (${fallbackFormat})...`);
       ok = await this.writePath(path, encodeTemp(fallbackFormat, cVal));
+      if (ok) ok = await readBackOk(fallbackFormat);
       if (ok) this.hctfmt = fallbackFormat;
     } else {
       this.hctfmt = primaryFormat;
@@ -1720,14 +2008,16 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].target_temp_f = tempF;
       }
-      // Re-assert active profile to update live PID register
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
 
-      // If heating, also write to live session target /p/app/thc/temp
       if (this.telemetry.is_heating) {
+        // Mid-session: move the live session target only. Re-selecting the profile (/p/app/hcs) while
+        // heating reloads it on Proxy firmware, which can reset or cut the session short.
         try {
-          await this.writePath(PATH_LIVE_TARGET_TEMP, encodeTemp(this.hctfmt, cVal));
+          await this.setLiveTarget(tempF);
         } catch (_) {}
+      } else if (!opts.skipSelect) {
+        // Re-assert active profile so the device loads the new value
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
       }
 
       this._notifyListeners();
@@ -1737,49 +2027,82 @@ class PuffcoBleClient {
     return ok;
   }
 
-  async writeDuration(durationS, slot = null) {
+  /**
+   * Write a profile's heat time — only in a unit the device itself has shown (never a guess: on a Proxy a wrong
+   * unit cuts the session short, e.g. 60 s written as centiseconds runs 30 s on 200-ticks/s firmware).
+   * opts.fit: if the unit isn't known or the value is turned down, copy (byte for byte) the time of one of the
+   *           device's own profiles instead — the longest when the unit is unknown — and let the caller end the
+   *           session on time. Details land in this.lastDurationWrite.
+   * opts.skipSelect: don't re-select the profile afterwards.
+   */
+  async writeDuration(durationS, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
+    this.lastDurationWrite = null;
 
-    const isProxy = this.isProxy || (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'PROXY';
-
-    const encodeDur = (fmt, s) => {
-      const b = new Uint8Array(4);
-      const dv = new DataView(b.buffer);
-      if (fmt === 'cs') {
-        dv.setUint32(0, Math.round(s * 100), true);
-      } else if (fmt === 'ms') {
-        dv.setUint32(0, Math.round(s * 1000), true);
-      } else if (fmt === 't5') {
-        dv.setUint32(0, Math.round(s * 200), true);
-      } else if (fmt === 'u32') {
-        dv.setUint32(0, Math.round(s), true);
-      } else {
-        dv.setFloat32(0, Number(s), true);
-      }
-      return b;
-    };
-
-    const primaryFormat = this.timefmt || (isProxy ? 'cs' : 'f32');
-    const fallbackFormat = primaryFormat === 'cs' ? 'f32' : 'cs';
-
+    const isProxy = this._isProxyDevice();
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
-    let ok = await this.writePath(path, encodeDur(primaryFormat, durationS));
-    if (!ok) {
-      console.warn(`[PuffcoBLE] Primary duration write format (${primaryFormat}) rejected, trying fallback (${fallbackFormat})...`);
-      ok = await this.writePath(path, encodeDur(fallbackFormat, durationS));
-      if (ok) this.timefmt = fallbackFormat;
+
+    let fmt = this.timefmt;
+    if (!fmt && (isProxy || this.tUnsure) && !this._triedTimeLearn) {
+      // Learn the unit from the device's own profiles first
+      this._triedTimeLearn = true;
+      try { await this._pollProfiles(); } catch (e) {}
+      fmt = this.timefmt;
+    }
+    if (!fmt && !(isProxy || this.tUnsure)) fmt = 'f32'; // Peak Pro: float seconds, like Puffco's app
+
+    let ok = false;
+    let got = durationS;
+    let adj = null;
+    if (fmt) {
+      ok = await this.writePath(path, this._timeEnc(fmt, durationS));
+      if (ok && (isProxy || fmt !== 'f32')) {
+        // Read back: it must match what was sent
+        const r = await this.readPath(path, 4);
+        if (r && r.length >= 4) {
+          const back = this._timeDec(fmt, new DataView(r.buffer, r.byteOffset, 4));
+          if (!(isFinite(back) && Math.abs(back - durationS) <= 1)) {
+            console.warn(`[PuffcoBLE] Device saved a different heat time than sent (${back} vs ${durationS}s, unit ${fmt}).`);
+            ok = false;
+          }
+        }
+      }
+      if (ok) this.timefmt = fmt;
+      else console.warn(`[PuffcoBLE] Heat time ${durationS}s (unit ${fmt}) was turned down for slot ${slot}.`);
     } else {
-      this.timefmt = primaryFormat;
+      console.warn(`[PuffcoBLE] Heat-time unit of this ${isProxy ? 'Proxy' : 'device'} isn't known yet — not guessing.`);
     }
 
-    if (ok) {
-      this.telemetry.total_time = durationS;
-      if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
-        this.telemetry.profiles[slot].duration_s = durationS;
+    if (!ok && opts.fit) {
+      const unk = !fmt;
+      const cands = (this._ownTimes || []).filter((o) => o.slot !== slot && o.raw);
+      const score = unk
+        ? (o) => -(o.v || 0) // unit unknown: the longest stored time, so the curve has room
+        : (o) => (o.s != null && o.s >= durationS - 0.5 ? o.s - durationS : 1000 + durationS - (o.s || 0));
+      const best = cands.sort((a, b) => score(a) - score(b))[0];
+      if (best) {
+        ok = await this._writeRawVerified(path, best.raw);
+        if (ok) {
+          got = unk || best.s == null ? null : Math.round(best.s);
+          adj = { want: durationS, got, unk };
+          console.warn(`[PuffcoBLE] Using heat time copied from profile ${best.slot + 1} (${got == null ? 'unit unknown' : got + 's'}); the app ends the session when the curve ends.`);
+        }
       }
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+    }
+
+    this.lastDurationWrite = { ok, want: durationS, got, adj, fmt: this.timefmt };
+
+    if (ok) {
+      if (got != null) this.telemetry.total_time = got;
+      if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
+        if (got != null) this.telemetry.profiles[slot].duration_s = got;
+        this.telemetry.profiles[slot].duration_unverified = got == null;
+      }
+      if (!opts.skipSelect && !this.telemetry.is_heating) {
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      }
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write duration ${durationS}s to slot ${slot}`);
@@ -1860,7 +2183,12 @@ class PuffcoBleClient {
     }
     val = Math.max(5, Math.min(255, val));
     this.telemetry.lantern_brightness = val;
-    const ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, new Uint8Array([val]));
+    const isProxy = this._isProxyDevice();
+    const payload = isProxy ? new Uint8Array([val, 0, 0, 0]) : new Uint8Array([val, val, val, val]);
+    let ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, payload);
+    if (!ok) {
+      ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, isProxy ? new Uint8Array([val]) : new Uint8Array([val, 0, 0, 0]));
+    }
     this._notifyListeners();
     return ok;
   }
