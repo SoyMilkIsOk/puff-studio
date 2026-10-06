@@ -42,6 +42,8 @@ const LORAX_OP_UNWATCH = 49;
 const PATH_MODE_CONTROL = '/p/app/mc';
 const PATH_STATE_ID = '/p/app/stat/id';
 const PATH_CHAMBER_TEMP = '/p/app/htr/temp';
+const PATH_ALT_CHAMBER_TEMP = '/p/htr/temp';
+const PATH_LIVE_TARGET_TEMP = '/p/app/thc/temp';
 const PATH_TARGET_TEMP = '/p/app/htr/ttag';
 const PATH_TIME_ELAPSED = '/p/app/stat/elap';
 const PATH_TIME_TOTAL = '/p/app/stat/tott';
@@ -49,6 +51,9 @@ const PATH_BATTERY_SOC = '/p/bat/soc';
 const PATH_BATTERY_CHARGE_STAT = '/p/bat/chg/stat';
 const PATH_CHAMBER_TYPE = '/p/htr/chmt';
 const PATH_ODOMETER_DABS = '/p/app/odom/0/nc';
+const PATH_INFO_DTOT = '/p/app/info/dtot';
+const PATH_SYS_FW_VER = '/p/sys/fw/ver';
+const PATH_SYS_HW_SER = '/p/sys/hw/ser';
 const PATH_DEVICE_NAME = '/u/sys/name';
 const PATH_STEALTH_MODE = '/u/app/ui/stlm';
 const PATH_LANTERN_CMD = '/p/app/ltrn/cmd';
@@ -124,9 +129,23 @@ const ChamberNames = {
   1: 'Standard',
   2: '3DXL',
   3: '3D',
-  4: '3DXL',
+  4: 'Proxy',
   5: 'Proxy',
 };
+
+/**
+ * Firmware version string decoder (matches Puffco firmware encoding: A..Z letters, e.g. AB, AC, AD, etc.)
+ */
+function fwString(v) {
+  const L = 'ABCDEFGHJKMNPRTUVWXYZ';
+  if (v === 0) return 'X*';
+  let s = v - 1, o = '';
+  while (s >= 0) {
+    o = L[s % L.length] + o;
+    s = Math.floor(s / L.length) - 1;
+  }
+  return o;
+}
 
 // ==========================================================================
 // Helper Utility Functions
@@ -364,73 +383,76 @@ function validateDuration(durationS) {
  */
 function parseTempBytes(bytes) {
   if (!bytes || bytes.length < 4) return 0.0;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-
-  // 1. Check IEEE 754 float32
-  try {
-    const fVal = view.getFloat32(0, true);
-    if (fVal >= 5.0 && fVal <= 450.0 && !isNaN(fVal) && isFinite(fVal)) {
-      return Math.round(cToF(fVal) * 10) / 10;
-    }
-  } catch (e) {}
-
-  // 2. Check 32-bit integer (tenths of °C e.g. 2650 = 265.0°C)
-  try {
-    const iVal = view.getInt32(0, true);
-    if (iVal >= 50 && iVal <= 4500) {
-      return Math.round(cToF(iVal / 10.0) * 10) / 10;
-    }
-    if (iVal >= 5 && iVal <= 450) {
-      return Math.round(cToF(iVal) * 10) / 10;
-    }
-  } catch (e) {}
-
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const f = dv.getFloat32(0, true);
+  if (isFinite(f) && f > -80 && f < 520 && !(f !== 0 && Math.abs(f) < 1e-3)) {
+    return Math.round(cToF(f) * 10) / 10;
+  }
+  const i = dv.getInt32(0, true);
+  if (Math.abs(i) <= 6000) {
+    return Math.round(cToF(i / 10.0) * 10) / 10;
+  }
   return 0.0;
 }
 
-function parseBatteryBytes(bytes) {
-  if (!bytes || bytes.length === 0) return 0;
-  if (bytes.length === 1) {
-    return Math.max(0, Math.min(100, bytes[0]));
-  }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (bytes.length === 2) {
-    const iVal = view.getUint16(0, true);
-    if (iVal <= 100) return iVal;
-    if (iVal > 100 && iVal <= 10000) return Math.round(iVal / 100.0);
-  }
-  if (bytes.length >= 4) {
-    const iVal = view.getUint32(0, true);
-    if (iVal <= 100) return iVal;
-    if (iVal > 100 && iVal <= 10000) return Math.round(iVal / 100.0);
-    try {
-      const fVal = view.getFloat32(0, true);
-      if (fVal >= 1.0 && fVal <= 100.0 && !isNaN(fVal) && isFinite(fVal)) return Math.round(fVal);
-    } catch (e) {}
-  }
-  if (bytes[0] >= 0 && bytes[0] <= 100) {
-    return bytes[0];
-  }
-  return 0;
+/**
+ * Battery SOC parser.
+ * Handles float fraction 0..1, float percentage 0..100, 2-byte integer, and 1-byte integer,
+ * correctly avoiding denormalized float zero truncation on Proxy bases.
+ */
+function parseBatteryBytes(r) {
+  if (!r || r.length === 0) return 0;
+  let pct = null;
+  try {
+    let v;
+    if (r.length >= 4) {
+      const dv = new DataView(r.buffer, r.byteOffset, r.byteLength);
+      v = dv.getFloat32(0, true);
+      if (!isFinite(v) || (v !== 0 && Math.abs(v) < 1e-6)) {
+        const iVal = dv.getInt32(0, true);
+        if (iVal >= 0 && iVal <= 100) v = iVal;
+        else if (iVal > 100 && iVal <= 1000) v = iVal / 10;
+        else if (iVal > 1000 && iVal <= 10000) v = iVal / 100;
+        else v = r[0];
+      } else if (v > 0 && v <= 1.0) {
+        v *= 100.0;
+      }
+    } else if (r.length >= 2) {
+      v = r[0] | (r[1] << 8);
+    } else {
+      v = r[0];
+    }
+    if (isFinite(v) && v >= 0 && v <= 100.5) {
+      pct = Math.round(Math.min(100, v));
+    }
+  } catch (e) {}
+  return pct !== null ? pct : (r[0] <= 100 ? r[0] : 0);
 }
 
+/**
+ * Lifetime dabs odometer parser.
+ * Reads 12-byte float file (Peak Pro) or 4-byte uint32 counter (Proxy / legacy).
+ */
 function parseDabsBytes(bytes) {
   if (!bytes || bytes.length === 0) return 0;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.length >= 4) {
-    try {
-      const fVal = view.getFloat32(0, true);
-      if (fVal >= 1.0 && fVal < 1000000.0 && Number.isInteger(fVal)) {
-        return Math.round(fVal);
-      }
-    } catch (e) {}
-    return view.getUint32(0, true);
+    const fVal = view.getFloat32(0, true);
+    if (isFinite(fVal) && fVal >= 1.0 && fVal < 5000000.0 && !(fVal !== 0 && Math.abs(fVal) < 1e-3)) {
+      return Math.round(fVal);
+    }
+    const uVal = view.getUint32(0, true);
+    if (uVal < 5000000) return uVal;
   }
-  if (bytes.length === 2) return view.getUint16(0, true);
+  if (bytes.length >= 2) return view.getUint16(0, true);
   if (bytes.length === 1) return bytes[0];
   return 0;
 }
 
+/**
+ * Duration seconds parser.
+ * Handles float32 seconds, uint32 centiseconds (x100), and uint32 milliseconds (x1000).
+ */
 function parseDurationSeconds(rawVal) {
   if (rawVal > 10000) {
     try {
@@ -445,6 +467,7 @@ function parseDurationSeconds(rawVal) {
   }
   if (rawVal >= 5 && rawVal <= 300) return rawVal;
   if (rawVal >= 500 && rawVal <= 30000) return Math.round(rawVal / 100);
+  if (rawVal > 30000 && rawVal <= 300000) return Math.round(rawVal / 1000);
   return 45;
 }
 
@@ -469,6 +492,14 @@ class PuffcoBleClient {
     this._isIntentionalDisconnect = false;
     this._effectTimer = null;
 
+    this.isProxy = false;
+    this._htrPath = PATH_CHAMBER_TEMP;
+    this._needResp = false;
+    this._tfmt = null;     // 'f32' | 'i10'
+    this.hctfmt = null;    // profile temp format: 'f32' | 'i10'
+    this.timefmt = null;   // profile duration format: 'f32' | 'f32c' | 'f32m' | 'cs' | 'ms' | 't5' | 'u32'
+    this._resetTimeLearning();
+
     this._streaming = false;
     this._stopGuardUntil = 0;
     this._lastTempTimestamp = null;
@@ -482,6 +513,8 @@ class PuffcoBleClient {
     return {
       connected: false,
       is_syncing: false,
+      is_proxy: false,
+      device_model: 'Peak Pro',
       device_name: 'No Device',
       mac_address: '',
       serial_number: '',
@@ -611,26 +644,34 @@ class PuffcoBleClient {
       );
     }
 
-    const optionalServices = [
-      PUFFCO_LORAX_SVC_UUID,
-      PUFFCO_PIKACHU_SVC_UUID,
-      DEVINFO_SVC_UUID,
-      PUFFCO_PUP_SVC_UUID,
-      PUFFCO_SILABS_OTA_SVC_UUID,
-      '0000180f-0000-1000-8000-00805f9b34fb', // Standard Battery Service
-      '00001800-0000-1000-8000-00805f9b34fb', // Generic Access
-      '00001801-0000-1000-8000-00805f9b34fb', // Generic Attribute
-      'f9a98c15-c651-4f34-b656-d100bf580000', // Puffco base service
-    ];
+    // iPhone Bluetooth browsers (Bluefy and friends) don't reliably match the Peak against name filters, so acceptAllDevices there
+    const ios = /iPhone|iPad|iPod|Bluefy/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const requestOpts = (options.showAll || ios)
+      ? { acceptAllDevices: true, optionalServices: [PUFFCO_LORAX_SVC_UUID, PUFFCO_PIKACHU_SVC_UUID] }
+      : {
+          filters: [
+            { namePrefix: 'Peak' },
+            { namePrefix: 'PEAK' },
+            { namePrefix: 'peak' },
+            { namePrefix: 'Puff' },
+            { namePrefix: 'PUFF' },
+            { namePrefix: 'puff' },
+            { namePrefix: 'Proxy' },
+            { namePrefix: 'PROXY' },
+            { namePrefix: 'proxy' },
+            { namePrefix: 'Pivot' },
+            { namePrefix: 'PIVOT' },
+            { namePrefix: 'pivot' },
+            { services: [PUFFCO_LORAX_SVC_UUID] },
+          ],
+          optionalServices: [PUFFCO_LORAX_SVC_UUID, PUFFCO_PIKACHU_SVC_UUID],
+        };
 
-    console.log('[PuffcoBLE] Requesting Bluetooth Device (acceptAllDevices: true)...');
+    console.log('[PuffcoBLE] Requesting Bluetooth Device...', requestOpts);
 
     let selectedDevice = null;
     try {
-      selectedDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices,
-      });
+      selectedDevice = await navigator.bluetooth.requestDevice(requestOpts);
     } catch (err) {
       if (err.name === 'NotFoundError' || err.message?.includes('User cancelled') || err.message?.includes('cancelled')) {
         throw new Error('No device selected. Pairing was cancelled.');
@@ -649,6 +690,33 @@ class PuffcoBleClient {
     if (!device) throw new Error('No BluetoothDevice specified.');
     this.device = device;
 
+    // Reset session-specific state
+    this._needResp = false;
+    this._tfmt = null;
+    this.hctfmt = null;
+    this.timefmt = null;
+    this._resetTimeLearning();
+    this._htrPath = PATH_CHAMBER_TEMP;
+
+    const devName = this.device.name || 'Puff Device';
+    const looksProxy = /prox|pivot/i.test(devName);
+
+    // Enforce device choice chosen on lockscreen (locked in for session safety)
+    let chosen = this.chosenKind;
+    if (!chosen) {
+      try {
+        chosen = localStorage.getItem('puff_device_choice') || localStorage.getItem('puff_devkind_pref');
+      } catch (_) {}
+    }
+    if (chosen === 'proxy') {
+      this.isProxy = true;
+    } else if (chosen === 'peak') {
+      this.isProxy = false;
+    } else {
+      this.isProxy = looksProxy;
+    }
+    this.chosenKind = this.isProxy ? 'proxy' : 'peak';
+
     // Persist last connected device ID for auto-reconnection
     try {
       if (this.device.id) {
@@ -657,6 +725,7 @@ class PuffcoBleClient {
           localStorage.setItem('puff_last_device_name', this.device.name);
         }
         document.cookie = `puff_last_device_id=${encodeURIComponent(this.device.id)}; path=/; max-age=31536000; SameSite=Lax`;
+        localStorage.setItem('puff_devkind_' + this.device.id, this.isProxy ? 'proxy' : 'peak');
       }
     } catch (e) {
       console.warn('[PuffcoBLE] Could not persist last device ID:', e);
@@ -666,109 +735,156 @@ class PuffcoBleClient {
       this._onDisconnected(false);
     });
 
-    const devName = this.device.name || 'Puff Device';
-    console.log(`[PuffcoBLE] Connecting to GATT server (${devName})...`);
-    this.server = await this.device.gatt.connect();
+    console.log(`[PuffcoBLE] Connecting to GATT server (${devName}, isProxy=${this.isProxy})...`);
 
-    // Resilient Lorax Service Discovery with Exponential Backoff
-    console.log(`[PuffcoBLE] Discovering Lorax Service (${PUFFCO_LORAX_SVC_UUID})...`);
-    let loraxService = null;
-
-    for (let attempt = 1; attempt <= 4; attempt++) {
+    // 1. Resilient GATT connection with 3 retries & backoff (Proxy frequently drops attempt 1)
+    let gatt = null;
+    let gattErr = null;
+    for (let attempt = 1; attempt <= 3 && !gatt; attempt++) {
       try {
-        if (!this.device.gatt.connected) {
-          console.log(`[PuffcoBLE] Re-establishing GATT connection (attempt ${attempt}/4)...`);
-          this.server = await this.device.gatt.connect();
-        }
-
-        // Settling delay allowing the OS BLE stack (CoreBluetooth / BlueZ) to finish service discovery on initial pair
-        await new Promise((r) => setTimeout(r, attempt === 1 ? 250 : 450 * attempt));
-
-        try {
-          loraxService = await this.server.getPrimaryService(PUFFCO_LORAX_SVC_UUID);
-        } catch (dirErr) {
-          console.log(`[PuffcoBLE] Direct getPrimaryService attempt ${attempt} note:`, dirErr.message || dirErr);
-          const services = await this.server.getPrimaryServices();
-          for (const s of services) {
-            if (s.uuid.toLowerCase() === PUFFCO_LORAX_SVC_UUID.toLowerCase()) {
-              loraxService = s;
-              break;
-            }
-          }
-        }
-
-        if (loraxService) {
-          this.loraxService = loraxService;
-          console.log(`[PuffcoBLE] Lorax Service discovered on attempt ${attempt}!`);
-          break;
-        }
+        gatt = await this.device.gatt.connect();
       } catch (err) {
-        console.warn(`[PuffcoBLE] Discovery cycle ${attempt} caught:`, err.message || err);
+        gattErr = err;
+        console.warn(`[PuffcoBLE] GATT connect attempt ${attempt}/3 failed:`, err.message || err);
+        await new Promise((r) => setTimeout(r, 700 * attempt));
       }
     }
+    if (!gatt) {
+      throw gattErr || new Error('Failed to connect to device GATT server');
+    }
+    this.server = gatt;
 
-    if (!this.loraxService) {
+    // 2. Discover Lorax Primary Service (up to 2 attempts, then check Pikachu legacy)
+    console.log(`[PuffcoBLE] Discovering Lorax Service (${PUFFCO_LORAX_SVC_UUID})...`);
+    let svc = null;
+    let svcErr = null;
+    for (let attempt = 1; attempt <= 2 && !svc; attempt++) {
+      try {
+        svc = await this.server.getPrimaryService(PUFFCO_LORAX_SVC_UUID);
+      } catch (err) {
+        svcErr = err;
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
+    if (!svc) {
+      try {
+        svc = await this.server.getPrimaryService(PUFFCO_PIKACHU_SVC_UUID);
+      } catch (_) {}
+    }
+    if (!svc) {
       throw new Error(
-        `Selected device "${devName}" is not a Puff device (Lorax service not found). Please ensure you select your Puff Peak Pro or Proxy.`
+        `Selected device "${devName}" is not a recognized Puffco device (Lorax service not found: ${svcErr?.message || 'unknown'}). Please ensure your Peak Pro or Proxy is awake and in pairing mode.`
       );
     }
+    this.loraxService = svc;
 
-    // Keep connection alive by reading Lorax version char if present (with 600ms timeout)
+    // 3. Get Command and Reply characteristics
     try {
-      const verChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_VERSION);
-      if (verChar) {
-        await Promise.race([
-          verChar.readValue(),
-          new Promise((r) => setTimeout(r, 600)),
-        ]);
-      }
-    } catch (e) {}
-
-    // Get Command & Reply Characteristics with retry
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        this.cmdChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_CMD);
-        this.replyChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_REPLY);
-        if (this.cmdChar && this.replyChar) break;
-      } catch (cErr) {
-        if (attempt === 3) throw cErr;
-        await new Promise((r) => setTimeout(r, 200 * attempt));
-      }
+      this.cmdChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_CMD);
+      this.replyChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_REPLY);
+    } catch (cErr) {
+      throw new Error('Puffco communication characteristics (CMD/REPLY) not found');
     }
 
-    // Setup Lorax reply notifications
-    console.log('[PuffcoBLE] Subscribing to Lorax replies...');
-    await this.replyChar.startNotifications();
+    // 4. Trigger OS BLE bonding by reading Lorax version characteristic (without race timeout)
+    try {
+      const verChar = await this.loraxService.getCharacteristic(PUFFCO_LORAX_CHAR_VERSION);
+      if (verChar) await verChar.readValue();
+    } catch (e) {}
 
+    // 5. Subscribe to notifications
+    console.log('[PuffcoBLE] Subscribing to Lorax notifications...');
     const replyHandler = (evt) => this._onLoraxNotification(evt);
     this.replyChar.addEventListener('characteristicvaluechanged', replyHandler);
     this.replyChar.oncharacteristicvaluechanged = replyHandler;
+    await this.replyChar.startNotifications();
+    await new Promise((r) => setTimeout(r, 80));
 
-    // Small delay to allow CCCD descriptor write to settle on peripheral
-    await new Promise((r) => setTimeout(r, 120));
+    // 6. Step 4: Authentication Handshake
+    console.log('[PuffcoBLE] Authenticating with device...');
+    let authOk = false;
+    try {
+      authOk = await this._authenticate();
+    } catch (e) {
+      console.warn('[PuffcoBLE] Auth warning:', e);
+    }
 
-    // CRITICAL: Immediately mark connected and notify listeners with clean syncing state
+    // 7. Step 5: Read check & reply flow warmup (CRITICAL FOR PROXY!)
+    // Proxies and certain OS stacks have the GATT link up, but replies are not flowing yet.
+    // Ask, and if no answer on first try, restart notifications and ask once more.
+    let initialTele = null;
+    let readErr = null;
+    for (let i = 0; i < 2 && !initialTele; i++) {
+      if (i > 0) {
+        console.log('[PuffcoBLE] No reply on first read (common on Proxy). Restarting notifications and asking again...');
+        await new Promise((r) => setTimeout(r, 700));
+        try { await this.replyChar.startNotifications(); } catch (_) {}
+        if (!authOk) {
+          try { authOk = await this._authenticate(); } catch (_) {}
+        }
+      }
+      try {
+        initialTele = await this._readInitialTelemetry();
+        if (initialTele) break;
+      } catch (e) {
+        readErr = e;
+        if (e && e.status != null) break; // Status returned from device means communication is alive
+      }
+    }
+
+    if (!initialTele && readErr) {
+      console.warn('[PuffcoBLE] Initial telemetry probe notice:', readErr);
+    }
+
+    // Mark connected state
     this.isConnected = true;
     this.telemetry.connected = true;
     this.telemetry.is_syncing = true;
+    this.telemetry.is_proxy = this.isProxy;
+    this.telemetry.device_model = this.isProxy ? 'Proxy' : 'Peak Pro';
     this.telemetry.device_name = devName;
     this.telemetry.mac_address = this.device.id ? this.device.id.slice(0, 17).toUpperCase() : 'BLE-CONNECTED';
-    this.telemetry.operating_state = 'IDLE';
-    this.telemetry.state_name = 'Syncing...';
-    this.telemetry.battery_pct = null;
-    this.telemetry.lifetime_dabs = null;
-    this.telemetry.live_temp_f = null;
-    this.telemetry.chamber_name = null;
+    this.telemetry.operating_state = initialTele?.operating_state || 'IDLE';
+    this.telemetry.state_name = OperatingStateDisplayNames[this.telemetry.operating_state] || 'Standby / Idle';
+    this.telemetry.live_temp_f = initialTele?.live_temp_f ?? null;
+    this.telemetry.chamber_name = this.isProxy ? 'Proxy' : null;
     this._notifyListeners();
 
-    console.log(`[PuffcoBLE] Successfully connected to ${devName}! Initializing session in background...`);
+    console.log(`[PuffcoBLE] Connected to ${devName} (${this.isProxy ? 'Proxy' : 'Peak Pro'})! Initializing full session...`);
 
-    // Kick off authentication and initial diagnostics asynchronously (non-blocking)
+    // Complete session initialization
     this._initSession().catch((err) => {
       console.warn('[PuffcoBLE] Session initialization note:', err);
     });
 
     return true;
+  }
+
+  async _readInitialTelemetry() {
+    let hasData = false;
+
+    // 1. Probe state ID: /p/app/stat/id
+    const stBytes = await this.readPath(PATH_STATE_ID, 1);
+    let opState = 'IDLE';
+    if (stBytes && stBytes.length > 0) {
+      hasData = true;
+      opState = OperatingStateNames[stBytes[0]] || 'IDLE';
+    }
+
+    // 2. Probe chamber temperature via dual-path detection
+    const tempF = await this._readChamberTemp();
+    if (tempF !== null) {
+      hasData = true;
+    }
+
+    if (!hasData) {
+      return null;
+    }
+
+    return {
+      operating_state: opState,
+      live_temp_f: tempF,
+    };
   }
 
   /**
@@ -797,7 +913,7 @@ class PuffcoBleClient {
         targetDevice = devices.find((d) => d.id === lastId);
       }
       if (!targetDevice) {
-        targetDevice = devices.find((d) => d.name && /puffco|peak|proxy|puff/i.test(d.name)) || devices[0];
+        targetDevice = devices.find((d) => d.name && /puffco|peak|proxy|pivot|puff/i.test(d.name)) || devices[0];
       }
 
       if (!targetDevice) return false;
@@ -811,33 +927,32 @@ class PuffcoBleClient {
   }
 
   async _initSession() {
-    // 1. Lorax SHA-256 Authentication Handshake
-    console.log('[PuffcoBLE] Performing Lorax SHA-256 handshake...');
-    const authed = await this._authenticate();
-    if (authed) {
-      console.log('[PuffcoBLE] Lorax unlocked successfully!');
-    } else {
-      console.warn('[PuffcoBLE] Lorax handshake did not confirm unlock, proceeding with telemetry...');
-    }
-
-    // 2. Query device info (serial, firmware)
+    // 1. Query device info (serial, firmware) over Lorax VFS
     await this._pollDeviceInfo();
 
-    // 3. Poll fast telemetry (operating state, live chamber temp)
+    // 2. Poll fast telemetry (operating state, live chamber temp)
     await this._pollFastTelemetry();
     this._notifyListeners();
 
-    // 4. Poll slow diagnostics (VFS name, battery SOC, charging, chamber type, profiles, dabs)
+    // 3. Poll slow diagnostics (VFS name, battery SOC, charging, chamber type, profiles, dabs)
     await this._pollSlowDiagnostics(true);
-    
+
+    if (this.isProxy) {
+      this.telemetry.is_proxy = true;
+      this.telemetry.device_model = 'Proxy';
+      if (!this.telemetry.chamber_name || this.telemetry.chamber_name === 'None') {
+        this.telemetry.chamber_name = 'Proxy';
+      }
+    }
+
     // Telemetry initial sync is now complete!
     this.telemetry.is_syncing = false;
     this.telemetry.state_name = OperatingStateDisplayNames[this.telemetry.operating_state] || 'Standby / Idle';
     this._notifyListeners();
 
-    // 5. Start background telemetry polling stream
+    // 4. Start background telemetry polling stream
     this._startTelemetryStream();
-    console.log(`[PuffcoBLE] Session initialization complete for ${this.telemetry.device_name}!`);
+    console.log(`[PuffcoBLE] Session initialization complete for ${this.telemetry.device_name} (${this.isProxy ? 'Proxy' : 'Peak Pro'})!`);
   }
 
   async disconnect() {
@@ -952,12 +1067,26 @@ class PuffcoBleClient {
       throw new Error('Command characteristic is not available');
     }
 
+    if (this._needResp) {
+      if (typeof this.cmdChar.writeValueWithResponse === 'function') {
+        return await this.cmdChar.writeValueWithResponse(frame);
+      }
+      return await this.cmdChar.writeValue(frame);
+    }
+
     // 1. Try writeValueWithoutResponse (standard modern Web Bluetooth)
     if (typeof this.cmdChar.writeValueWithoutResponse === 'function') {
       try {
         await this.cmdChar.writeValueWithoutResponse(frame);
         return;
       } catch (e) {
+        if (e && e.name === 'NotSupportedError') {
+          this._needResp = true;
+          if (typeof this.cmdChar.writeValueWithResponse === 'function') {
+            return await this.cmdChar.writeValueWithResponse(frame);
+          }
+          return await this.cmdChar.writeValue(frame);
+        }
         console.warn('[PuffcoBLE] writeValueWithoutResponse failed, falling back to writeValue...', e);
       }
     }
@@ -981,7 +1110,7 @@ class PuffcoBleClient {
     throw new Error('No supported write method available on BLE command characteristic');
   }
 
-  async _sendLoraxCmd(opcode, payload = new Uint8Array(0), timeoutMs = 1500) {
+  async _sendLoraxCmd(opcode, payload = new Uint8Array(0), timeoutMs = 3000) {
     if (!this.server || !this.server.connected) {
       throw new Error('Device is not connected');
     }
@@ -1041,28 +1170,74 @@ class PuffcoBleClient {
     }
   }
 
+  /**
+   * Dual-path chamber temperature reader.
+   * Peak Pro keeps bowl temp at /p/app/htr/temp; some Proxy firmware keeps it at /p/htr/temp.
+   */
+  async _readChamberTemp() {
+    let raw = null;
+    if (this._htrPath !== PATH_ALT_CHAMBER_TEMP) {
+      try {
+        raw = await this.readPath(PATH_CHAMBER_TEMP, 4);
+        if (raw && raw.length >= 4) {
+          const t = this._decTemp(raw);
+          if (t !== null && t > 0) {
+            this._htrPath = PATH_CHAMBER_TEMP;
+            return t;
+          }
+        }
+      } catch (e) {
+        this._htrPath = PATH_ALT_CHAMBER_TEMP;
+      }
+    }
+
+    try {
+      raw = await this.readPath(PATH_ALT_CHAMBER_TEMP, 4);
+      if (raw && raw.length >= 4) {
+        const t = this._decTemp(raw);
+        if (t !== null && t > 0) {
+          this._htrPath = PATH_ALT_CHAMBER_TEMP;
+          return t;
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  _decTemp(bytes) {
+    if (!bytes || bytes.length < 4) return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const f = dv.getFloat32(0, true);
+    if (this._tfmt !== 'i10' && isFinite(f) && f > -80 && f < 520 && !(f !== 0 && Math.abs(f) < 1e-3)) {
+      if (!this._tfmt && f !== 0) this._tfmt = 'f32';
+      return Math.round(cToF(f) * 10) / 10;
+    }
+    const i = dv.getInt32(0, true);
+    if (Math.abs(i) <= 6000) {
+      if (!this._tfmt && i !== 0) this._tfmt = 'i10';
+      return Math.round(cToF(i / 10.0) * 10) / 10;
+    }
+    return null;
+  }
+
   // ---------------- Telemetry & Diagnostics ----------------
 
   async _pollDeviceInfo() {
+    // 1. Read firmware version via Lorax VFS: /p/sys/fw/ver (1 byte, decoded with fwString)
     try {
-      // DEVINFO_SVC_UUID is optional (absent on Proxy). 500ms timeout prevents stalling.
-      const devService = await Promise.race([
-        this.server.getPrimaryService(DEVINFO_SVC_UUID),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 500)),
-      ]).catch(() => null);
+      const fwBytes = await this.readPath(PATH_SYS_FW_VER, 1);
+      if (fwBytes && fwBytes.length > 0) {
+        this.telemetry.firmware_version = fwString(fwBytes[0]);
+      }
+    } catch (e) {}
 
-      if (devService) {
-        try {
-          const fwChar = await devService.getCharacteristic(DEVINFO_FIRMWARE_UUID);
-          const fwVal = await fwChar.readValue();
-          this.telemetry.firmware_version = decodeUtf8(new Uint8Array(fwVal.buffer));
-        } catch (e) {}
-
-        try {
-          const snChar = await devService.getCharacteristic(DEVINFO_SERIAL_UUID);
-          const snVal = await snChar.readValue();
-          this.telemetry.serial_number = decodeUtf8(new Uint8Array(snVal.buffer));
-        } catch (e) {}
+    // 2. Read hardware serial number via Lorax VFS: /p/sys/hw/ser (string)
+    try {
+      const serBytes = await this.readPath(PATH_SYS_HW_SER, 32);
+      if (serBytes && serBytes.length > 0) {
+        const serStr = decodeUtf8(serBytes).trim();
+        if (serStr) this.telemetry.serial_number = serStr;
       }
     } catch (e) {}
   }
@@ -1070,7 +1245,7 @@ class PuffcoBleClient {
   async _pollSlowDiagnostics(forceProfiles = false) {
     try {
       // 0. VFS Device Name
-      const nameBytes = await this.readPath(PATH_DEVICE_NAME);
+      const nameBytes = await this.readPath(PATH_DEVICE_NAME, 32);
       if (nameBytes.length > 0) {
         const cleanName = decodeUtf8(nameBytes).trim();
         if (cleanName) {
@@ -1078,32 +1253,60 @@ class PuffcoBleClient {
         }
       }
 
+      // Check name for Proxy/Pivot
+      if (/prox|pivot/i.test(this.telemetry.device_name || '') || /prox|pivot/i.test(this.device?.name || '')) {
+        this.isProxy = true;
+        this.telemetry.is_proxy = true;
+        this.telemetry.device_model = 'Proxy';
+      }
+
       // 1. Battery SOC
-      const socBytes = await this.readPath(PATH_BATTERY_SOC);
+      const socBytes = await this.readPath(PATH_BATTERY_SOC, 4);
       if (socBytes.length > 0) {
         this.telemetry.battery_pct = parseBatteryBytes(socBytes);
       }
 
       // 2. Battery Charging Status
-      const chgBytes = await this.readPath(PATH_BATTERY_CHARGE_STAT);
+      const chgBytes = await this.readPath(PATH_BATTERY_CHARGE_STAT, 1);
       if (chgBytes.length > 0) {
-        this.telemetry.is_charging = chgBytes[0] === 1 || chgBytes[0] === 2;
+        // In Lorax VFS: <= 1 means charging (0 or 1), > 1 is discharging/disconnected
+        this.telemetry.is_charging = chgBytes[0] <= 1;
       }
 
       // 3. Chamber Type
-      const chmtBytes = await this.readPath(PATH_CHAMBER_TYPE);
+      const chmtBytes = await this.readPath(PATH_CHAMBER_TYPE, 1);
       if (chmtBytes.length > 0) {
         const cType = chmtBytes[0];
-        this.telemetry.chamber_name = ChamberNames[cType] || (this.telemetry.device_name.toLowerCase().includes('proxy') ? 'Standard' : '3DXL');
-        this.telemetry.chamber_type = (cType === 2 || cType === 4) ? 'CHAMBER_3DXL' : (cType === 3 ? 'CHAMBER_3D' : (cType === 1 ? 'STANDARD' : (cType === 5 ? 'TOAD' : 'NONE')));
-      } else if (this.telemetry.device_name.toLowerCase().includes('proxy')) {
-        this.telemetry.chamber_name = 'Standard';
-        this.telemetry.chamber_type = 'STANDARD';
+        if (cType === 4 || cType === 5) {
+          this.isProxy = true;
+          this.telemetry.is_proxy = true;
+          this.telemetry.device_model = 'Proxy';
+          this.telemetry.chamber_name = 'Proxy';
+          this.telemetry.chamber_type = 'PROXY';
+        } else if (cType === 2) {
+          this.telemetry.chamber_name = '3DXL';
+          this.telemetry.chamber_type = 'CHAMBER_3DXL';
+        } else if (cType === 3) {
+          this.telemetry.chamber_name = '3D';
+          this.telemetry.chamber_type = 'CHAMBER_3D';
+        } else if (cType === 1) {
+          this.telemetry.chamber_name = 'Standard';
+          this.telemetry.chamber_type = 'STANDARD';
+        } else {
+          this.telemetry.chamber_name = 'None';
+          this.telemetry.chamber_type = 'NONE';
+        }
+      } else if (this.isProxy) {
+        this.telemetry.chamber_name = 'Proxy';
+        this.telemetry.chamber_type = 'PROXY';
       }
 
-      // 4. Lifetime Dabs Odometer
-      const odomBytes = await this.readPath(PATH_ODOMETER_DABS);
-      if (odomBytes.length > 0) {
+      // 4. Lifetime Dabs Odometer (with Proxy fallback to /p/app/info/dtot)
+      let odomBytes = await this.readPath(PATH_ODOMETER_DABS, 12);
+      if (!odomBytes || odomBytes.length < 4) {
+        odomBytes = await this.readPath(PATH_INFO_DTOT, 4);
+      }
+      if (odomBytes && odomBytes.length >= 4) {
         this.telemetry.lifetime_dabs = parseDabsBytes(odomBytes);
       }
 
@@ -1117,49 +1320,98 @@ class PuffcoBleClient {
   }
 
   async _pollProfiles() {
-    const activeSlotBytes = await this.readPath(PATH_ACTIVE_PROFILE);
+    const activeSlotBytes = await this.readPath(PATH_ACTIVE_PROFILE, 1);
     if (activeSlotBytes.length > 0) {
       this.telemetry.active_profile = activeSlotBytes[0];
     }
 
     const profiles = [];
+    const detectedTfmts = [];
+    const timeFits = [];   // per-slot list of heat-time units that make a believable time
+    const ownTimes = [];   // raw time bytes of the device's own profiles (for byte-exact fallbacks)
+
     for (let slot = 0; slot < 4; slot++) {
       let name = `Profile ${slot + 1}`;
       let tempF = 485;
       let durS = 50;
 
       // Name
-      const nameBytes = await this.readPath(PATH_PROFILE_NAME_PREFIX.replace('{slot}', slot));
+      const nameBytes = await this.readPath(PATH_PROFILE_NAME_PREFIX.replace('{slot}', slot), 32);
       if (nameBytes.length > 0) {
         const decoded = decodeUtf8(nameBytes).trim();
         if (decoded) name = decoded;
       }
 
       // Temp
-      const tempBytes = await this.readPath(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot));
-      if (tempBytes.length > 0) {
-        const parsed = parseTempBytes(tempBytes);
-        if (parsed > 0) tempF = Math.round(parsed);
+      const tempBytes = await this.readPath(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot), 4);
+      if (tempBytes.length >= 4) {
+        const dv = new DataView(tempBytes.buffer, tempBytes.byteOffset, 4);
+        const f = dv.getFloat32(0, true);
+        const n = dv.getInt32(0, true);
+        if (isFinite(f) && f >= 150 && f <= 400) {
+          detectedTfmts.push('f32');
+          tempF = Math.round(cToF(f));
+        } else if (n >= 1500 && n <= 4000) {
+          detectedTfmts.push('i10');
+          tempF = Math.round(cToF(n / 10.0));
+        } else {
+          const parsed = parseTempBytes(tempBytes);
+          if (parsed > 0) tempF = Math.round(parsed);
+        }
       }
 
-      // Duration
-      const durBytes = await this.readPath(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot));
-      if (durBytes.length > 0) {
-        const raw = parseDabsBytes(durBytes);
-        durS = parseDurationSeconds(raw);
+      // Duration — a float or whole number, in seconds (Peak Pro) or in ticks of the device's own clock
+      // (Proxy firmware: 100, 200 or 1000 per second, so 12000 can mean 120 s, 60 s or 12 s).
+      // Only a unit that is the sole fit, or one settled by timing the device clock, is ever trusted.
+      let durUnverified = false;
+      const durBytes = await this.readPath(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot), 4);
+      if (durBytes.length >= 4) {
+        const t = this._tdec(durBytes);
+        if (t) {
+          timeFits.push({ ok: t.ok, slot });
+          if (t.ok.length) ownTimes.push({ slot, raw: Array.from(durBytes.slice(0, 4)), ok: t.ok, v: t.v, s: t.s });
+          if (t.s != null) {
+            durS = Math.round(t.s);
+          } else if (t.ok.length) {
+            // Ambiguous until the clock is timed: show a display-only estimate, never write it back
+            const prev = this.telemetry.profiles && this.telemetry.profiles[slot];
+            durS = prev && prev.duration_s ? prev.duration_s : Math.round(this._timeDec(t.ok[0], new DataView(durBytes.buffer, durBytes.byteOffset, 4)));
+            durUnverified = true;
+          }
+        } else {
+          const raw = parseDabsBytes(durBytes);
+          durS = parseDurationSeconds(raw);
+          durUnverified = true;
+        }
       }
 
-      profiles.push({ slot, name, target_temp_f: tempF, duration_s: durS });
+      profiles.push({ slot, name, target_temp_f: tempF, duration_s: durS, duration_unverified: durUnverified });
     }
+
+    // Set learned formats if clear consensus exists across profiles
+    if (detectedTfmts.length > 0) {
+      const f32Count = detectedTfmts.filter((x) => x === 'f32').length;
+      const i10Count = detectedTfmts.filter((x) => x === 'i10').length;
+      this.hctfmt = i10Count > f32Count ? 'i10' : 'f32';
+    }
+    this._ownTimes = ownTimes;
+    if (!this.timefmt) {
+      const r = this._pickTimeUnit(timeFits);
+      this.timefmt = r.fmt;
+      this.tUnsure = r.unsure;
+      console.log(`[PuffcoBLE] Heat-time unit from profiles: ${r.fmt || 'unknown'}${r.unsure ? ' (ambiguous — will time the device clock)' : ''}`);
+    }
+    if (this.timefmt) this._applyTimeUnitToProfiles(profiles);
 
     this.telemetry.profiles = profiles;
 
     // Snapshot profiles into local storage vault for safe emergency recovery
+    // (a time the app can't read in a known unit is left out so it's never written back wrong)
     try {
       localStorage.setItem('puff_profile_vault', JSON.stringify({
         timestamp: Date.now(),
         device_name: this.telemetry.device_name || 'Puffco Device',
-        profiles: profiles,
+        profiles: profiles.map((p) => (p.duration_unverified ? { ...p, duration_s: null } : p)),
       }));
     } catch (e) {}
 
@@ -1170,11 +1422,330 @@ class PuffcoBleClient {
     }
   }
 
+  // ---------------- Heat-Time Units (Proxy-safe, ported from aquaphase.app) ----------------
+
+  _resetTimeLearning() {
+    this.tUnsure = false;       // more than one unit fits the device's own profile times
+    this.tcalDone = false;      // unit settled by timing the device clock
+    this._cal = null;
+    this._calK = null;
+    this._lastCalAt = 0;
+    this._calBusy = false;
+    this._ownTimes = [];
+    this._triedTimeLearn = false;
+    this.liveFmt = null;        // live session target (/p/app/thc/temp) format, read from the device itself
+    this.lastDurationWrite = null;
+  }
+
+  _isProxyDevice() {
+    return !!(this.isProxy || (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'PROXY');
+  }
+
+  _timeDec(fmt, dv) {
+    const u = () => dv.getUint32(0, true);
+    const g = () => dv.getFloat32(0, true);
+    switch (fmt) {
+      case 'u32': return u();
+      case 'cs': return u() / 100;
+      case 't5': return u() / 200;
+      case 'ms': return u() / 1000;
+      case 'f32c': return g() / 100;
+      case 'f32m': return g() / 1000;
+      default: return g();
+    }
+  }
+
+  _timeEnc(fmt, s) {
+    const b = new Uint8Array(4);
+    const dv = new DataView(b.buffer);
+    const U = (k) => dv.setUint32(0, Math.max(0, Math.round(s * k)), true);
+    switch (fmt) {
+      case 'u32': U(1); break;
+      case 'cs': U(100); break;
+      case 't5': U(200); break;
+      case 'ms': U(1000); break;
+      case 'f32c': dv.setFloat32(0, s * 100, true); break;
+      case 'f32m': dv.setFloat32(0, s * 1000, true); break;
+      default: dv.setFloat32(0, Number(s), true);
+    }
+    return b;
+  }
+
+  /**
+   * Decode a stored heat time. `ok` lists every unit that turns the bytes into a normal heat time (10 s – 3 min).
+   * When more than one fits and nothing has settled it, `s` is null rather than a guess.
+   */
+  _tdec(bytes) {
+    if (!bytes || bytes.length < 4) return null;
+    const d = new DataView(bytes.buffer, bytes.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const u = d.getUint32(0, true);
+    const fl = isFinite(f) && f >= 0 && f < 1e7 && !(f !== 0 && f < 1e-3);
+    const v = fl ? f : u;
+    const ok = fl
+      ? (f < 1000 ? (f >= 1 ? ['f32'] : []) : [['f32c', 100], ['f32m', 1000]].filter(([, k]) => f / k >= 10 && f / k <= 180).map((x) => x[0]))
+      : [['u32', 1], ['cs', 100], ['t5', 200], ['ms', 1000]].filter(([, k]) => u / k >= 10 && u / k <= 180).map((x) => x[0]);
+    const pick = this.timefmt && ok.includes(this.timefmt) ? this.timefmt : ok.length === 1 ? ok[0] : null;
+    if (pick) return { s: this._timeDec(pick, d), fmt: ok.length === 1 ? pick : null, ok, fl, v };
+    if (ok.length) return { s: null, fmt: null, ok, fl, v };
+    if (fl && f >= 0 && f < 1) return { s: f, fmt: null, ok: [], fl, v };
+    if (!fl && u > 0 && u < 10) return { s: u, fmt: null, ok: [], fl, v };
+    return null;
+  }
+
+  /** The unit most of the user's own profiles agree on (slot 4 only counts when the others say nothing). */
+  _pickTimeUnit(fits) {
+    const pickFrom = (list) => {
+      const c = list.filter((x) => x.ok.length);
+      if (!c.length) return null;
+      const n = {};
+      c.forEach((x) => x.ok.forEach((f) => { n[f] = (n[f] || 0) + 1; }));
+      const top = Math.max(...Object.values(n));
+      const best = Object.keys(n).filter((f) => n[f] === top);
+      return top * 2 > c.length ? best : null;
+    };
+    const best = pickFrom(fits.filter((x) => x.slot !== 3)) || pickFrom(fits);
+    let cal = null;
+    try { cal = this.device?.id ? localStorage.getItem('puff_tcal2_' + this.device.id) : null; } catch (e) {}
+    if (cal && (!best || best.includes(cal))) return { fmt: cal, unsure: false };
+    if (best && best.length === 1) return { fmt: best[0], unsure: false };
+    return { fmt: null, unsure: !!best };
+  }
+
+  /** Re-decode the stored profile times once the unit is known. */
+  _applyTimeUnitToProfiles(profiles) {
+    if (!this.timefmt || !Array.isArray(profiles)) return;
+    (this._ownTimes || []).forEach((o) => {
+      const p = profiles[o.slot];
+      if (!p || !o.raw) return;
+      const b = Uint8Array.from(o.raw);
+      const s = this._timeDec(this.timefmt, new DataView(b.buffer, 0, 4));
+      if (isFinite(s) && s > 0) {
+        o.s = s;
+        p.duration_s = Math.round(s);
+        p.duration_unverified = false;
+      }
+    });
+  }
+
+  /**
+   * The device clock (/p/app/stat/elap) counts up, in a session and between them: how fast it counts says which
+   * unit this device uses (1, 100, 200 or 1000 per second). Each reading spans at least 4 s so a late answer can't
+   * skew it, and the same answer has to come up twice in a row before it's kept: a wrong unit would cut a curve short.
+   */
+  async calTime() {
+    if (this.tcalDone || !this.isConnected) return null;
+    const r = await this.readPath(PATH_TIME_ELAPSED, 4);
+    if (!r || r.length < 4) return null;
+    const now = performance.now(); // timed when the answer arrives, since reads wait in line
+    const d = new DataView(r.buffer, r.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const u = d.getUint32(0, true);
+    const fl = isFinite(f) && f >= 0 && f < 1e7 && !(f !== 0 && f < 1e-3);
+    const v = fl ? f : u;
+    const c = this._cal;
+    if (!c || now - c.at > 15000 || c.fl !== fl) { this._cal = { at: now, v, fl }; this._calK = null; return null; }
+    const dt = (now - c.at) / 1000;
+    if (dt < 4) return null;
+    const rate = (v - c.v) / dt;
+    this._cal = { at: now, v, fl }; // the next reading starts here
+    const k = rate > 0.6 && rate < 1.6 ? 1 : rate > 70 && rate < 140 ? 100 : rate > 150 && rate < 280 ? 200 : rate > 700 && rate < 1400 ? 1000 : 0;
+    const fmt = k ? (fl ? { 1: 'f32', 100: 'f32c', 1000: 'f32m' }[k] : { 1: 'u32', 100: 'cs', 200: 't5', 1000: 'ms' }[k]) : null;
+    const cand = new Set((this._ownTimes || []).flatMap((o) => o.ok || []));
+    if (!fmt || (cand.size && !cand.has(fmt))) { this._calK = null; return null; } // only a unit the profiles allow
+    if (this._calK !== fmt) { this._calK = fmt; return null; }
+    this.tcalDone = true;
+    this.timefmt = fmt;
+    this.tUnsure = false;
+    try { if (this.device?.id) localStorage.setItem('puff_tcal2_' + this.device.id, fmt); } catch (e) {}
+    return fmt;
+  }
+
+  async _maybeCalibrateTime() {
+    if (this._calBusy || this.tcalDone || this.timefmt || !(this._isProxyDevice() || this.tUnsure)) return;
+    const now = performance.now();
+    if (now - this._lastCalAt < 1000) return;
+    this._lastCalAt = now;
+    this._calBusy = true;
+    try {
+      const fmt = await this.calTime();
+      if (fmt) {
+        console.log(`[PuffcoBLE] Device clock timed: heat-time unit is '${fmt}'.`);
+        this._applyTimeUnitToProfiles(this.telemetry.profiles);
+        this._notifyListeners();
+      }
+    } catch (e) {
+    } finally {
+      this._calBusy = false;
+    }
+  }
+
+  /** Wait (up to timeoutMs) for the heat-time unit to be known. Returns the unit or null. */
+  async waitForTimeUnit(timeoutMs = 12000, shouldContinue = () => true) {
+    if (this.timefmt || !(this._isProxyDevice() || this.tUnsure)) return this.timefmt || 'f32';
+    const t0 = performance.now();
+    while (!this.timefmt && this.isConnected && shouldContinue() && performance.now() - t0 < timeoutMs) {
+      await this._maybeCalibrateTime();
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return this.timefmt;
+  }
+
+  async _readRaw(path, len = 4) {
+    const r = await this.readPath(path, len);
+    return r && r.length >= len ? Array.from(r.slice(0, len)) : null;
+  }
+
+  /** Write bytes exactly as given, then read back: they must match. */
+  async _writeRawVerified(path, raw) {
+    const b = Uint8Array.from(raw);
+    const ok = await this.writePath(path, b);
+    if (!ok) return false;
+    const r = await this.readPath(path, b.length);
+    if (r && r.length >= b.length && !b.every((x, i) => r[i] === x)) {
+      console.warn(`[PuffcoBLE] Device saved different bytes than sent (${path}).`);
+      return false;
+    }
+    return true;
+  }
+
+  /** Byte-for-byte backup of a profile's heat and time, so restoring never depends on knowing the unit. */
+  async backupProfileRaw(slot) {
+    return {
+      temp: await this._readRaw(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot)),
+      time: await this._readRaw(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot)),
+    };
+  }
+
+  async restoreProfileRaw(slot, bak) {
+    if (!bak) return false;
+    let ok = true;
+    if (bak.temp) ok = (await this._writeRawVerified(PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot), bak.temp)) && ok;
+    if (bak.time) ok = (await this._writeRawVerified(PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot), bak.time)) && ok;
+    try { await this._pollProfiles(); } catch (e) {}
+    this._notifyListeners();
+    return ok;
+  }
+
+  // ---------------- Live Session Control (no flash writes, no profile reselect) ----------------
+
+  _encTempC(fmt, c) {
+    const b = new Uint8Array(4);
+    const dv = new DataView(b.buffer);
+    if (fmt === 'i10') dv.setInt32(0, Math.round(c * 10), true);
+    else dv.setFloat32(0, c, true);
+    return b;
+  }
+
+  _decTempC(bytes) {
+    if (!bytes || bytes.length < 4) return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, 4);
+    const f = dv.getFloat32(0, true);
+    if (this._tfmt !== 'i10' && isFinite(f) && f > -80 && f < 520 && !(f !== 0 && Math.abs(f) < 1e-3)) return f;
+    const i = dv.getInt32(0, true);
+    if (Math.abs(i) <= 6000) return i / 10;
+    return null;
+  }
+
+  /** The session's own target, read before it's ever changed: the bytes show how this firmware keeps it. */
+  async _readLiveFmt() {
+    const r = await this.readPath(PATH_LIVE_TARGET_TEMP, 4);
+    if (!r || r.length < 4) return null;
+    const d = new DataView(r.buffer, r.byteOffset, 4);
+    const f = d.getFloat32(0, true);
+    const n = d.getInt32(0, true);
+    if (isFinite(f) && f >= 150 && f <= 400) return { f: 'f32', c: f };
+    if (n >= 1500 && n <= 4000) return { f: 'i10', c: n / 10 };
+    return null;
+  }
+
+  /** Live session base target in °F (also learns its format). null when the firmware doesn't show it plainly. */
+  async readLiveBase() {
+    const k = await this._readLiveFmt();
+    if (!k) return null;
+    this.liveFmt = k.f;
+    return cToF(k.c);
+  }
+
+  /** Move the running session's target (/p/app/thc/temp) in the device's own format. Never guesses a format. */
+  async setLiveTarget(tempF) {
+    const t = validateTemperature(tempF);
+    if (!this.liveFmt) {
+      const k = await this._readLiveFmt();
+      if (k) this.liveFmt = k.f;
+    }
+    if (!this.liveFmt) return false;
+    return this.writePath(PATH_LIVE_TARGET_TEMP, this._encTempC(this.liveFmt, fToC(t)));
+  }
+
+  /** What the heater is really aiming for (°F): session base + boost override. */
+  async readHeaterTarget() {
+    const c = this._decTempC(await this.readPath('/p/app/htr/tcmd', 4));
+    return c == null || c <= 0 ? null : cToF(c);
+  }
+
+  /** Boost override (°F delta) — the offset Puffco's own boost uses; capped by firmware (~+15 °F). */
+  async readOverride() {
+    const c = this._decTempC(await this.readPath('/p/app/tmpo', 4));
+    return c == null ? null : (c * 9) / 5;
+  }
+
+  async setOverride(dF) {
+    const d = Math.min(60, Math.max(-60, Number(dF) || 0));
+    return this.writePath('/p/app/tmpo', this._encTempC(this.hctfmt || 'f32', (d * 5) / 9));
+  }
+
+  getDeviceKind() {
+    return this.isProxy || this.telemetry?.is_proxy || this.chosenKind === 'proxy' ? 'proxy' : 'peak';
+  }
+
+  get deviceKind() {
+    return this.getDeviceKind();
+  }
+
+  setDeviceKind(kind, force = false) {
+    if (this.isConnected && !force) {
+      console.warn('[PuffcoBLE] Device choice is locked in while connected for hardware safety. Disconnect first to change.');
+      return false;
+    }
+    const isProxy = kind === 'proxy';
+    this.isProxy = isProxy;
+    this.chosenKind = isProxy ? 'proxy' : 'peak';
+    this.telemetry.is_proxy = isProxy;
+    this.telemetry.device_model = isProxy ? 'Proxy' : 'Peak Pro';
+    if (isProxy) {
+      if (!this.telemetry.chamber_name || this.telemetry.chamber_name === 'None' || this.telemetry.chamber_name === '3DXL') {
+        this.telemetry.chamber_name = 'Proxy';
+        this.telemetry.chamber_type = 'PROXY';
+      }
+    } else {
+      if (this.telemetry.chamber_name === 'Proxy') {
+        this.telemetry.chamber_name = '3DXL';
+        this.telemetry.chamber_type = 'CHAMBER_3DXL';
+      }
+    }
+    this._tfmt = null;
+    this.hctfmt = null;
+    this.timefmt = null;
+    this._resetTimeLearning();
+    if (this.device?.id) {
+      try {
+        localStorage.setItem('puff_devkind_' + this.device.id, kind);
+      } catch (e) {}
+    }
+    try {
+      localStorage.setItem('puff_device_choice', kind);
+      localStorage.setItem('puff_devkind_pref', kind);
+    } catch (e) {}
+    this._notifyListeners();
+    return true;
+  }
+
   async _pollFastTelemetry() {
     const prevState = this.telemetry.operating_state;
 
     // 1. Operating State
-    const stBytes = await this.readPath(PATH_STATE_ID);
+    const stBytes = await this.readPath(PATH_STATE_ID, 1);
     if (stBytes.length > 0) {
       const rawSt = stBytes[0];
       const isGuarded = Date.now() < this._stopGuardUntil;
@@ -1200,28 +1771,25 @@ class PuffcoBleClient {
       this._releaseWakeLock();
     }
 
-    // 2. Chamber Temperature & Watchdog
-    const tempBytes = await this.readPath(PATH_CHAMBER_TEMP);
-    if (tempBytes.length > 0) {
-      const tF = parseTempBytes(tempBytes);
-      if (tF > 0.0) {
-        this.telemetry.live_temp_f = tF;
-        this._lastTempTimestamp = Date.now();
+    // 2. Chamber Temperature & Watchdog via dual-path detection
+    const tF = await this._readChamberTemp();
+    if (tF !== null && tF > 0.0) {
+      this.telemetry.live_temp_f = tF;
+      this._lastTempTimestamp = Date.now();
 
-        // CRITICAL SAFETY CUTOFF: Auto shut off any session if chamber exceeds 600°F
-        if (tF >= 600.0 && this.telemetry.is_heating) {
-          console.error(`[EMERGENCY SAFETY CUTOFF] Chamber temperature (${tF.toFixed(1)}°F) reached/exceeded 600°F! Aborting session immediately!`);
-          this.telemetry.active_curve_running = false;
-          this.stopSession(true).catch((err) => console.error('Emergency abort error:', err));
-          this._stateListeners.forEach((cb) => {
-            try { cb('EMERGENCY_OVERHEAT'); } catch (e) {}
-          });
-        }
+      // CRITICAL SAFETY CUTOFF: Auto shut off any session if chamber exceeds 600°F
+      if (tF >= 600.0 && this.telemetry.is_heating) {
+        console.error(`[EMERGENCY SAFETY CUTOFF] Chamber temperature (${tF.toFixed(1)}°F) reached/exceeded 600°F! Aborting session immediately!`);
+        this.telemetry.active_curve_running = false;
+        this.stopSession(true).catch((err) => console.error('Emergency abort error:', err));
+        this._stateListeners.forEach((cb) => {
+          try { cb('EMERGENCY_OVERHEAT'); } catch (e) {}
+        });
       }
     } else if (this.telemetry.is_heating) {
       // Stale Telemetry Watchdog (Deadman Switch)
-      if (this._lastTempTimestamp && (Date.now() - this._lastTempTimestamp > 3500)) {
-        console.error('[PuffcoBLE] STALE TELEMETRY WATCHDOG: Chamber temperature telemetry lost for > 3.5s during active heat! Triggering safety abort.');
+      if (this._lastTempTimestamp && (Date.now() - this._lastTempTimestamp > 4000)) {
+        console.error('[PuffcoBLE] STALE TELEMETRY WATCHDOG: Chamber temperature telemetry lost for > 4.0s during active heat! Triggering safety abort.');
         this.telemetry.active_curve_running = false;
         this.stopSession(true).catch((err) => console.error('Stale telemetry abort error:', err));
         this._stateListeners.forEach((cb) => {
@@ -1232,23 +1800,36 @@ class PuffcoBleClient {
 
     // 3. Session Countdown Timer (skip during custom curve to minimize BLE bus latency)
     if (isHeating && !this.telemetry.active_curve_running) {
-      const elapBytes = await this.readPath(PATH_TIME_ELAPSED);
-      const tottBytes = await this.readPath(PATH_TIME_TOTAL);
+      const elapBytes = await this.readPath(PATH_TIME_ELAPSED, 4);
+      const tottBytes = await this.readPath(PATH_TIME_TOTAL, 4);
       if (elapBytes.length >= 4 && tottBytes.length >= 4) {
-        const viewElap = new DataView(elapBytes.buffer, elapBytes.byteOffset, elapBytes.byteLength);
-        const viewTott = new DataView(tottBytes.buffer, tottBytes.byteOffset, tottBytes.byteLength);
+        const viewElap = new DataView(elapBytes.buffer, elapBytes.byteOffset, 4);
+        const viewTott = new DataView(tottBytes.buffer, tottBytes.byteOffset, 4);
 
-        let elap = viewElap.getFloat32(0, true);
-        let tott = viewTott.getFloat32(0, true);
-        if (isNaN(elap) || !isFinite(elap)) elap = viewElap.getUint32(0, true);
-        if (isNaN(tott) || !isFinite(tott)) tott = viewTott.getUint32(0, true);
-
-        if (tott > 300) {
-          tott /= 1000.0;
-          elap /= 1000.0;
+        // Decode in the device's own heat-time unit (learned from profiles or by timing its clock)
+        let elap = NaN;
+        let tott = NaN;
+        if (this.timefmt && this.timefmt !== 'f32') {
+          elap = this._timeDec(this.timefmt, viewElap);
+          tott = this._timeDec(this.timefmt, viewTott);
+        } else {
+          const tb = this._tdec(tottBytes);
+          if (tb && tb.s != null) {
+            const W = ['u32', 'cs', 't5', 'ms'];
+            const unit = W.includes(tb.fmt) ? tb.fmt : (tb.fmt !== 'f32' && W.includes(this.timefmt) ? this.timefmt : null);
+            tott = tb.s;
+            if (unit) {
+              elap = this._timeDec(unit, viewElap); // elapsed starts small, so read it in the total's unit
+            } else {
+              const ta = this._tdec(elapBytes);
+              elap = ta && ta.s != null ? ta.s : NaN;
+            }
+          }
         }
-        this.telemetry.total_time = Math.round(tott);
-        this.telemetry.time_remaining = Math.max(0, Math.round(tott - elap));
+        if (isFinite(elap) && isFinite(tott) && tott > 0 && tott < 1000 && elap >= 0) {
+          this.telemetry.total_time = Math.round(tott);
+          this.telemetry.time_remaining = Math.max(0, Math.round(tott - elap));
+        }
       }
     } else if (!isHeating) {
       this.telemetry.time_remaining = 0;
@@ -1275,6 +1856,9 @@ class PuffcoBleClient {
       while (this._streaming && this.isConnected) {
         try {
           await this._pollFastTelemetry();
+
+          // Learn a Proxy's heat-time unit from its own clock (once per device, ~1 read/s until settled)
+          await this._maybeCalibrateTime();
 
           const now = Date.now();
           const isBusy = this.telemetry.is_heating || this.telemetry.active_curve_running;
@@ -1380,32 +1964,43 @@ class PuffcoBleClient {
     return success;
   }
 
-  async writeTemperature(tempF, slot = null) {
+  /**
+   * Write a profile's heat temperature.
+   * opts.skipSelect: don't re-select the profile afterwards (the caller selects it once, e.g. before starting a curve).
+   */
+  async writeTemperature(tempF, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     // Strict numeric sanitization & hard safety clamp [350°F, 590°F]
     tempF = validateTemperature(tempF);
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
+    const isProxy = this._isProxyDevice();
     const cVal = fToC(tempF);
 
-    // Proxy hardware strictly requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
-    // Peak Pro hardware strictly requires float32 LE Celsius
-    const bufInt = new ArrayBuffer(4);
-    new DataView(bufInt).setInt32(0, Math.round(cVal * 10.0), true);
-    const payloadInt = new Uint8Array(bufInt);
+    // Format encoding:
+    // Proxy hardware often requires int32 LE tenths of °C (e.g. 251.7°C -> 2517)
+    // Peak Pro hardware requires float32 LE Celsius
+    const encodeTemp = (fmt, c) => this._encTempC(fmt, c);
+    const readBackOk = async (fmt) => {
+      const r = await this.readPath(path, 4);
+      if (!r || r.length < 4) return true; // can't read back: trust the accepted write
+      const dv = new DataView(r.buffer, r.byteOffset, 4);
+      const back = fmt === 'i10' ? dv.getInt32(0, true) / 10 : dv.getFloat32(0, true);
+      return isFinite(back) && Math.abs(back - cVal) <= 1.5;
+    };
 
-    const bufFloat = new ArrayBuffer(4);
-    new DataView(bufFloat).setFloat32(0, cVal, true);
-    const payloadFloat = new Uint8Array(bufFloat);
-
-    const primaryPayload = isProxy ? payloadInt : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadInt;
+    const primaryFormat = this.hctfmt || (isProxy ? 'i10' : 'f32');
+    const fallbackFormat = primaryFormat === 'i10' ? 'f32' : 'i10';
 
     const path = PATH_PROFILE_TEMP_PREFIX.replace('{slot}', slot);
-    let ok = await this.writePath(path, primaryPayload);
+    let ok = await this.writePath(path, encodeTemp(primaryFormat, cVal));
+    if (ok && isProxy) ok = await readBackOk(primaryFormat);
     if (!ok) {
-      console.warn('[PuffcoBLE] Primary temp write format rejected, trying fallback format...');
-      ok = await this.writePath(path, secondaryPayload);
+      console.warn(`[PuffcoBLE] Primary temp write format (${primaryFormat}) rejected, trying fallback (${fallbackFormat})...`);
+      ok = await this.writePath(path, encodeTemp(fallbackFormat, cVal));
+      if (ok) ok = await readBackOk(fallbackFormat);
+      if (ok) this.hctfmt = fallbackFormat;
+    } else {
+      this.hctfmt = primaryFormat;
     }
 
     if (ok) {
@@ -1413,8 +2008,18 @@ class PuffcoBleClient {
       if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
         this.telemetry.profiles[slot].target_temp_f = tempF;
       }
-      // Re-assert active profile to update live PID register
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+
+      if (this.telemetry.is_heating) {
+        // Mid-session: move the live session target only. Re-selecting the profile (/p/app/hcs) while
+        // heating reloads it on Proxy firmware, which can reset or cut the session short.
+        try {
+          await this.setLiveTarget(tempF);
+        } catch (_) {}
+      } else if (!opts.skipSelect) {
+        // Re-assert active profile so the device loads the new value
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      }
+
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write temperature ${tempF}°F to slot ${slot}`);
@@ -1422,39 +2027,82 @@ class PuffcoBleClient {
     return ok;
   }
 
-  async writeDuration(durationS, slot = null) {
+  /**
+   * Write a profile's heat time — only in a unit the device itself has shown (never a guess: on a Proxy a wrong
+   * unit cuts the session short, e.g. 60 s written as centiseconds runs 30 s on 200-ticks/s firmware).
+   * opts.fit: if the unit isn't known or the value is turned down, copy (byte for byte) the time of one of the
+   *           device's own profiles instead — the longest when the unit is unknown — and let the caller end the
+   *           session on time. Details land in this.lastDurationWrite.
+   * opts.skipSelect: don't re-select the profile afterwards.
+   */
+  async writeDuration(durationS, slot = null, opts = {}) {
     if (slot === null) slot = this.telemetry.active_profile;
     // Strict numeric sanitization & hard safety clamp [15s, 120s]
     durationS = validateDuration(durationS);
+    this.lastDurationWrite = null;
 
-    const isProxy = (this.telemetry.device_name || '').toLowerCase().includes('proxy') || this.telemetry.chamber_type === 'STANDARD';
-
-    // Proxy hardware strictly requires uint32 LE hundredths of a second (e.g. 80s -> 8000)
-    // Peak Pro hardware strictly requires float32 LE seconds
-    const bufHundredths = new ArrayBuffer(4);
-    new DataView(bufHundredths).setUint32(0, Math.round(durationS * 100), true);
-    const payloadHundredths = new Uint8Array(bufHundredths);
-
-    const bufFloat = new ArrayBuffer(4);
-    new DataView(bufFloat).setFloat32(0, Number(durationS), true);
-    const payloadFloat = new Uint8Array(bufFloat);
-
-    const primaryPayload = isProxy ? payloadHundredths : payloadFloat;
-    const secondaryPayload = isProxy ? payloadFloat : payloadHundredths;
-
+    const isProxy = this._isProxyDevice();
     const path = PATH_PROFILE_TIME_PREFIX.replace('{slot}', slot);
-    let ok = await this.writePath(path, primaryPayload);
-    if (!ok) {
-      console.warn('[PuffcoBLE] Primary duration write format rejected, trying fallback format...');
-      ok = await this.writePath(path, secondaryPayload);
+
+    let fmt = this.timefmt;
+    if (!fmt && (isProxy || this.tUnsure) && !this._triedTimeLearn) {
+      // Learn the unit from the device's own profiles first
+      this._triedTimeLearn = true;
+      try { await this._pollProfiles(); } catch (e) {}
+      fmt = this.timefmt;
+    }
+    if (!fmt && !(isProxy || this.tUnsure)) fmt = 'f32'; // Peak Pro: float seconds, like Puffco's app
+
+    let ok = false;
+    let got = durationS;
+    let adj = null;
+    if (fmt) {
+      ok = await this.writePath(path, this._timeEnc(fmt, durationS));
+      if (ok && (isProxy || fmt !== 'f32')) {
+        // Read back: it must match what was sent
+        const r = await this.readPath(path, 4);
+        if (r && r.length >= 4) {
+          const back = this._timeDec(fmt, new DataView(r.buffer, r.byteOffset, 4));
+          if (!(isFinite(back) && Math.abs(back - durationS) <= 1)) {
+            console.warn(`[PuffcoBLE] Device saved a different heat time than sent (${back} vs ${durationS}s, unit ${fmt}).`);
+            ok = false;
+          }
+        }
+      }
+      if (ok) this.timefmt = fmt;
+      else console.warn(`[PuffcoBLE] Heat time ${durationS}s (unit ${fmt}) was turned down for slot ${slot}.`);
+    } else {
+      console.warn(`[PuffcoBLE] Heat-time unit of this ${isProxy ? 'Proxy' : 'device'} isn't known yet — not guessing.`);
     }
 
-    if (ok) {
-      this.telemetry.total_time = durationS;
-      if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
-        this.telemetry.profiles[slot].duration_s = durationS;
+    if (!ok && opts.fit) {
+      const unk = !fmt;
+      const cands = (this._ownTimes || []).filter((o) => o.slot !== slot && o.raw);
+      const score = unk
+        ? (o) => -(o.v || 0) // unit unknown: the longest stored time, so the curve has room
+        : (o) => (o.s != null && o.s >= durationS - 0.5 ? o.s - durationS : 1000 + durationS - (o.s || 0));
+      const best = cands.sort((a, b) => score(a) - score(b))[0];
+      if (best) {
+        ok = await this._writeRawVerified(path, best.raw);
+        if (ok) {
+          got = unk || best.s == null ? null : Math.round(best.s);
+          adj = { want: durationS, got, unk };
+          console.warn(`[PuffcoBLE] Using heat time copied from profile ${best.slot + 1} (${got == null ? 'unit unknown' : got + 's'}); the app ends the session when the curve ends.`);
+        }
       }
-      await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+    }
+
+    this.lastDurationWrite = { ok, want: durationS, got, adj, fmt: this.timefmt };
+
+    if (ok) {
+      if (got != null) this.telemetry.total_time = got;
+      if (this.telemetry.profiles && this.telemetry.profiles[slot]) {
+        if (got != null) this.telemetry.profiles[slot].duration_s = got;
+        this.telemetry.profiles[slot].duration_unverified = got == null;
+      }
+      if (!opts.skipSelect && !this.telemetry.is_heating) {
+        await this.writePath(PATH_ACTIVE_PROFILE, new Uint8Array([slot]));
+      }
       this._notifyListeners();
     } else {
       console.error(`[PuffcoBLE] Failed to write duration ${durationS}s to slot ${slot}`);
@@ -1535,7 +2183,12 @@ class PuffcoBleClient {
     }
     val = Math.max(5, Math.min(255, val));
     this.telemetry.lantern_brightness = val;
-    const ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, new Uint8Array([val]));
+    const isProxy = this._isProxyDevice();
+    const payload = isProxy ? new Uint8Array([val, 0, 0, 0]) : new Uint8Array([val, val, val, val]);
+    let ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, payload);
+    if (!ok) {
+      ok = await this.writePath(PATH_LANTERN_BRIGHTNESS, isProxy ? new Uint8Array([val]) : new Uint8Array([val, 0, 0, 0]));
+    }
     this._notifyListeners();
     return ok;
   }

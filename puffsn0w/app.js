@@ -218,6 +218,18 @@ const el = {
   headerTempUnitToggle: document.getElementById('header-temp-unit-toggle'),
   headerUnitOptF: document.querySelector('#header-temp-unit-toggle .opt-f'),
   headerUnitOptC: document.querySelector('#header-temp-unit-toggle .opt-c'),
+  headerDeviceBadge: document.getElementById('header-device-badge'),
+  headerDeviceBadgeText: document.getElementById('header-device-badge-text'),
+  deviceInfoModal: document.getElementById('device-info-modal'),
+  closeDevInfoModal: document.getElementById('close-devinfo-modal'),
+  closeDevInfoModalBtn: document.getElementById('close-devinfo-modal-btn'),
+  devInfoActiveCard: document.getElementById('devinfo-active-card'),
+  devInfoActiveIcon: document.getElementById('devinfo-active-icon'),
+  devInfoActiveTitle: document.getElementById('devinfo-active-title'),
+  devInfoActiveDesc: document.getElementById('devinfo-active-desc'),
+  lockscreenDeviceSlider: document.getElementById('lockscreen-device-slider'),
+  lockscreenSelectPeak: document.getElementById('lockscreen-select-peak'),
+  lockscreenSelectProxy: document.getElementById('lockscreen-select-proxy'),
   modalUnitFBtn: document.getElementById('modal-unit-f-btn'),
   modalUnitCBtn: document.getElementById('modal-unit-c-btn'),
   safetyHotChamberTitle: document.getElementById('safety-hot-chamber-title'),
@@ -497,6 +509,50 @@ function checkBrowserCompatibility() {
   }
 }
 
+function setDeviceKind(kind, force = false) {
+  if (activeClient && activeClient.isConnected && !force) {
+    showToast('Device setting is locked in for safety while connected. Disconnect to change.', 'info', 3500);
+    return false;
+  }
+  const isProxy = kind === 'proxy';
+  if (activeClient && typeof activeClient.setDeviceKind === 'function') {
+    activeClient.setDeviceKind(kind, force);
+  }
+  try {
+    localStorage.setItem('puff_device_choice', kind);
+    localStorage.setItem('puff_devkind_pref', kind);
+  } catch (_) {}
+
+  // Update lockscreen slider UI
+  updateLockscreenDeviceSlider(kind);
+
+  if (activeClient) {
+    handleTelemetryUpdate(activeClient.telemetry);
+  }
+  return true;
+}
+
+function updateLockscreenDeviceSlider(kind) {
+  const isProxy = kind === 'proxy';
+  if (el.lockscreenDeviceSlider) {
+    el.lockscreenDeviceSlider.classList.toggle('mode-proxy', isProxy);
+  }
+  if (el.lockscreenSelectPeak) {
+    el.lockscreenSelectPeak.classList.toggle('active', !isProxy);
+    el.lockscreenSelectPeak.setAttribute('aria-checked', String(!isProxy));
+  }
+  if (el.lockscreenSelectProxy) {
+    el.lockscreenSelectProxy.classList.toggle('active', isProxy);
+    el.lockscreenSelectProxy.setAttribute('aria-checked', String(isProxy));
+  }
+  if (el.lockscreenConnectLabel) {
+    const isConn = activeClient && activeClient.isConnected;
+    if (!isConn) {
+      el.lockscreenConnectLabel.textContent = isProxy ? 'Connect Proxy' : 'Connect Peak Pro';
+    }
+  }
+}
+
 // ==========================================================================
 // Telemetry Rendering
 // ==========================================================================
@@ -506,11 +562,12 @@ function handleTelemetryUpdate(data) {
 
   const connected = !!data.connected;
   const isHeating = !!data.is_heating || ['HEAT_PREHEAT', 'HEAT_ACTIVE', 'READY'].includes(data.operating_state);
+  const isProxy = !!data.is_proxy;
 
   // Device & Status Pill
   if (connected) {
     el.devicePill.className = 'status-pill status-connected' + (data.is_demo ? ' status-demo' : '');
-    el.deviceName.textContent = data.device_name || 'Puff Device';
+    el.deviceName.textContent = data.device_name || (isProxy ? 'Puffco Proxy' : 'Puffco Peak Pro');
     el.mainConnectBtn.innerHTML = `
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       Disconnect
@@ -528,9 +585,22 @@ function handleTelemetryUpdate(data) {
 
   // Chamber Pill
   const isSyncing = connected && (!!data.is_syncing || data.battery_pct === null);
-  const chamberStr = isSyncing ? 'Detecting...' : (data.chamber_name || (connected ? '3DXL' : 'Standard'));
-  el.chamberPill.textContent = isSyncing ? 'Detecting...' : (data.chamber_name || '3DXL');
-  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : (chamberStr.toLowerCase().includes('chamber') ? '' : ' Chamber'));
+  const defaultChamber = isProxy ? 'Proxy' : '3DXL';
+  const chamberStr = isSyncing ? 'Detecting...' : (data.chamber_name || (connected ? defaultChamber : 'Standard'));
+  el.chamberPill.textContent = isSyncing ? 'Detecting...' : (data.chamber_name || defaultChamber);
+  el.statChamberName.textContent = chamberStr + (isSyncing ? '' : (chamberStr.toLowerCase().includes('chamber') || isProxy ? '' : ' Chamber'));
+
+  // Header Device Locked Badge (Read-Only While Connected for Safety)
+  if (el.headerDeviceBadge) {
+    el.headerDeviceBadge.className = 'device-locked-badge ' + (isProxy ? 'badge-proxy' : 'badge-peak');
+    if (el.headerDeviceBadgeText) {
+      el.headerDeviceBadgeText.textContent = isProxy ? 'Proxy' : 'Peak Pro';
+    }
+    el.headerDeviceBadge.title = `Hardware profile locked to ${isProxy ? 'Proxy' : 'Peak Pro'} for safety. Disconnect to change.`;
+  }
+
+  // Update Lockscreen Device Slider to reflect current device mode
+  updateLockscreenDeviceSlider(isProxy ? 'proxy' : 'peak');
 
   // Battery Widget
   if (el.batteryWidget) {
@@ -2177,6 +2247,19 @@ function handleCurveTelemetry(data) {
   const target = Number(data.target_temp_f || 0);
   const live = Number(data.live_temp_f || 0);
 
+  if (data.status === 'calibrating') {
+    isCurveRunning = true;
+    setCurveLocked(true);
+    if (el.stopCurveBtn) el.stopCurveBtn.disabled = false;
+    if (el.runCurveBtnLabel) el.runCurveBtnLabel.textContent = 'TIMING CLOCK...';
+    if (el.curveStatusBadge) {
+      el.curveStatusBadge.className = 'state-tag state-heating';
+      el.curveStatusBadge.textContent = 'CALIBRATING CLOCK';
+    }
+    if (el.curveElapsedDisplay) el.curveElapsedDisplay.textContent = 'CALIBRATING PROXY CLOCK...';
+    return;
+  }
+
   if (data.phase === 'preheating') {
     el.runCurveBtnLabel.textContent = 'PREHEATING BOWL...';
     el.curveStatusBadge.className = 'state-tag state-heating';
@@ -2332,6 +2415,9 @@ async function handleConnectToggle(options = {}) {
       showToast('Disconnecting demo...', 'info', 1500);
       await activeClient.disconnect();
       showToast('Demo Puffco disconnected', 'info', 2500);
+      handleTelemetryUpdate(activeClient.telemetry);
+      lockToLockscreen();
+      return;
     } else {
       showToast('Connecting demo Puffco...', 'info', 1500);
       await activeClient.connect();
@@ -2344,8 +2430,9 @@ async function handleConnectToggle(options = {}) {
   if (activeClient && activeClient.isConnected) {
     showToast('Disconnecting...', 'info');
     await activeClient.disconnect();
-    showToast('Disconnected', 'info');
+    showToast('Disconnected. Select device to reconnect.', 'info');
     handleTelemetryUpdate(activeClient.telemetry);
+    lockToLockscreen();
   } else {
     try {
       showToast('Scanning for nearby Bluetooth devices...', 'info', 3000);
@@ -3066,6 +3153,9 @@ function attachEventListeners() {
       if (el.compatModal && !el.compatModal.classList.contains('hidden')) {
         el.compatModal.classList.add('hidden');
       }
+      if (el.deviceInfoModal && !el.deviceInfoModal.classList.contains('hidden')) {
+        el.deviceInfoModal.classList.add('hidden');
+      }
     }
   });
 
@@ -3198,6 +3288,63 @@ function attachEventListeners() {
   if (el.safetySettingsModal) {
     el.safetySettingsModal.addEventListener('click', (e) => {
       if (e.target === el.safetySettingsModal) el.safetySettingsModal.classList.add('hidden');
+    });
+  }
+
+  // Device Mode & Signaling Info Modal (Tapable Device Badge)
+  function updateDeviceInfoModalContent() {
+    const isProxy = !!(
+      (activeClient && typeof activeClient.getDeviceKind === 'function' && activeClient.getDeviceKind() === 'proxy') ||
+      (activeClient && activeClient.isProxy) ||
+      (activeClient?.chosenKind === 'proxy') ||
+      (activeClient?.telemetry?.is_proxy) ||
+      (currentTelemetry?.is_proxy) ||
+      (localStorage.getItem('puff_device_choice') === 'proxy')
+    );
+
+    if (el.devInfoActiveCard) {
+      el.devInfoActiveCard.className = 'devinfo-active-card ' + (isProxy ? 'mode-proxy' : 'mode-peak');
+    }
+    if (el.devInfoActiveIcon) {
+      el.devInfoActiveIcon.textContent = isProxy ? '💨' : '⚡';
+    }
+    if (el.devInfoActiveTitle) {
+      el.devInfoActiveTitle.textContent = isProxy ? 'Proxy Mode Active' : 'Peak Pro Mode Active';
+    }
+    if (el.devInfoActiveDesc) {
+      el.devInfoActiveDesc.innerHTML = isProxy
+        ? 'This session is locked to <strong>Puffco Proxy / Pivot</strong> signaling (int32 tenth-degree steps &amp; centisecond pulses) for safety. To switch to Peak Pro, tap <strong>Disconnect</strong> and pick Peak Pro on the lock screen.'
+        : 'This session is locked to <strong>Peak Pro</strong> (v1 / v2 / 3DXL live decimal curves &amp; full RGB lighting) for safety. To switch to Proxy, tap <strong>Disconnect</strong> and pick Proxy on the lock screen.';
+    }
+  }
+
+  function openDeviceInfoModal() {
+    if (!el.deviceInfoModal) return;
+    updateDeviceInfoModalContent();
+    el.deviceInfoModal.classList.remove('hidden');
+  }
+
+  function closeDeviceInfoModal() {
+    if (!el.deviceInfoModal) return;
+    el.deviceInfoModal.classList.add('hidden');
+  }
+
+  if (el.headerDeviceBadge) {
+    el.headerDeviceBadge.addEventListener('click', (e) => {
+      e.preventDefault();
+      openDeviceInfoModal();
+    });
+  }
+
+  if (el.closeDevInfoModal) {
+    el.closeDevInfoModal.addEventListener('click', closeDeviceInfoModal);
+  }
+  if (el.closeDevInfoModalBtn) {
+    el.closeDevInfoModalBtn.addEventListener('click', closeDeviceInfoModal);
+  }
+  if (el.deviceInfoModal) {
+    el.deviceInfoModal.addEventListener('click', (e) => {
+      if (e.target === el.deviceInfoModal) closeDeviceInfoModal();
     });
   }
 
@@ -3563,6 +3710,14 @@ function attachEventListeners() {
   if (el.targetTempUnit) {
     el.targetTempUnit.addEventListener('click', () => toggleTempUnit());
   }
+
+  // Lockscreen Device Model Slider (Peak Pro / Proxy)
+  if (el.lockscreenSelectPeak) {
+    el.lockscreenSelectPeak.addEventListener('click', () => setDeviceKind('peak'));
+  }
+  if (el.lockscreenSelectProxy) {
+    el.lockscreenSelectProxy.addEventListener('click', () => setDeviceKind('proxy'));
+  }
 }
 
 // ==========================================================================
@@ -3575,6 +3730,12 @@ function bootstrap() {
   simClient = new PuffcoSimulator();
   activeClient = bleClient;
   curveGovernor = new CurveGovernor(activeClient);
+
+  // Restore saved device selection from lockscreen
+  try {
+    const savedChoice = localStorage.getItem('puff_device_choice') || localStorage.getItem('puff_devkind_pref') || 'peak';
+    setDeviceKind(savedChoice, true);
+  } catch (_) {}
 
   // Wire telemetry listeners
   bleClient.addTelemetryListener(handleTelemetryUpdate);
@@ -3609,6 +3770,7 @@ function bootstrap() {
       setCurveLocked(false);
     }
     handleTelemetryUpdate(bleClient.telemetry);
+    lockToLockscreen();
   });
   simClient.addDisconnectListener(({ wasConnected, isIntentional, wasHeating }) => {
     const heatingActive = !!(wasHeating || isCurveRunning);
@@ -3625,6 +3787,7 @@ function bootstrap() {
       setCurveLocked(false);
     }
     handleTelemetryUpdate(simClient.telemetry);
+    lockToLockscreen();
   });
 
   attachEventListeners();
