@@ -1419,6 +1419,14 @@ class PuffcoBleClient {
     }
   }
 
+  getDeviceKind() {
+    return this.isProxy || this.telemetry?.is_proxy || this.chosenKind === 'proxy' ? 'proxy' : 'peak';
+  }
+
+  get deviceKind() {
+    return this.getDeviceKind();
+  }
+
   setDeviceKind(kind, force = false) {
     if (this.isConnected && !force) {
       console.warn('[PuffcoBLE] Device choice is locked in while connected for hardware safety. Disconnect first to change.');

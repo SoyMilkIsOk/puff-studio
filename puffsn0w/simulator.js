@@ -341,6 +341,14 @@ class PuffcoSimulator {
     return true;
   }
 
+  getDeviceKind() {
+    return this.isProxy || this.telemetry?.is_proxy || this.chosenKind === 'proxy' ? 'proxy' : 'peak';
+  }
+
+  get deviceKind() {
+    return this.getDeviceKind();
+  }
+
   setDeviceKind(kind, force = false) {
     if (this.isConnected && !force) {
       console.warn('[PuffcoSimulator] Device choice is locked in while connected for hardware safety.');

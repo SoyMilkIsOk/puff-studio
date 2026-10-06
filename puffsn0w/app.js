@@ -3280,9 +3280,14 @@ function attachEventListeners() {
 
   // Device Mode & Signaling Info Modal (Tapable Device Badge)
   function updateDeviceInfoModalContent() {
-    const isProxy = (activeClient && typeof activeClient.getDeviceKind === 'function'
-      ? activeClient.getDeviceKind()
-      : (activeClient?.deviceKind || 'peak')) === 'proxy';
+    const isProxy = !!(
+      (activeClient && typeof activeClient.getDeviceKind === 'function' && activeClient.getDeviceKind() === 'proxy') ||
+      (activeClient && activeClient.isProxy) ||
+      (activeClient?.chosenKind === 'proxy') ||
+      (activeClient?.telemetry?.is_proxy) ||
+      (currentTelemetry?.is_proxy) ||
+      (localStorage.getItem('puff_device_choice') === 'proxy')
+    );
 
     if (el.devInfoActiveCard) {
       el.devInfoActiveCard.className = 'devinfo-active-card ' + (isProxy ? 'mode-proxy' : 'mode-peak');
