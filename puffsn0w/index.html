@@ -264,12 +264,28 @@
 
       <!-- Connect Button & Actions Card -->
       <div id="lockscreen-connect-card" class="lockscreen-connect-card">
+        <!-- Device Choice Slider (Chosen Cleanly First) -->
+        <div class="lockscreen-device-switch-wrap">
+          <div id="lockscreen-device-slider" class="lockscreen-device-slider" role="radiogroup" aria-label="Select Device Model">
+            <button type="button" id="lockscreen-select-peak" class="dev-slider-btn active" role="radio" aria-checked="true" data-kind="peak" title="Select Peak Pro (v1 / v2 / 3DXL)">
+              <span class="dev-slider-icon">⚡</span>
+              <span class="dev-slider-text">Peak Pro</span>
+            </button>
+            <span class="dev-slider-thumb"></span>
+            <button type="button" id="lockscreen-select-proxy" class="dev-slider-btn" role="radio" aria-checked="false" data-kind="proxy" title="Select Proxy / Pivot">
+              <span class="dev-slider-icon">💨</span>
+              <span class="dev-slider-text">Proxy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Connect Button -->
         <button id="lockscreen-connect-btn" class="lockscreen-btn-primary" title="Scan & Connect Puffco Device">
           <svg class="btn-ble-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
             stroke-width="2.2">
             <path d="m7 7 10 10-5 5V2l5 5L7 17" />
           </svg>
-          <span id="lockscreen-connect-label">Connect Device</span>
+          <span id="lockscreen-connect-label">Connect Peak Pro</span>
         </button>
         <div style="margin-top: 8px;">
           <a href="./demo/" class="lockscreen-demo-link" title="Explore puffsn0w with a simulated Peak Pro">⚡ Or explore
@@ -711,21 +727,28 @@
 
       <!-- Device Connection Banner -->
       <div class="header-status-group">
-        <div id="device-pill" class="status-pill status-disconnected">
-          <span class="status-dot"></span>
-          <span id="device-name-display">No Device</span>
-          <span id="chamber-pill" class="badge badge-subtle">3DXL</span>
-        </div>
+        <div class="header-status-pills">
+          <div id="device-pill" class="status-pill status-disconnected">
+            <span class="status-dot"></span>
+            <span id="device-name-display">No Device</span>
+            <span id="chamber-pill" class="badge badge-subtle">3DXL</span>
+          </div>
 
-        <div id="battery-widget" class="battery-pill" title="Battery Percentage">
-          <svg class="battery-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-            stroke-width="2">
-            <rect x="2" y="7" width="16" height="10" rx="2" ry="2" />
-            <line x1="22" y1="11" x2="22" y2="13" />
-            <rect id="battery-fill-icon" x="4" y="9" width="0" height="6" rx="1" fill="currentColor" />
-          </svg>
-          <span id="battery-level-display">--%</span>
-          <span id="battery-bolt" class="bolt hidden">⚡</span>
+          <div id="battery-widget" class="battery-pill" title="Battery Percentage">
+            <svg class="battery-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <rect x="2" y="7" width="16" height="10" rx="2" ry="2" />
+              <line x1="22" y1="11" x2="22" y2="13" />
+              <rect id="battery-fill-icon" x="4" y="9" width="0" height="6" rx="1" fill="currentColor" />
+            </svg>
+            <span id="battery-level-display">--%</span>
+            <span id="battery-bolt" class="bolt hidden">⚡</span>
+          </div>
+
+          <button type="button" id="header-device-badge" class="device-locked-badge badge-peak" title="Device Mode: Tap for mode info &amp; troubleshooting guide" aria-label="Device Mode Info and Troubleshooting">
+            <span id="header-device-badge-text">Peak Pro</span>
+            <span class="badge-info-icon" aria-hidden="true">ℹ</span>
+          </button>
         </div>
 
         <!-- Connection actions -->
@@ -1532,6 +1555,74 @@
         </div>
         <div class="modal-footer">
           <button id="close-compat-modal-btn" class="btn btn-secondary">Got It</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Device Mode & Connection Help Modal -->
+    <div id="device-info-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="devinfo-modal-title">
+      <div class="modal-window devinfo-modal-window">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <h3 id="devinfo-modal-title" class="modal-title">
+              <span class="devinfo-title-icon" aria-hidden="true">ℹ</span>Device Mode &amp; Help
+            </h3>
+            <p class="modal-subtitle">Peak Pro vs. Proxy connection, signaling, and quick troubleshooting</p>
+          </div>
+          <button id="close-devinfo-modal" class="btn-icon close-modal-btn" aria-label="Close device info">✕</button>
+        </div>
+
+        <div class="modal-body devinfo-modal-body">
+          <!-- Active Mode Banner -->
+          <div id="devinfo-active-card" class="devinfo-active-card mode-peak">
+            <div class="devinfo-card-icon" id="devinfo-active-icon">⚡</div>
+            <div class="devinfo-card-text">
+              <div class="devinfo-card-heading">
+                <span id="devinfo-active-title">Peak Pro Mode Active</span>
+                <span class="devinfo-badge-locked">🔒 Locked for Safety</span>
+              </div>
+              <p id="devinfo-active-desc" class="devinfo-card-sub">
+                This session is locked to Peak Pro so the element receives proper heating signals. To switch, tap <strong>Disconnect</strong> and pick Proxy on the lock screen.
+              </p>
+            </div>
+          </div>
+
+
+          <!-- Quick 1-2-3 Troubleshooting -->
+          <h4 class="devinfo-section-title">Quick 1-2-3 Connection Fixes</h4>
+          <div class="devinfo-steps">
+            <div class="devinfo-step">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <strong>Put Device into Pairing Mode</strong>
+                <p>Hold the power button for <strong>6 to 10 seconds</strong> until the light ring pulses solid blue. This tells your phone or computer to discover it.</p>
+              </div>
+            </div>
+
+            <div class="devinfo-step">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <strong>Close the Official Puffco App</strong>
+                <p>Only one app can talk to Bluetooth at a time. Swipe away the official Puffco app or Path Browser so it doesn't hold the connection.</p>
+              </div>
+            </div>
+
+            <div class="devinfo-step">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <strong>Toggle Phone / PC Bluetooth</strong>
+                <p>Turn your phone or computer's Bluetooth off and back on, or tap <strong>Disconnect</strong> and re-scan.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="devinfo-note">
+            💡 <strong>Switching Devices?</strong> For safety, device mode is locked while connected. Simply tap <strong>Disconnect</strong> at the top right, pick your model on the slider, and reconnect!
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="close-devinfo-modal-btn" class="btn btn-secondary">Got It</button>
         </div>
       </div>
     </div>

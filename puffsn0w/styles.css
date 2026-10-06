@@ -245,6 +245,12 @@ body {
   flex-wrap: wrap;
 }
 
+.header-status-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -457,6 +463,86 @@ body {
   background: linear-gradient(135deg, rgba(255, 122, 0, 0.38), rgba(255, 0, 85, 0.38));
   border-color: rgba(255, 122, 0, 0.7);
   box-shadow: 0 0 10px rgba(255, 122, 0, 0.35);
+}
+
+/* Locked Hardware Profile Badge (Tapable for Mode Info & Troubleshooting) */
+.device-locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 9px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  white-space: nowrap;
+}
+
+.device-locked-badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.15);
+}
+
+.device-locked-badge:active {
+  transform: scale(0.96);
+}
+
+.device-locked-badge:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.device-locked-badge .badge-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 0.62rem;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-weight: 700;
+  margin-left: 2px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.device-locked-badge:hover .badge-info-icon {
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.15);
+}
+
+.device-locked-badge.badge-peak {
+  border-color: rgba(0, 242, 254, 0.4);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+.device-locked-badge.badge-peak:hover {
+  border-color: rgba(0, 242, 254, 0.85);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.35);
+}
+
+.device-locked-badge.badge-proxy {
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #d946ef;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+
+.device-locked-badge.badge-proxy:hover {
+  border-color: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.4);
 }
 
 /* Clickable Units in Dial and readouts */
@@ -2854,8 +2940,61 @@ input, textarea, table {
 
   .header-status-group {
     order: 2;
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
     gap: 8px;
+  }
+
+  .header-status-pills {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .header-status-pills #device-pill {
+    flex: 1;
+    min-width: 0;
+    max-width: fit-content;
+  }
+
+  .header-status-pills #device-name-display {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-status-pills #battery-widget {
+    flex-shrink: 0;
+  }
+
+  .header-status-pills #header-device-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 8px;
+    font-size: 0.7rem;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .header-status-pills #header-device-badge .badge-info-icon {
+    width: 13px;
+    height: 13px;
+    font-size: 0.6rem;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .dashboard-grid {
@@ -3112,14 +3251,68 @@ input, textarea, table {
     padding: 1px 4px;
   }
 
+  .header-status-pills {
+    gap: 4px;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
   .status-pill {
-    font-size: 0.75rem;
-    padding: 5px 10px;
+    font-size: 0.7rem;
+    padding: 4px 7px;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .status-pill .badge {
+    padding: 1px 4px;
+    font-size: 0.6rem;
   }
 
   .battery-pill {
-    font-size: 0.75rem;
-    padding: 5px 10px;
+    font-size: 0.7rem;
+    padding: 4px 6px;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .device-locked-badge {
+    height: 26px;
+    padding: 0 6px;
+    font-size: 0.65rem;
+    gap: 3px;
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin-left: auto;
+  }
+
+  .device-locked-badge .badge-info-icon {
+    width: 12px;
+    height: 12px;
+    font-size: 0.58rem;
+    margin-left: 1px;
+  }
+
+  .header-actions {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .header-actions #main-connect-btn {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    min-height: 34px;
+  }
+
+  .header-actions .btn-unit-toggle {
+    height: 34px;
+    font-size: 0.72rem;
+  }
+
+  .header-actions .btn-icon {
+    width: 34px;
+    height: 34px;
   }
 
   /* Dashboard gauge */
@@ -3857,7 +4050,7 @@ body.lockscreen-active .btn-global-estop {
   align-items: center;
   width: 100%;
   transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.45s ease, margin 0.45s ease;
-  max-height: 80px;
+  max-height: 240px;
 }
 
 .lockscreen-connect-card.connected-hidden {
@@ -3868,6 +4061,88 @@ body.lockscreen-active .btn-global-estop {
   max-height: 0;
   margin: 0;
   overflow: hidden;
+}
+
+/* Lockscreen Device Switcher Slider (Chosen Cleanly First) */
+.lockscreen-device-switch-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.lockscreen-device-slider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 275px;
+  height: 44px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 22px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  user-select: none;
+  overflow: hidden;
+}
+
+.dev-slider-btn {
+  flex: 1;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: -apple-system, BlinkMacSystemFont, 'Outfit', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+  border-radius: 18px;
+}
+
+.dev-slider-btn:hover {
+  color: #ffffff;
+}
+
+.dev-slider-btn.active {
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+}
+
+.dev-slider-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.dev-slider-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.42), rgba(0, 168, 255, 0.42));
+  border: 1px solid rgba(0, 242, 254, 0.85);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.lockscreen-device-slider.mode-proxy .dev-slider-thumb {
+  transform: translateX(100%);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.48), rgba(217, 70, 239, 0.48));
+  border-color: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .lockscreen-btn-primary {
@@ -5410,5 +5685,180 @@ body.lockscreen-active .btn-global-estop {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Device Info & Troubleshooting Modal */
+.devinfo-modal-window {
+  max-width: 540px;
+  width: 100%;
+}
+
+.devinfo-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 242, 254, 0.2);
+  color: var(--accent-cyan);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.devinfo-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+}
+
+/* Active Mode Banner */
+.devinfo-active-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.3s ease;
+}
+
+.devinfo-active-card.mode-peak {
+  border-color: rgba(0, 242, 254, 0.35);
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.08), rgba(79, 70, 229, 0.05));
+}
+
+.devinfo-active-card.mode-proxy {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.09), rgba(217, 70, 239, 0.06));
+}
+
+.devinfo-card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.devinfo-card-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.devinfo-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.devinfo-card-heading span:first-child {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.devinfo-badge-locked {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+}
+
+.devinfo-card-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.devinfo-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+
+/* 1-2-3 Troubleshooting Steps */
+.devinfo-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.devinfo-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.devinfo-step .step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-cyan), #4f46e5);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.devinfo-step .step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.devinfo-step .step-content strong {
+  font-size: 0.84rem;
+  color: #f1f5f9;
+}
+
+.devinfo-step .step-content p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.devinfo-step .step-content p strong {
+  color: var(--accent-cyan);
+}
+
+.devinfo-note {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent-cyan);
+  line-height: 1.4;
+}
+
+
+
 
 

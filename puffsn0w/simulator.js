@@ -340,6 +340,23 @@ class PuffcoSimulator {
     this._notifyListeners();
     return true;
   }
+
+  setDeviceKind(kind, force = false) {
+    if (this.isConnected && !force) {
+      console.warn('[PuffcoSimulator] Device choice is locked in while connected for hardware safety.');
+      return false;
+    }
+    const isProxy = kind === 'proxy';
+    this.isProxy = isProxy;
+    this.chosenKind = isProxy ? 'proxy' : 'peak';
+    this.telemetry.is_proxy = isProxy;
+    this.telemetry.device_model = isProxy ? 'Proxy' : 'Peak Pro';
+    this.telemetry.device_name = isProxy ? 'SAMS PROXY (Demo)' : 'SAMS PEAK (Demo)';
+    this.telemetry.chamber_name = isProxy ? 'Proxy' : '3DXL';
+    this.telemetry.chamber_type = isProxy ? 'PROXY' : 'CHAMBER_3DXL';
+    this._notifyListeners();
+    return true;
+  }
 }
 
 // Global export
