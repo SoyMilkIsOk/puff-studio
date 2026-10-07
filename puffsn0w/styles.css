@@ -854,19 +854,19 @@ body {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   background: linear-gradient(90deg, rgba(255, 122, 0, 0.08) 0%, rgba(0, 242, 254, 0.08) 50%, rgba(121, 40, 202, 0.08) 100%),
-              rgba(15, 23, 42, 0.82);
+              rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md, 10px);
-  padding: 6px 10px 6px 10px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg, 14px);
+  padding: 8px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
   transition: opacity 0.28s ease, transform 0.28s ease, max-height 0.28s ease, margin 0.28s ease, padding 0.28s ease;
-  max-height: 52px;
+  max-height: 56px;
 }
 
 .telemetry-banner.banner-closing {
@@ -874,7 +874,7 @@ body {
   transform: translateY(-8px);
   max-height: 0;
   margin-top: 0;
-  margin-bottom: -18px;
+  margin-bottom: -20px;
   padding-top: 0;
   padding-bottom: 0;
   border-color: transparent;
@@ -922,6 +922,27 @@ body {
   text-transform: uppercase;
 }
 
+/* On mobile, remove "UPDATES" text and keep only the glowing dot icon for maximized text readability */
+@media (max-width: 768px) {
+  .banner-badge-text {
+    display: none;
+  }
+
+  .telemetry-banner-badge {
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    justify-content: center;
+    background: rgba(0, 242, 254, 0.12);
+  }
+
+  .banner-pulse-dot {
+    width: 7px;
+    height: 7px;
+  }
+}
+
 /* Scroller Viewport & Gradient Masks */
 .telemetry-banner-scroller {
   flex: 1;
@@ -945,8 +966,21 @@ body {
   display: flex;
   width: max-content;
   align-items: center;
-  animation: banner-marquee 25s linear infinite;
+  animation: banner-marquee 28s linear infinite;
   will-change: transform;
+}
+
+/* Slower, comfortable marquee pace on mobile viewports for easy reading */
+@media (max-width: 768px) {
+  .telemetry-banner-track {
+    animation-duration: 46s;
+  }
+}
+
+@media (max-width: 480px) {
+  .telemetry-banner-track {
+    animation-duration: 54s;
+  }
 }
 
 .telemetry-banner-scroller:hover .telemetry-banner-track,
@@ -967,9 +1001,30 @@ body {
 .telemetry-banner-group {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-right: 16px;
+  gap: 20px;
+  padding-right: 320px; /* Generous blank space after updates on desktop for clear interval readability */
   white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .telemetry-banner-group {
+    padding-right: 200px;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .telemetry-banner-group {
+    padding-right: 64px;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .telemetry-banner-group {
+    padding-right: 48px;
+    gap: 12px;
+  }
 }
 
 .telemetry-banner-item {
