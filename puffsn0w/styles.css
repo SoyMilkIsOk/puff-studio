@@ -841,6 +841,247 @@ body {
   text-align: center;
 }
 
+.hero-card .card-header {
+  width: 100%;
+}
+
+/* ==========================================================================
+   Telemetry Daily Updates Banner Scroller
+   ========================================================================== */
+.telemetry-banner {
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(90deg, rgba(255, 122, 0, 0.08) 0%, rgba(0, 242, 254, 0.08) 50%, rgba(121, 40, 202, 0.08) 100%),
+              rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md, 10px);
+  padding: 6px 10px 6px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: relative;
+  overflow: hidden;
+  transition: opacity 0.28s ease, transform 0.28s ease, max-height 0.28s ease, margin 0.28s ease, padding 0.28s ease;
+  max-height: 52px;
+}
+
+.telemetry-banner.banner-closing {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+  margin-top: 0;
+  margin-bottom: -18px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.telemetry-banner.banner-dismissed {
+  display: none !important;
+}
+
+/* Badge on the left */
+.telemetry-banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  border-radius: var(--radius-full, 9999px);
+  padding: 3px 8px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.banner-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan, #00f2fe);
+  box-shadow: 0 0 8px var(--accent-cyan, #00f2fe);
+  animation: banner-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes banner-pulse {
+  0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 4px #00f2fe; }
+  50% { transform: scale(1.35); opacity: 1; box-shadow: 0 0 10px #00f2fe, 0 0 14px rgba(0, 242, 254, 0.6); }
+  100% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 4px #00f2fe; }
+}
+
+.banner-badge-text {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-cyan, #00f2fe);
+  text-transform: uppercase;
+}
+
+/* Scroller Viewport & Gradient Masks */
+.telemetry-banner-scroller {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(90deg, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%);
+  display: flex;
+  align-items: center;
+  outline: none;
+}
+
+.telemetry-banner-scroller:focus-visible {
+  outline: 1px solid rgba(0, 242, 254, 0.4);
+  border-radius: 4px;
+}
+
+/* Marquee Track */
+.telemetry-banner-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  animation: banner-marquee 25s linear infinite;
+  will-change: transform;
+}
+
+.telemetry-banner-scroller:hover .telemetry-banner-track,
+.telemetry-banner-scroller:focus-within .telemetry-banner-track {
+  animation-play-state: paused;
+}
+
+@keyframes banner-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Banner Group & Items */
+.telemetry-banner-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-right: 16px;
+  white-space: nowrap;
+}
+
+.telemetry-banner-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #e2e8f0;
+  line-height: 1;
+}
+
+.banner-item-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.banner-item-text {
+  letter-spacing: -0.005em;
+}
+
+/* Discord Link with vibrant interactive styling */
+.telemetry-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #c7d2fe;
+  background: rgba(88, 101, 242, 0.16);
+  border: 1px solid rgba(88, 101, 242, 0.38);
+  border-radius: var(--radius-sm, 6px);
+  padding: 3px 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.telemetry-banner-link:hover {
+  background: rgba(88, 101, 242, 0.3);
+  border-color: rgba(99, 102, 241, 0.75);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(88, 101, 242, 0.45);
+  transform: translateY(-1px);
+}
+
+.banner-discord-icon {
+  color: #7289da;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.telemetry-banner-link:hover .banner-discord-icon {
+  color: #ffffff;
+}
+
+.banner-link-arrow {
+  opacity: 0.7;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.telemetry-banner-link:hover .banner-link-arrow {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+/* Separator Dot */
+.telemetry-banner-sep {
+  color: rgba(255, 122, 0, 0.65);
+  font-size: 0.65rem;
+  user-select: none;
+}
+
+/* Close Button ("x") */
+.telemetry-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.telemetry-banner-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.telemetry-banner-close:active {
+  transform: scale(0.95);
+}
+
+/* Accessible reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .telemetry-banner-track {
+    animation: none;
+  }
+  .telemetry-banner-scroller {
+    overflow-x: auto;
+  }
+}
+
+
 .gauge-container {
   position: relative;
   width: 320px;

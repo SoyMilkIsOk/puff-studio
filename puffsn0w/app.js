@@ -100,6 +100,12 @@ const el = {
   closeCompatModal: document.getElementById('close-compat-modal'),
   closeCompatModalBtn: document.getElementById('close-compat-modal-btn'),
 
+  // Telemetry Daily Updates Banner
+  telemetryBanner: document.getElementById('telemetry-banner'),
+  telemetryBannerClose: document.getElementById('telemetry-banner-close'),
+  telemetryBannerScroller: document.getElementById('telemetry-banner-scroller'),
+  telemetryBannerTrack: document.getElementById('telemetry-banner-track'),
+
   // Standard Controller Gauge
   stateBadge: document.getElementById('state-badge'),
   gaugeHalo: document.getElementById('gauge-halo'),
@@ -3075,6 +3081,62 @@ function setupLockscreen() {
 }
 
 // ==========================================================================
+// Telemetry Daily Updates Banner Scroller Controller
+// ==========================================================================
+
+function setupDailyUpdatesBanner() {
+  if (typeof document === 'undefined') return;
+
+  const banner = el.telemetryBanner || document.getElementById('telemetry-banner');
+  const closeBtn = el.telemetryBannerClose || document.getElementById('telemetry-banner-close');
+  const scroller = el.telemetryBannerScroller || document.getElementById('telemetry-banner-scroller');
+  const track = el.telemetryBannerTrack || document.getElementById('telemetry-banner-track');
+  if (!banner || !closeBtn) return;
+
+  // Clear any past stored persistence so banner reshowns every page refresh
+  try {
+    sessionStorage.removeItem('puffsn0w_telemetry_banner_closed');
+    localStorage.removeItem('puffsn0w_telemetry_banner_closed');
+    localStorage.removeItem('puffsn0w_telemetry_banner_dismissed_date');
+  } catch (_) {}
+
+  // Ensure banner is always visible on page refresh
+  banner.classList.remove('banner-closing', 'banner-dismissed');
+  banner.style.display = '';
+
+  // Pause continuous marquee on touch for seamless mobile interaction
+  if (scroller && track) {
+    scroller.addEventListener('touchstart', () => {
+      track.style.animationPlayState = 'paused';
+    }, { passive: true });
+    scroller.addEventListener('touchend', () => {
+      track.style.animationPlayState = '';
+    }, { passive: true });
+  }
+
+  // Dismiss for current page view when X is clicked (reshown upon refresh)
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    banner.classList.add('banner-closing');
+    setTimeout(() => {
+      banner.classList.add('banner-dismissed');
+      banner.style.display = 'none';
+    }, 280);
+  });
+}
+
+// Developer & tester utility to un-dismiss the telemetry banner
+if (typeof window !== 'undefined') {
+  window.resetTelemetryBanner = function () {
+    const b = document.getElementById('telemetry-banner');
+    if (b) {
+      b.classList.remove('banner-closing', 'banner-dismissed');
+      b.style.display = '';
+    }
+  };
+}
+
+// ==========================================================================
 // Event Listeners Binding
 // ==========================================================================
 
@@ -3084,6 +3146,12 @@ function attachEventListeners() {
     setupLockscreen();
   } catch (e) {
     console.error('[App] Critical lockscreen setup failure:', e);
+  }
+
+  try {
+    setupDailyUpdatesBanner();
+  } catch (e) {
+    console.warn('[App] Daily updates banner setup error:', e);
   }
 
   try {
